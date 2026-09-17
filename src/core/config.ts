@@ -745,3 +745,64 @@ export const SCORE = {
   crash: -6,
   arrive: 120,
 };
+
+/**
+ * A PUSKA.
+ *
+ * Nyálkapuska: felpumpálod, célzol, lősz. Nem sebez, hanem BÉNÍT és
+ * cukorkát ejtet — nem finomkodásból, hanem mert a kiütött játékos ül és vár,
+ * és egy kétfős estén ez a legrosszabb, ami vele történhet. Így a lövés
+ * ugyanaz, mint a lopás, csak távolról.
+ *
+ * A számok mind egy kérdésre felelnek: mennyibe kerül egy lövés? Ideje van
+ * (újratöltés), zaja van (a lakó odajön), és el is fogy. Egy fegyver, aminek
+ * nincs ára, nem fegyver, hanem gomb.
+ */
+export const WEAPON = {
+  /** Meddig visz a lövés. A ház legnagyobb szobája 22 egység átlós. */
+  range: 26,
+  /** Mekkora sugárban talál. Nem tű, hanem nyálkacsóva. */
+  radius: 1.15,
+  /** Két lövés között. */
+  cooldown: 0.55,
+  /** Ennyi lövés fér a tárba. */
+  magazine: 6,
+  /** Újratöltés ideje — ez a fegyver igazi ára. */
+  reload: 2.2,
+  /** Eltalálva ennyi ideig nem tudsz mozogni. */
+  stun: 1.2,
+  /** ...és ennyi cukorkát ejtesz el. */
+  drop: 1,
+  /** A lövés zaja: a lakó ide jön. Hangosabb a futásnál, halkabb a csínynél. */
+  noiseRadius: 34,
+  /** Lőszercsomag: ennyi lövést ad egy felszedett doboz. */
+  pack: 6,
+} as const;
+
+/**
+ * CUKORKA-RABLÁS — a kétfős PvP szabályai a házban.
+ *
+ * A cukorka felszedve még NEM a tiéd: a KEZEDBEN van. Be kell vinni a saját
+ * sarkodba (piros vagy kék), és letenni. Aki lő rád, ellök, és minden, ami a
+ * kezedben van, a földre esik — ott bárki felszedheti.
+ *
+ * Ettől lesz döntés a játékból: viszed-e még egyet, vagy beadod, amid van.
+ * Egy cukorka, ami felvétel pillanatában pontot ér, nem kockázat — csak
+ * sietés.
+ */
+export const CAPTURE = {
+  /** Ennyi cukorka fér a kézbe. Ez a kapzsiság felső határa. */
+  carry: 3,
+  /** Ilyen közel kell menni a saját sarokhoz, hogy letedd. */
+  bankRadius: 2.4,
+  /** Az ellökés ereje: ennyivel repülsz a lövés irányába. */
+  knockback: 11,
+  /** Ennyi ideig nem irányítod magad, amíg repülsz. */
+  knockTime: 0.55,
+  /** Az elejtett cukorkák ekkora körben szóródnak szét. */
+  spread: 1.3,
+  /** Ennyi ideig nem szedheti fel ugyanaz, aki elejtette — különben azonnal visszakapja. */
+  graceOwn: 1.1,
+  /** Ennyi cukorka kell a kör megnyeréséhez. */
+  win: 5,
+} as const;

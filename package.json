@@ -11,7 +11,7 @@
     "build:file": "vite build --config vite.file.config.ts",
     "probe:ai": "vite-node tools/probe-ai.ts",
     "probe:drive": "vite-node tools/probe-drive.ts",
-    "probe:all": "npm run probe && npm run probe:ai && npm run probe:drive && npm run probe:input && npm run probe:town && npm run probe:village && npm run probe:house1 && npm run probe:net && npm run probe:camera && npm run probe:dog && npm run probe:peer",
+    "probe:all": "npm run probe && npm run probe:ai && npm run probe:drive && npm run probe:input && npm run probe:town && npm run probe:village && npm run probe:house1 && npm run probe:net && npm run probe:camera && npm run probe:dog && npm run probe:peer && npm run probe:weapon",
     "pack:models": "node tools/pack-models.mjs",
     "probe:input": "vite-node tools/probe-input.ts",
     "probe:town": "vite-node tools/probe-town.ts",
@@ -21,7 +21,8 @@
     "probe:camera": "vite-node tools/probe-camera.ts",
     "publish:prep": "npm run build:file && cp dist-file/index.html \"$CP_PUBLISH_HTML\"",
     "probe:dog": "vite-node tools/probe-dog.ts",
-    "probe:peer": "vite-node tools/probe-peer.ts"
+    "probe:peer": "vite-node tools/probe-peer.ts",
+    "probe:weapon": "vite-node tools/probe-weapon.ts"
   },
   "keywords": [],
   "author": "",
