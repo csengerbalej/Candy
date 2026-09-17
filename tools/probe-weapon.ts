@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { Weapon, type Target } from '../src/game/Weapon';
-import { WEAPON, SIM, CAPTURE, GUNS, PICKUP, type GunId } from '../src/core/config';
+import { WEAPON, SIM, CAPTURE, GUNS, PICKUP, MOVE, DELIVERY, type GunId } from '../src/core/config';
 import { Capture, type Corner } from '../src/game/Capture';
 import { Armoury } from '../src/game/Armoury';
+import { Rival, type RivalWorld } from '../src/ai/Rival';
+import { Delivery } from '../src/game/Delivery';
 
 /**
  * A PUSKA próbája.
@@ -323,6 +325,169 @@ for (const kind of ['shotgun', 'sniper', 'rocket'] as GunId[]) {
   line('és a legkevesebb lőszer jár hozzá',
     PICKUP.packs.rocket < PICKUP.packs.sniper && PICKUP.packs.sniper < PICKUP.packs.shotgun,
     `${PICKUP.packs.rocket} / ${PICKUP.packs.sniper} / ${PICKUP.packs.shotgun}`);
+}
+
+
+// --- AZ AI ELLENFÉL ---------------------------------------------------------
+//
+// Egyedül játszva is legyen kivel versenyezni. Amit mérni kell, az nem az,
+// hogy „okos-e", hanem hogy UGYANAZT A JÁTÉKOT játssza-e: elviszi a cukorkát
+// a saját sarkába, fél a lakótól, és nem lő falon át. Egy AI, ami gyorsabb
+// vagy mindent lát, nem ellenfél, hanem büntetés.
+{
+  const piros: Corner = { player: 0, position: at(0, 0) };
+  const kek: Corner = { player: 1, position: at(30, 0) };
+
+  // Egy nyílt terep, ahol az útvonal az egyenes.
+  // A tálak KIÜRÜLNEK, ahogy a valódi házban: enélkül a próba egy olyan
+  // világot mérne, ahol végtelen cukorka van, és pont az nem derülne ki, mit
+  // csinál az AI, amikor elfogy.
+  const talak = [at(10, 0), at(14, 6), at(9, -5)];
+  const nyilt = (dangers: THREE.Vector3[] = [], blocked = false): RivalWorld => ({
+    bowls: () => [...talak],
+    walkable: () => true,
+    route: (from, to) => [to.clone()],
+    dangers: () => dangers,
+    sightBlocked: () => blocked,
+    takeBowl: (p) => {
+      const i = talak.findIndex((t) => t.distanceTo(p) < 2);
+      if (i < 0) return false;
+      talak.splice(i, 1);
+      return true;
+    },
+  });
+
+  // 1. ELVISZI A SARKÁBA. Ez a teljes kör: odamegy, felveszi, hazaviszi.
+  {
+    const game = new Capture([piros, kek]);
+    const r = new Rival(at(28, 0), nyilt(), 1, () => 0.5);
+    // A tálból vétel a jelenet dolga; itt a földön fekvőt gyűjti.
+    game.loose.push({ position: at(10, 0), droppedBy: null, age: 99 });
+    game.loose.push({ position: at(14, 6), droppedBy: null, age: 99 });
+    for (let t = 0; t < 60; t += SIM.step) r.update(SIM.step, game, null);
+    line('az AI beviszi a cukorkát a SAJÁT sarkába',
+      game.banked[1] > 0 && game.banked[0] === 0,
+      `${game.banked[1]} darab a kékben, ${game.banked[0]} a pirosban`);
+  }
+
+  // 2. FÉL a lakótól: ha az közel van, nem a cukorkáért megy.
+  {
+    const game = new Capture([piros, kek]);
+    const lako = at(11, 0);
+    const r = new Rival(at(12, 0), nyilt([lako]), 1, () => 0.5);
+    game.loose.push({ position: at(10, 0), droppedBy: null, age: 99 });
+    r.update(SIM.step, game, null);
+    line('az AI menekül a lakó elől', r.state === 'MENEKUL', `${r.state}`);
+  }
+
+  // 3. NEM LŐ FALON ÁT. A takarásban álló játékosra nem vadászik.
+  {
+    const game = new Capture([piros, kek]);
+    const jatekos = { id: '0', position: at(20, 0), radius: 0.45 };
+    const takart = new Rival(at(28, 0), nyilt([], true), 1, () => 0.5);
+    takart.weapon = new Weapon('shotgun');
+    takart.update(SIM.step, game, jatekos);
+    line('falon át nem lő az AI sem', takart.state !== 'LO', `${takart.state}`);
+
+    const latja = new Rival(at(28, 0), nyilt([], false), 1, () => 0.5);
+    latja.weapon = new Weapon('shotgun');
+    latja.update(SIM.step, game, { id: '0', position: at(22, 0), radius: 0.45 });
+    line('látótávon belül viszont lő', latja.state === 'LO', `${latja.state}`);
+  }
+
+  // 4. FEGYVER NÉLKÜL nem megy harcolni: gyűjt tovább.
+  {
+    const game = new Capture([piros, kek]);
+    const r = new Rival(at(28, 0), nyilt(), 1, () => 0.5);
+    game.loose.push({ position: at(10, 0), droppedBy: null, age: 99 });
+    r.update(SIM.step, game, { id: '0', position: at(27, 0), radius: 0.45 });
+    line('fegyver nélkül nem támad', r.state === 'GYUJT', `${r.state}`);
+  }
+
+  // 5. NEM CSAL: ugyanaz a sebesség, mint a játékosé.
+  {
+    const game = new Capture([piros, kek]);
+    const r = new Rival(at(0, 0), nyilt(), 1, () => 0.5);
+    game.loose.push({ position: at(0, 100), droppedBy: null, age: 99 });
+    const start = r.position.clone();
+    for (let t = 0; t < 2; t += SIM.step) r.update(SIM.step, game, null);
+    const speed = r.position.distanceTo(start) / 2;
+    line('az AI nem gyorsabb a játékosnál',
+      speed <= MOVE.walkSpeed + 0.1,
+      `${speed.toFixed(1)} egység/mp (a játékos ${MOVE.walkSpeed})`);
+  }
+
+  // 6. REPÜLÉS KÖZBEN ő sem irányít — ugyanaz a szabály, ami rád vonatkozik.
+  {
+    const game = new Capture([piros, kek]);
+    const r = new Rival(at(28, 0), nyilt(), 1, () => 0.5);
+    game.hit(1, at(28, 0), at(30, 0));
+    const before = r.position.clone();
+    r.update(SIM.step, game, null);
+    line('ellökve az AI sem irányít', r.state === 'VAR' && r.position.equals(before), '');
+  }
+}
+
+
+// --- A SZÁLLÍTÁS ------------------------------------------------------------
+//
+// A cukorkának három állomása van, és mindegyiken mást jelent: a kézben
+// elveszíthető, a sarokban biztonságban van, de még nem a tiéd, és CSAK a
+// bázison ér pontot. Ezt a három szintet kell szétválasztva tartani —
+// összecsúszva a játék a ház ajtajában véget érne.
+{
+  const bazis = at(100, 100);
+  const d = new Delivery(bazis);
+
+  d.setCorner(0, 3);
+  line('a sarokban álló cukorka még NEM pont',
+    d.loads[0].delivered === 0 && !d.houseDone(0), `${d.loads[0].inCorner} a sarokban`);
+
+  d.setCorner(0, DELIVERY.quota);
+  line('a kvóta betelve a ház teljesítve', d.houseDone(0), `${DELIVERY.quota} darab`);
+
+  const vitte = d.escaped(0);
+  line('kijutva a rakomány a kocsiba kerül',
+    vitte === DELIVERY.quota && d.loads[0].inCar === DELIVERY.quota && d.loads[0].inCorner === 0,
+    `${d.loads[0].inCar} a kocsiban`);
+
+  // Messze a bázistól nem történik semmi.
+  for (let t = 0; t < 3; t += SIM.step) d.update(SIM.step, 0, at(0, 0));
+  line('távol a bázistól nem lehet lerakni', d.loads[0].delivered === 0, '');
+
+  // A bázison viszont igen — de IDŐBE telik.
+  let felig = 0;
+  for (let t = 0; t < DELIVERY.dropTime * 0.6; t += SIM.step) felig += d.update(SIM.step, 0, bazis);
+  line('a lerakás nem azonnali', felig === 0 && d.loads[0].delivered === 0,
+    `${DELIVERY.dropTime} mp kell`);
+
+  // ...és aki félúton elhajt, elölről kezdi. Különben a bázis körül köröket
+  // róva, szakaszosan is le lehetne adni.
+  d.update(SIM.step, 0, at(0, 0));
+  line('félbehagyva elölről kezdi', d.loads[0].dropping === 0, '');
+
+  let leadva = 0;
+  for (let t = 0; t < DELIVERY.dropTime + 0.2; t += SIM.step) leadva += d.update(SIM.step, 0, bazis);
+  line('kivárva leadja az egészet',
+    leadva === DELIVERY.quota && d.loads[0].delivered === DELIVERY.quota && d.loads[0].inCar === 0,
+    `${d.loads[0].delivered} pont`);
+
+  // A BÁZIS UGYANAZ MINDENKINEK: a másik játékos ugyanoda viszi.
+  d.setCorner(1, 4);
+  d.escaped(1);
+  let masik = 0;
+  for (let t = 0; t < DELIVERY.dropTime + 0.2; t += SIM.step) masik += d.update(SIM.step, 1, bazis);
+  line('a másik játékos UGYANODA rakja le', masik === 4 && d.loads[1].delivered === 4,
+    'egy bázis, két rakomány');
+
+  line('a vezető a leadott mennyiségből jön', d.leader === 0,
+    `${d.loads[0].delivered} vs ${d.loads[1].delivered}`);
+
+  // Üres kocsival a bázison állni nem csinál semmit.
+  const ures = new Delivery(bazis);
+  let semmi = 0;
+  for (let t = 0; t < 5; t += SIM.step) semmi += ures.update(SIM.step, 0, bazis);
+  line('üres kocsival nincs mit lerakni', semmi === 0, '');
 }
 
 console.log('');

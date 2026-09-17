@@ -943,3 +943,46 @@ export const PICKUP = {
   /** Ennyinél több tartalék nem fér el egy fegyverhez. */
   maxReserve: { shotgun: 12, sniper: 6, rocket: 3 },
 } as const;
+
+/**
+ * AZ AI ELLENFÉL.
+ *
+ * Egyedül játszva is van kivel versenyezni. Nem „nehézségi szint", hanem egy
+ * MÁSIK TOLVAJ: ugyanazt akarja, amit te, ugyanazokkal a szabályokkal — a
+ * lakó őt is kergeti, a fegyver neki is elfogy, és a cukorkát neki is be kell
+ * vinnie a saját sarkába.
+ *
+ * Ez a legfontosabb döntés benne: NEM CSAL. Ugyanaz a sebessége, ugyanannyi
+ * fér a kezébe. Amiben más, az a REAKCIÓIDEJE és a bátorsága — ezt lehet
+ * hangolni anélkül, hogy a játékos igazságtalannak érezné.
+ */
+export const RIVAL = {
+  /** Ennyi idő alatt veszi észre, hogy megjelent valami. Emberi tempó. */
+  reaction: 0.45,
+  /** Ennyi cukorkával a kézben már hazaindul, nem gyűjt tovább. */
+  greed: 2,
+  /** Ilyen közelről lő rád, ha van fegyvere. */
+  shootFrom: 14,
+  /** Két lövés között ennyit vár — nem gépfegyver. */
+  shootEvery: 1.4,
+  /** Ennél közelebb NEM megy a lakóhoz: ő is fél. */
+  fearRadius: 9,
+  /** Mennyire pontos: ennyi egységgel mellé célozhat. */
+  aimError: 0.8,
+} as const;
+
+/**
+ * A SZÁLLÍTÁS.
+ *
+ * A házban a sarokba vitt cukorka még nem pont: haza is kell vinni. A bázis
+ * MINDENKINEK UGYANAZ a hely a városban — ettől lesz a hazaút is verseny,
+ * nem külön magánügy.
+ */
+export const DELIVERY = {
+  /** Ennyi cukorkát kell a sarokba vinni, hogy a ház teljesítve legyen. */
+  quota: 5,
+  /** A bázis sugara: ezen belül lehet lerakni. */
+  radius: 9,
+  /** A lerakás ideje. Nem azonnali: a hazaérkezés is pillanat legyen, ne érintés. */
+  dropTime: 1.4,
+} as const;

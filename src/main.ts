@@ -197,6 +197,9 @@ function makePauseMenu(extra: Partial<PauseActions>): PauseMenu {
 async function showFrontend(): Promise<FrontendResult> {
   touch?.setVisible(false);
   delete document.body.dataset.playing;
+  // A menüben a mutató SOHA nincs elkapva: ott kattintani kell.
+  input.lookLock = false;
+  if (document.pointerLockElement) document.exitPointerLock();
   const frontend = new Frontend(app, input, takeFrontendPhase());
   frontend.onSettings = () => settingsPanel().toggle();
 

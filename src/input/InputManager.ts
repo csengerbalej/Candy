@@ -126,6 +126,24 @@ export class InputManager {
   private chatOpen = false;
   private quickSlot = -1;
 
+  /**
+   * A LÖVÉS.
+   *
+   * Nem a `PlayerInput` része, ugyanabból az okból, amiért a beszélgetés sem:
+   * a lövés a HELYI játékos tette, és a hálózaton nem a gombnyomás megy át,
+   * hanem az eredménye (ki lőtt, honnan, merre). Egy átküldött gombnyomásból
+   * a másik gép egy MÁSIK lövést számolna ki, a saját fél képkockányit
+   * csúszott állapotából.
+   */
+  private firePressed = false;
+
+  /** Igaz egyszer, ha lőttek. */
+  consumeFire(): boolean {
+    const hit = this.firePressed;
+    this.firePressed = false;
+    return hit;
+  }
+
   /** Igaz EGYSZER, ha megnyomtad a beszélgetés gombját. */
   consumeChat(): boolean {
     if (this.touch?.consumeChat()) this.chatOpen = true;
@@ -139,6 +157,21 @@ export class InputManager {
     const slot = this.quickSlot;
     this.quickSlot = -1;
     return slot;
+  }
+
+  /**
+   * Kérhetjük-e a mutató elkapását.
+   *
+   * A menüben NEM: ott kattintani kell a kártyákra, és egy elkapott mutatóval
+   * nincs mire kattintani. A jelenetek kapcsolják be.
+   */
+  lookLock = false;
+  /** Elkapva van-e most a mutató. */
+  private locked = false;
+
+  /** Igaz, ha a nézés épp az elkapott mutatóról jön — a HUD ezt jelzi ki. */
+  get pointerLocked(): boolean {
+    return this.locked;
   }
 
   /** Az egérhúzás rátája képpont/mp-ben, és mikor volt friss. Lásd `look()`. */
@@ -191,6 +224,12 @@ export class InputManager {
       // A beszélgetés gombjai AZONNAL érvényesülnek, nem a képkocka-hurokban:
       // egy megnyitás nem veszhet el attól, hogy épp nem futott szimuláció.
       if (e.code === 'KeyT') this.chatOpen = true;
+      // A lövés billentyűje ugyanebben a kezelőben él, nem egy másodikban.
+      // Nemcsak takarékosságból: a fejetlen próba DOM-tokja TÍPUSONKÉNT EGY
+      // kezelőt tart, tehát a második `keydown` némán felülírta volna az
+      // elsőt — és ettől a teljes billentyűzet elnémult a mérésekben, úgy,
+      // hogy a játékban működött.
+      if (e.code === 'ControlLeft') this.firePressed = true;
       const quick = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(e.code);
       if (quick >= 0) this.quickSlot = quick;
       this.held.add(e.code);
@@ -198,6 +237,42 @@ export class InputManager {
       if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.held.delete(e.code));
+
+    // LŐGOMB: bal egérgomb a képen, vagy Ctrl. Az egérgomb azért a képre van
+    // kötve, mert a menügombokra kattintás nem lövés — ugyanaz a szűrés, mint
+    // a kamerahúzásnál.
+    window.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if ((e.target as HTMLElement)?.tagName !== 'CANVAS') return;
+      this.firePressed = true;
+    });
+
+
+    // SZABAD NÉZÉS: a mutató elkapása (pointer lock).
+    //
+    // Belső nézetben a nyilakkal célozni olyan, mint kormánykerék helyett
+    // irányjelzővel vezetni. Elkapott mutatóval viszont a touchpad MOZDULATA
+    // maga a nézés — nem kell húzni, nincs képernyőszél, és a célzás
+    // ugyanolyan pontos, mint bármelyik FPS-ben.
+    //
+    // A kattintás kéri el, az Esc adja vissza — ez a böngésző szabálya, nem
+    // a miénk, és nem is kerülhető meg. Ezért a szünet menü Esc-je elkapott
+    // mutató mellett ELŐSZÖR a mutatót engedi el; a másodikra nyílik meg.
+    const wantLock = (e: MouseEvent): void => {
+      const canvas = e.target as HTMLElement | null;
+      if (canvas?.tagName !== 'CANVAS') return;
+      if (document.pointerLockElement === canvas) return;
+      if (!this.lookLock) return;
+      void (canvas as HTMLCanvasElement).requestPointerLock?.();
+    };
+    window.addEventListener('mousedown', wantLock);
+    // A fejetlen próbában a `document` egy tok, amiben nincs eseménykezelő.
+    // A bemenet nem feltételezhet teljes böngészőt: a mérés ugyanazt a kódot
+    // futtatja, amit a játék, és egy hiányzó függvény ott az EGÉSZ próbát
+    // megállítja — mérve 374 állításból 136 maradt.
+    document.addEventListener?.('pointerlockchange', () => {
+      this.locked = !!document.pointerLockElement;
+    });
 
     // KÖRÜLNÉZÉS EGÉRREL: húzás a képen.
     //
@@ -220,6 +295,16 @@ export class InputManager {
       lastT = performance.now();
     });
     window.addEventListener('mousemove', (e) => {
+      // ELKAPOTT MUTATÓ: minden mozdulat nézés, húzás nélkül.
+      if (this.locked) {
+        const now = performance.now();
+        const dt = Math.max(8, now - lastT) / 1000;
+        this.mouseX = e.movementX / dt;
+        this.mouseY = e.movementY / dt;
+        lastT = now;
+        this.mouseAt = now;
+        return;
+      }
       if (!dragging) return;
       const now = performance.now();
       const dt = Math.max(8, now - lastT) / 1000;

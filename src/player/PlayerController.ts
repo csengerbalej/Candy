@@ -82,6 +82,12 @@ export class PlayerController {
       Math.hypot(this.velocity.x, this.velocity.z) > MOVE.walkSpeed * this.traits.speed + 0.5
     );
   }
+  /** Mozog-e egyáltalán. A kézben tartott fegyver lengése és a
+   * mesterlövész pontossága ebből dolgozik. */
+  get moving(): boolean {
+    return Math.hypot(this.velocity.x, this.velocity.z) > 0.6;
+  }
+
   /** Standing still enough to lift a candy bowl. */
   get isStill(): boolean {
     return this.grounded && Math.hypot(this.velocity.x, this.velocity.z) < 1.2;

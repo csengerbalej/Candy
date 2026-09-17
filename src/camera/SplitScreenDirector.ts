@@ -58,6 +58,11 @@ export interface RoomFraming {
  */
 export class SplitScreenDirector {
   readonly cameras: THREE.PerspectiveCamera[];
+
+  /** Egy játékos kamerája — a kézben tartott fegyver ehhez igazodik. */
+  cameraFor(index: number): THREE.PerspectiveCamera {
+    return this.cameras[Math.min(index, this.cameras.length - 1)];
+  }
   readonly viewports: Viewport[] = [
     { x: 0, y: 0, w: 1, h: 1 },
     { x: 0, y: 0, w: 0, h: 0 },

@@ -726,6 +726,22 @@
         content: 'koppints a kártyára'; display: block; margin-top: 4px; opacity: .8;
       }
 
+
+      /* CÉLKERESZT — csak belső nézetben, és csak ha van mivel célozni.
+         Nem kör: a kör közepét a játékos nem látja, és pont az kell neki.
+         Négy vonás hagy szabadon egy pontot, és a szélei mutatják a szórást. */
+      .crosshair { position: fixed; left: 50%; top: 50%; width: 26px; height: 26px;
+        margin: -13px 0 0 -13px; pointer-events: none; z-index: 30; opacity: .85; }
+      .crosshair i { position: absolute; background: rgba(255,255,255,.9);
+        box-shadow: 0 0 4px rgba(0,0,0,.8); }
+      .crosshair i:nth-child(1) { left: 12px; top: 0; width: 2px; height: 8px; }
+      .crosshair i:nth-child(2) { left: 12px; bottom: 0; width: 2px; height: 8px; }
+      .crosshair i:nth-child(3) { top: 12px; left: 0; height: 2px; width: 8px; }
+      .crosshair i:nth-child(4) { top: 12px; right: 0; height: 2px; width: 8px; }
+      /* Amíg nem pontos (mesterlövész futás közben), tágabb és halványabb. */
+      .crosshair[data-steady="0"] { transform: scale(1.9); opacity: .4; }
+      .crosshair[hidden] { display: none; }
+
       .select .card .portrait {
         display: block; width: 100%; height: 150px; object-fit: cover;
         object-position: 50% 32%;

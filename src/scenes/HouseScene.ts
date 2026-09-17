@@ -1,11 +1,16 @@
 import * as THREE from 'three';
 import { setStageLens, stage, tiltStage, turnStage } from '../camera/Stage';
-import { FIRST_PERSON, CAMERA, PLAYER_COUNT, PALETTE, HOMEOWNER, DOG } from '../core/config';
+import { FIRST_PERSON, CAMERA, PLAYER_COUNT, PALETTE, HOMEOWNER, DOG, GUNS, MOVE } from '../core/config';
 // The first house is a real flat now, not the greybox kitchen. Both offer the
 // same surface to this scene, so the swap is one import and one await.
 import { VillageHouse } from '../world/VillageHouse';
 import { PlayerController } from '../player/PlayerController';
 import { SplitScreenDirector } from '../camera/SplitScreenDirector';
+import { Armoury } from '../game/Armoury';
+import { PickupsView } from '../world/PickupsView';
+import { HeldWeapon } from '../render/HeldWeapon';
+import { Weapon, type Target } from '../game/Weapon';
+
 import { Homeowner } from '../ai/Homeowner';
 import { Dog } from '../ai/Dog';
 import { kennelAt } from '../world/Kennel';
@@ -56,6 +61,22 @@ export class HouseScene implements GameScene {
   readonly players: PlayerController[];
   private readonly collidersFor: THREE.Box3[][];
   private readonly director = new SplitScreenDirector(PLAYER_COUNT);
+
+  /** A pályán heverő fegyverek — szabályok és kirajzolás. */
+  private armoury: Armoury | null = null;
+  private readonly pickups = new PickupsView();
+  /** Ami a kezünkben van. Üres kézzel indulunk: a fegyvert meg kell találni. */
+  private held: Weapon | null = null;
+  private readonly heldView = new HeldWeapon();
+  /** A célkereszt. Csak belső nézetben és csak fegyverrel látszik. */
+  private readonly crosshair = (() => {
+    const el = document.createElement('div');
+    el.className = 'crosshair';
+    el.innerHTML = '<i></i><i></i><i></i><i></i>';
+    el.hidden = true;
+    document.body.appendChild(el);
+    return el;
+  })();
   private readonly homeowner: Homeowner;
   /**
    * A kutya — CSAK a harmadik házban.
@@ -164,6 +185,20 @@ export class HouseScene implements GameScene {
     this.link = new HouseLink(this.partnered ? netRoom : null, this.amHost, this.localIndex);
 
     this.syncWallHeight();
+    // A FEGYVEREK a járőrpontokra és a cukorkák helyére kerülnek: ezek a
+    // pontok már bizonyítottan járhatók és a szobák közepén vannak — egy
+    // fegyver a fal tövében fele annyit ér, mert nem látszik.
+    const spots = [
+      ...this.world.patrolWaypoints,
+      ...this.world.candySpots.map((c) => c.position),
+    ];
+    if (spots.length) {
+      this.armoury = new Armoury(spots);
+      this.scene.add(this.pickups.group);
+      void this.pickups.load();
+    }
+    this.scene.add(this.heldView.group);
+
     this.director.soloActive = this.localIndex;
     this.director.framing = {
       roomFor: (at) => this.world.roomBounds(this.world.roomNear(at.x, at.z)),
@@ -297,6 +332,10 @@ export class HouseScene implements GameScene {
     const mine = this.players[this.localIndex];
     // A MOZGÁS is tudja meg: belső nézetben az „előre" a nézés iránya.
     mine.firstPerson = on;
+    // Belső nézetben a mutatót elkapjuk: a touchpad mozdulata lesz a nézés.
+    // Külső nézetben nem — ott a húzás a jó, mert a kamera a szobát keretezi,
+    // és egy elkapott mutatóval nem lehetne a menüre kattintani.
+    this.input.lookLock = on;
     // A blokkolt test és a modell is az enyém: mindkettőt el kell tenni.
     mine.mesh.visible = !on;
     this.game.banner = on ? 'BELSŐ NÉZET' : 'KÜLSŐ NÉZET';
@@ -315,6 +354,22 @@ export class HouseScene implements GameScene {
   setCameraPitch(degrees: number): void {
     this.syncWallHeight();
     this.game.banner = `KAMERA ${degrees}°`;
+  }
+
+  /**
+   * Akikre lőni lehet: a MÁSIK játékos, soha nem én.
+   *
+   * A lakó szándékosan nincs köztük. Egy lelőhető lakó azt jelentené, hogy a
+   * lopakodásnak nincs tétje — a ház egy lövéssel megoldható lenne, és a
+   * három ház mindegyike ugyanarra a mozdulatra menne.
+   */
+  private targets(): Target[] {
+    const out: Target[] = [];
+    this.players.forEach((p, i) => {
+      if (i === this.localIndex) return;
+      out.push({ id: String(i), position: p.position, radius: MOVE.radius });
+    });
+    return out;
   }
 
   private syncWallHeight(): void {
@@ -546,6 +601,51 @@ export class HouseScene implements GameScene {
       this.collidersFor[this.localIndex]
     );
 
+    this.armoury?.update(step);
+    this.held?.update(step, this.players[this.localIndex].moving);
+
+    // FELVÉTEL RÁÁLLÁSRA, nem gombra.
+    //
+    // Először az E-re kötöttem, és a mérés megbuktatta: a gomb ÉLE elveszik,
+    // ha abban a képkockában nem futott szimulációs lépés — a szabály
+    // közvetlenül hívva működött, a játékban mégsem történt semmi. Ráállásra
+    // viszont nincs mit elveszíteni.
+    //
+    // A véletlen csere sem drága: a régi fegyver a lábunk elé esik, tehát egy
+    // lépés hátra visszaadja. Egy megbocsátó szabály jobb, mint egy pontos,
+    // amit nem lehet eltalálni.
+    const me = this.players[this.localIndex];
+    if (this.armoury) {
+      const got = this.armoury.tryPickUp(me.position, this.held);
+      if (got) {
+        if (got.swapped || !this.held) {
+          this.held = Armoury.make(got.kind, got.ammo);
+          void this.heldView.show(got.kind);
+        }
+        this.game.banner = got.swapped
+          ? `${GUNS[got.kind].name} — a régi a földön`
+          : `${GUNS[got.kind].name} · +${got.ammo} lőszer`;
+        sound.pickup();
+      }
+    }
+
+    // LÖVÉS.
+    if (this.input.consumeFire() && this.held) {
+      const shot = this.held.fire(
+        this.heldView.muzzle.clone(),
+        stage.yaw,
+        this.targets(),
+        (a, b) => this.world.sightBlocked(a, b)
+      );
+      if (shot) {
+        this.heldView.fired();
+        // A lövés ZAJ is: a fegyver hangja odahívja a lakót. Ez a fegyver
+        // harmadik ára, a lőszer és az idő mellett.
+        this.noise.emit(shot.noiseAt, this.held.gun.noiseRadius, 'lövés');
+        sound.thud(0.5);
+      }
+    }
+
     this.link.apply(this.peers(), this.players, this.homeowner, this.world, this.game);
 
     this.world.update(step, elapsed);
@@ -593,7 +693,23 @@ export class HouseScene implements GameScene {
   }
 
   render(frameTime: number, width: number, height: number): void {
+    if (this.armoury) {
+      this.pickups.update(frameTime, this.armoury, () => 0);
+    }
     this.director.update(frameTime, this.players, width, height);
+    // A KÉZBEN TARTOTT fegyver csak belső nézetben látszik, és csak a
+    // rendezés UTÁN kerül a helyére — a kamera pózát a rendező adja.
+    const fp = this.director.firstPerson !== null;
+    this.heldView.group.visible = fp && !!this.held;
+    this.crosshair.hidden = !fp || !this.held;
+    this.crosshair.dataset.steady = this.held?.steady === false ? '0' : '1';
+    if (fp && this.held) {
+      this.heldView.update(
+        frameTime,
+        this.director.cameraFor(this.localIndex),
+        this.players[this.localIndex].moving
+      );
+    }
     this.director.render(this.renderer, this.scene);
     this.hud.update({
       director: this.director,
@@ -677,6 +793,11 @@ export class HouseScene implements GameScene {
   }
 
   dispose(): void {
+    this.crosshair.remove();
+    this.pickups.dispose();
+    this.heldView.dispose();
+    this.input.lookLock = false;
+    if (document.pointerLockElement) document.exitPointerLock();
     this.disposed = true;
     sound.stopMusic();
     this.commit();
