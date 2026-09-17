@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { Weapon, type Target } from '../src/game/Weapon';
-import { WEAPON, SIM, CAPTURE, GUNS, type GunId } from '../src/core/config';
+import { WEAPON, SIM, CAPTURE, GUNS, PICKUP, type GunId } from '../src/core/config';
 import { Capture, type Corner } from '../src/game/Capture';
+import { Armoury } from '../src/game/Armoury';
 
 /**
  * A PUSKA próbája.
@@ -227,6 +228,103 @@ for (const kind of ['shotgun', 'sniper', 'rocket'] as GunId[]) {
   line('a kézben lévő nem nyer kört', k.winner === null, `${k.carried[0]} kézben`);
 }
 
+
+// --- A PÁLYÁN HEVERŐ FEGYVEREK ----------------------------------------------
+//
+// A felvételnek két esete van, és a kettő nem ugyanaz: ugyanolyat felvéve
+// LŐSZERT kapsz, másikat felvéve CSERE történik. Ezt a két ágat kell
+// leszögezni, mert a többi (megjelenés, eltűnés) magától működik — ez a
+// kettő viszont egymásba tud csúszni, és akkor vagy sosem cserélsz, vagy
+// minden felvétel eldobja a tárad.
+{
+  const pontok = [at(0, 0), at(20, 0), at(40, 0), at(60, 0), at(80, 0), at(100, 0)];
+  let mag = 1;
+  const rnd = () => ((mag = (mag * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+
+  const a = new Armoury(pontok, rnd);
+  line('indulásra kint van a teljes készlet', a.items.length === PICKUP.live,
+    `${a.items.length} darab`);
+  line('nem esik két fegyver egy helyre',
+    a.items.every((x, i) => a.items.every((y, j) => i === j || x.position.distanceTo(y.position) > 5)),
+    '');
+
+  // UGYANAZ: lőszer, nem csere.
+  const item = a.items[0];
+  const sajat = new Weapon(item.kind);
+  sajat.reserve = 0;
+  const toltes = a.tryPickUp(item.position, sajat);
+  line('ugyanolyat felvéve LŐSZERT kapsz',
+    !!toltes && !toltes.swapped && sajat.reserve === PICKUP.packs[item.kind] && toltes.dropped === null,
+    `${sajat.reserve} lőszer, csere: ${toltes?.swapped}`);
+
+  // MÁSIK: csere, és a régi a földre esik a maradék lőszerével.
+  const masik = a.items.find((x) => x.kind !== item.kind);
+  if (masik) {
+    const kezben = new Weapon(item.kind);
+    kezben.reserve = 5;
+    const elott = a.items.length;
+    const csere = a.tryPickUp(masik.position, kezben);
+    line('másikat felvéve CSERE történik',
+      !!csere && csere.swapped && csere.kind === masik.kind,
+      `${item.kind} → ${csere?.kind}`);
+    line('a régi fegyver a földre esik, a lőszerével',
+      !!csere?.dropped && csere.dropped.kind === item.kind &&
+      csere.dropped.ammo === kezben.ammo + 5,
+      `${csere?.dropped?.kind}, ${csere?.dropped?.ammo} lőszer`);
+    line('a csere nem fogyasztja a pályát',
+      a.items.length === elott, `${elott} → ${a.items.length}`);
+  }
+
+  // ÜRES KÉZ: felvétel csere nélkül.
+  const b = new Armoury(pontok, rnd);
+  const ures = b.tryPickUp(b.items[0].position, null);
+  line('üres kézzel egyszerűen felveszed',
+    !!ures && !ures.swapped && ures.dropped === null, `${ures?.kind}`);
+
+  // TELE TARTALÉK: a darab OTT MARAD. Enélkül egy telt tárral ráállva
+  // eltüntetnéd azt, amire a másiknak szüksége van.
+  const c = new Armoury(pontok, rnd);
+  const cel = c.items[0];
+  const tele = new Weapon(cel.kind);
+  tele.reserve = PICKUP.maxReserve[cel.kind];
+  const db = c.items.length;
+  line('tele tartalékkal a darab a földön marad',
+    c.tryPickUp(cel.position, tele) === null && c.items.length === db, `${db} darab`);
+
+  // TÁVOLSÁG: messziről nem lehet.
+  line('messziről nem veszed fel', c.tryPickUp(at(999, 999), null) === null, '');
+
+  // ELTŰNÉS ÉS ÚJRA MEGJELENÉS.
+  const d = new Armoury(pontok, rnd);
+  for (let t = 0; t < PICKUP.life * 1.7; t += SIM.step) d.update(SIM.step);
+  line('a kint felejtett fegyver eltűnik és újra felbukkan',
+    d.items.length > 0 && d.items.length <= PICKUP.live,
+    `${d.items.length} darab a készlet ${PICKUP.live}-ből`);
+
+  // A KÉSZLET NEM NŐ: enélkül egy hosszú éjszaka végére a padló fegyver lenne.
+  let max = 0;
+  const e = new Armoury(pontok, rnd);
+  for (let t = 0; t < 400; t += SIM.step) {
+    e.update(SIM.step);
+    max = Math.max(max, e.items.length);
+  }
+  line('a készlet nem nő az idővel', max <= PICKUP.live + 1, `legtöbb ${max} darab`);
+
+  // A RITKASÁG: a rakétavetőből a legkevesebb jön, és a legkevesebb lőszer is.
+  let rakéta = 0, soret = 0;
+  for (let i = 0; i < 400; i++) {
+    const f = new Armoury(pontok, rnd);
+    for (const x of f.items) {
+      if (x.kind === 'rocket') rakéta++;
+      if (x.kind === 'shotgun') soret++;
+    }
+  }
+  line('a rakétavető a legritkább', rakéta < soret, `${rakéta} rakéta vs ${soret} sörétes`);
+  line('és a legkevesebb lőszer jár hozzá',
+    PICKUP.packs.rocket < PICKUP.packs.sniper && PICKUP.packs.sniper < PICKUP.packs.shotgun,
+    `${PICKUP.packs.rocket} / ${PICKUP.packs.sniper} / ${PICKUP.packs.shotgun}`);
+}
+
 console.log('');
-console.log(ok ? 'MIND OK — a puska és a rablás szabályai állnak' : 'VAN BUKÓ TESZT');
+console.log(ok ? 'MIND OK — a fegyverek, a rablás és a felszedés szabályai állnak' : 'VAN BUKÓ TESZT');
 process.exit(ok ? 0 : 1);

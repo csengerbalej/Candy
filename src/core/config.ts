@@ -905,3 +905,41 @@ export const GUNS = {
 } as const;
 
 export type GunId = keyof typeof GUNS;
+
+/**
+ * FEGYVEREK A PÁLYÁN.
+ *
+ * Nem a menüben választasz fegyvert, hanem a pályán találod — és ettől lesz
+ * a fegyver HELY is, nem csak tárgy: a rakétavetőért el kell menni oda, ahol
+ * kint van, és közben nem viszed a cukorkát a sarkodba.
+ *
+ * Megjelenik és el is tűnik. A tűnés nem szeszély: egy örökké ott heverő
+ * fegyver egy idő után csak egy gomb a pályán, egy elfogyó viszont döntés —
+ * most mész érte, vagy lemondasz róla.
+ */
+export const PICKUP = {
+  /** Ennyi fegyver hever kint egyszerre. */
+  live: 4,
+  /** Ennyi ideig marad kint egy darab, mielőtt eltűnik. */
+  life: 26,
+  /** Eltűnés után ennyi idő múlva bukkan fel máshol (alsó és felső határ). */
+  respawnMin: 4,
+  respawnMax: 9,
+  /** Ilyen közelről lehet felvenni. */
+  reach: 1.6,
+  /**
+   * Melyik fegyverből mennyi LŐSZER jár egy felvételkor.
+   *
+   * Nem egyforma, és ez tartja egyensúlyban a hármast: a rakétavetőből egy
+   * lövés jár, a sörétesből négy. A leghangosabb fegyver egyben a
+   * legritkább is.
+   */
+  packs: { shotgun: 4, sniper: 3, rocket: 1 },
+  /**
+   * Milyen gyakran bukkan fel az egyik vagy a másik. A rakétavető a
+   * legritkább — különben a ház fél perc alatt kráter lenne.
+   */
+  weights: { shotgun: 4, sniper: 3, rocket: 1 },
+  /** Ennyinél több tartalék nem fér el egy fegyverhez. */
+  maxReserve: { shotgun: 12, sniper: 6, rocket: 3 },
+} as const;
