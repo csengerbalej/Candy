@@ -26,6 +26,14 @@ import type { GameScene } from './scenes/GameScene';
 
 /** ?mode=house or ?mode=arena drop straight into one section, for testing. */
 const debugMode = new URLSearchParams(location.search).get('mode');
+
+/**
+ * FOGÓ mód: `?fogo=1` a címsorban, vagy a menü választása.
+ *
+ * Amíg a menü bejegyzése el nem készül, a címsor a kapcsoló — így a mód
+ * kipróbálható anélkül, hogy a meglévő kooperatív játék bármit változna.
+ */
+const fogoFlag = new URLSearchParams(location.search).has('fogo');
 /** Stand-in players for `?mode=...`, used only when nothing is saved. */
 const DEBUG_SELECTION: Selection = {
   names: ['BALINT', 'CSENGER'],
@@ -282,6 +290,7 @@ async function enter(next: 'drive' | 'house'): Promise<void> {
 
 async function runSession(selection: Selection, ready?: () => void): Promise<void> {
   session = new Session(selection);
+  session.fogo = fogoFlag || !!selection.fogo;
   await enter('drive');
   // A jelenet áll: mostantól van mit mutatni az intró sötét lapja alatt.
   ready?.();
@@ -604,6 +613,7 @@ async function start(): Promise<void> {
 
   if (debugMode === 'house') {
     session = new Session(selection);
+    session.fogo = fogoFlag;
     session.currentHouseName = 'TESZTHÁZ';
     active = await HouseScene.create(renderer, input, session, app);
     pause = makePauseMenu(active.pauseActions());

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { HOUSE, NOISE, DOG } from '../core/config';
+import { Capture } from './Capture';
+import { DELIVERY, HOUSE, NOISE, DOG } from '../core/config';
 import type { PlayerController } from '../player/PlayerController';
 import type { CandySpot, HouseWorld, PrankSpot } from '../world/HouseWorld';
 import type { Homeowner } from '../ai/Homeowner';
@@ -87,6 +88,15 @@ export class HouseGame {
   readonly catchesByPlayer: [number, number] = [0, 0];
   readonly pranksByPlayer: [number, number] = [0, 0];
 
+  /**
+   * A FOGÓ mód szabálytáblája, vagy `null` kooperatívban.
+   *
+   * Egy mező, nem egy második `HouseGame`: a ház többi szabálya (zaj,
+   * elkapás, csíny, kijárat) mindkét módban ugyanaz, és két osztályban
+   * kétszer kellene javítani őket.
+   */
+  capture: Capture | null = null;
+
   update(dt: number, players: PlayerController[], input: InputSource): void {
     if (this.stats.escaped) return;
     this.stats.time += dt;
@@ -104,6 +114,18 @@ export class HouseGame {
     if (doorOpen && !this.doorAnnounced) {
       this.doorAnnounced = true;
       this.say(this.cast.length > 1 ? 'MEGVAN — VISSZA AZ AJTÓHOZ, MINDKETTEN' : 'MEGVAN — VISSZA AZ AJTÓHOZ');
+    }
+
+    // LERAKÁS a saját sarokban. Nem gomb: ráállsz, és leteszed. Ugyanaz a
+    // döntés, mint a fegyvernél — egy gombél elveszhet, egy hely nem.
+    if (this.capture) {
+      for (const i of this.cast) {
+        const put = this.capture.bank(i as 0 | 1, players[i].position);
+        if (put > 0) {
+          sound.pickup();
+          this.say(`${this.names[i]} letett ${put} cukorkát — ${this.capture.banked[i as 0 | 1]}/${DELIVERY.quota}`);
+        }
+      }
     }
 
     for (const i of this.cast) {
@@ -191,10 +213,21 @@ export class HouseGame {
     this.status[i].prompt = 'EMELÉS…';
 
     if (this.grabTimers[i] >= HOUSE.grabTime) {
+      // FOGÓ MÓDBAN a felvett cukorka a KÉZBE kerül, nem a pontszámba: be
+      // kell vinni a saját sarokba. Ha tele a kéz, a tál MARAD — különben egy
+      // teli kézzel odaállva eltüntetnéd azt, amit nem tudsz elvinni.
+      if (this.capture) {
+        if (!this.capture.takeFromBowl(i as 0 | 1)) {
+          this.status[i].prompt = 'TELE A KEZED — vidd a sarokba';
+          this.grabTimers[i] = 0;
+          return;
+        }
+      } else {
+        p.candy += candy.value;
+        this.stats.candy += candy.value;
+      }
       candy.taken = true;
       candy.mesh.visible = false;
-      p.candy += candy.value;
-      this.stats.candy += candy.value;
       sound.pickup();
       this.grabTimers[i] = 0;
       // Say where that leaves the errand, not just that a bowl moved. Without
@@ -219,9 +252,17 @@ export class HouseGame {
       // kettő elcsúszhatna egymástól.
       this.homeowner.playCatch();
       sound.thud(0.8);
-      const lost = Math.min(p.candy, Math.round(HOUSE.candyLostOnCatch * p.traits.candyLoss));
-      p.candy -= lost;
-      this.stats.candy -= lost;
+      // FOGÓ MÓDBAN az elkapás ugyanaz, mint a lövés: ami a kézben van, a
+      // földre esik — és ott a MÁSIK is felszedheti. Így a lakó nem büntet,
+      // hanem ZSÁKMÁNYT OSZT.
+      let lost = 0;
+      if (this.capture) {
+        lost = this.capture.hit(i as 0 | 1, p.position, this.homeowner.position).dropped;
+      } else {
+        lost = Math.min(p.candy, Math.round(HOUSE.candyLostOnCatch * p.traits.candyLoss));
+        p.candy -= lost;
+        this.stats.candy -= lost;
+      }
       this.stats.catches++;
       this.catchesByPlayer[i]++;
       this.say(`${this.names[i]} lebukott! −${lost} cukorka`);
@@ -257,8 +298,21 @@ export class HouseGame {
 
   /** Sweets still needed before the front door is a way out. */
   get candyStillNeeded(): number {
+    // FOGÓ MÓDBAN nem az számít, hány tálat emeltél fel, hanem hogy mennyi
+    // áll a SAROKBAN. Ez a mód egész lényege: a felszedés még nem teljesítés.
+    if (this.capture) {
+      return Math.max(0, DELIVERY.quota - this.capture.banked[this.localSlot]);
+    }
     return Math.max(0, HOUSE.candyQuota - this.candyTaken);
   }
+
+  /**
+   * Melyik sorszámú játékos szemszögéből nézzük az ajtót.
+   *
+   * Fogó módban az ajtó ANNAK nyílik, aki összeszedte a kvótát — nem
+   * közösen. A jelenet állítja be, amikor kiderül, ki ül ennél a gépnél.
+   */
+  localSlot: 0 | 1 = 0;
 
   /** How many bowls have been lifted, of the ones this house has. */
   get candyTaken(): number {

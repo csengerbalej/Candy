@@ -37,6 +37,16 @@ export const FIRST_HOUSE_ID = 0;
 
 export class Session {
   phase: SessionPhase = 'drive';
+
+  /**
+   * FOGÓ mód: versengés, nem együttműködés.
+   *
+   * A házban ilyenkor a felvett cukorka a KÉZBE kerül, a saját sarokba kell
+   * vinni, és lövésre kiesik; egyedül játszva egy AI ellenfél is beül. A
+   * kooperatív mód érintetlen marad — két külön szabálykészlet egy
+   * kapcsolóval, nem két játék.
+   */
+  fogo = false;
   readonly stats: SessionStats = {
     candy: 0,
     housesVisited: 0,

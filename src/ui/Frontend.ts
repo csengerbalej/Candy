@@ -75,6 +75,8 @@ export class Frontend {
   private driverIndex: 0 | 1 = 0;
   /** Egyedül játszik-e. A választás a címképernyőn dől el. */
   private solo = false;
+  /** FOGÓ mód: versengés a kooperáció helyett. */
+  private fogo = false;
   private resolve: ((result: FrontendResult) => void) | null = null;
   /** Opens the settings panel; supplied by main, which owns the renderer. */
   onSettings: (() => void) | null = null;
@@ -169,6 +171,9 @@ export class Frontend {
     this.menuItems = [
       { id: 'solo', label: 'EGYEDÜL', detail: 'te vezetsz és te navigálsz' },
       { id: 'new', label: 'KÉTFŐS', detail: 'a társad másik eszközről lép be' },
+      // A FOGÓ külön bejegyzés, nem a kooperatív egy kapcsolója: teljesen más
+      // játék ugyanabban a házban — cukorkát rabolni egymástól, fegyverrel.
+      { id: 'fogo', label: 'FOGÓ', detail: 'cukorkarablás — egyedül AI ellen' },
     ];
     if (save) this.menuItems.push({ id: 'continue', label: 'FOLYTATÁS', detail: save.label });
     this.menuItems.push({ id: 'settings', label: 'BEÁLLÍTÁSOK' });
@@ -178,8 +183,9 @@ export class Frontend {
   private activateMenu(): void {
     const item = this.menuItems[this.menuCursor];
     if (!item) return;
-    if (item.id === 'new' || item.id === 'solo') {
-      this.solo = item.id === 'solo';
+    if (item.id === 'new' || item.id === 'solo' || item.id === 'fogo') {
+      this.solo = item.id !== 'new';
+      this.fogo = item.id === 'fogo';
       this.advancePhase('names');
     }
     else if (item.id === 'continue') this.finishContinue();
@@ -304,6 +310,7 @@ export class Frontend {
         characters: [CHARACTER_ORDER[this.cursor[0]], CHARACTER_ORDER[this.cursor[1]]],
         driverIndex: this.driverIndex,
         solo: this.solo,
+        fogo: this.fogo,
       },
     });
     this.resolve = null;

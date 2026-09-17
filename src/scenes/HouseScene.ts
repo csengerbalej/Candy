@@ -7,6 +7,9 @@ import { VillageHouse } from '../world/VillageHouse';
 import { PlayerController } from '../player/PlayerController';
 import { SplitScreenDirector } from '../camera/SplitScreenDirector';
 import { Armoury } from '../game/Armoury';
+import { Capture } from '../game/Capture';
+import { Corners } from '../world/Corners';
+import { Rival } from '../ai/Rival';
 import { PickupsView } from '../world/PickupsView';
 import { HeldWeapon } from '../render/HeldWeapon';
 import { Weapon, type Target } from '../game/Weapon';
@@ -68,6 +71,13 @@ export class HouseScene implements GameScene {
   /** Ami a kezünkben van. Üres kézzel indulunk: a fegyvert meg kell találni. */
   private held: Weapon | null = null;
   private readonly heldView = new HeldWeapon();
+  /** A FOGÓ mód: sarkok, szabálytábla, AI ellenfél. `null` kooperatívban. */
+  private capture: Capture | null = null;
+  private corners: Corners | null = null;
+  private rival: Rival | null = null;
+  /** Az AI teste. A második játékos helyén ül, ha nincs valódi társ. */
+  private rivalBody: PlayerController | null = null;
+
   /** A célkereszt. Csak belső nézetben és csak fegyverrel látszik. */
   private readonly crosshair = (() => {
     const el = document.createElement('div');
@@ -199,6 +209,15 @@ export class HouseScene implements GameScene {
     }
     this.scene.add(this.heldView.group);
 
+    // BELSŐ NÉZET ALAPBÓL. A ház a lopakodás és a keresés helye, és mindkettő
+    // arról szól, MIT LÁTSZ: felülről a fáklyakúp egy rajz a padlón, a
+    // vaksötét ház egy sötét alaprajz. A külső nézet megmarad a V… illetve a
+    // C gombon, mert egy elakadt kamera ellen kell egy kiút — de a JÁTÉK a
+    // szemből nézett.
+    queueMicrotask(() => {
+      if (this.director.firstPerson === null) this.toggleFirstPerson();
+    });
+
     this.director.soloActive = this.localIndex;
     this.director.framing = {
       roomFor: (at) => this.world.roomBounds(this.world.roomNear(at.x, at.z)),
@@ -241,6 +260,47 @@ export class HouseScene implements GameScene {
     this.homeowner.group.add(new BlobShadow(1.4).mesh);
 
     this.game = new HouseGame(this.world, this.homeowner, this.noise, this.dog);
+
+    // FOGÓ MÓD. A sarkok a legtávolabbi két pontra kerülnek: két egymás
+    // melletti sarokkal a cipelés elvész — felveszed, két lépés, letetted.
+    if (session.fogo && spots.length) {
+      this.corners = new Corners(spots);
+      this.scene.add(this.corners.group);
+      this.capture = new Capture(this.corners.list);
+      this.game.capture = this.capture;
+      this.game.localSlot = this.localIndex;
+
+      // AZ ELLENFÉL. Ha nincs valódi társ, egy AI ül a második helyen — és a
+      // TESTE a második játékos meglévő szabályozója, nem egy külön dolog:
+      // így a lakó ugyanúgy látja és kergeti, a falak ugyanúgy megállítják,
+      // és a hálózati rajzolás is ugyanaz marad.
+      if (!this.partnered) {
+        this.rivalBody = this.players[1 - this.localIndex];
+        this.rival = new Rival(
+          this.rivalBody.position.clone(),
+          {
+            bowls: () =>
+              this.world.candySpots.filter((c) => !c.taken).map((c) => c.position),
+            walkable: (x, z, r) => this.world.walkable(x, z, r),
+            route: (from, to, r) => this.world.route(from, to, r) ?? [],
+            dangers: () => [this.homeowner.position, ...(this.dog ? [this.dog.position] : [])],
+            sightBlocked: (a, b) => this.world.sightBlocked(a, b),
+            takeBowl: (at) => {
+              const bowl = this.world.candySpots.find(
+                (c) => !c.taken && c.position.distanceTo(at) < 2.4
+              );
+              if (!bowl) return false;
+              bowl.taken = true;
+              bowl.mesh.visible = false;
+              return true;
+            },
+          },
+          (1 - this.localIndex) as 0 | 1
+        );
+      }
+    }
+
+
     this.game.names = session.selection.names;
     // Egyedül a co-op kapuk egy emberre szűkülnek: nincs kit odavinni a
     // másik szörnnyel, tehát a kijárat sem kérhet kettőt.
@@ -306,8 +366,17 @@ export class HouseScene implements GameScene {
     // Belső nézetben a fel-le nézés a SAJÁT fejem szöge, nem a színpad
     // dőlése: a színpad dőlése azt mondja meg, milyen szögből LÁTJUK a
     // szobát, és belső nézetben nincs ilyen szög.
-    turnStage(x, dt);
-    if (this.director.firstPerson !== null) {
+    // A VÍZSZINTES FORGÁS BELÜL FORDÍTOTT.
+    //
+    // Külső nézetben a nyíl a SZÍNPADOT forgatja a játékos körül: jobbra
+    // nyomva a kamera jobbra kerül, és a világ ettől balra fordul a képen —
+    // ez orbitálásnál helyes. Belső nézetben viszont nincs mit körbejárni: a
+    // kamera a fejben ül, és ott ugyanez a jel BALRA fordítja a fejet, amikor
+    // jobbra húzol. Egy előjel a különbség, és pont ezt a fajta előjelet nem
+    // lehet fejben eldönteni — a képernyőn kell megnézni.
+    const inside = this.director.firstPerson !== null;
+    turnStage(inside ? -x : x, dt);
+    if (inside) {
       this.director.fpPitch = THREE.MathUtils.clamp(
         this.director.fpPitch + y * 1.6 * dt,
         FIRST_PERSON.pitchMin,
@@ -601,6 +670,27 @@ export class HouseScene implements GameScene {
       this.collidersFor[this.localIndex]
     );
 
+    this.capture?.update(step);
+
+    // AZ AI ELLENFÉL. A gondolkodás az övé, a TEST a közös szabályozó: a
+    // helyét átmásoljuk, hogy a lakó, a kutya és a falak ugyanúgy hassanak rá,
+    // mint rád. Egy külön testű AI-nak külön ütközést és külön látást kellene
+    // írni — és a kettő előbb-utóbb elcsúszna egymástól.
+    if (this.rival && this.rivalBody && this.amHost) {
+      const enemy = {
+        id: String(this.localIndex),
+        position: this.players[this.localIndex].position,
+        radius: MOVE.radius,
+      };
+      const fired = this.rival.update(step, this.capture!, enemy);
+      this.rivalBody.position.copy(this.rival.position);
+      this.rivalBody.mesh.position.copy(this.rival.position);
+      if (fired?.shot) {
+        this.noise.emit(fired.shot.noiseAt, this.rival.weapon!.gun.noiseRadius, 'lövés');
+        if (fired.shot.hit) this.takeHit(this.localIndex as 0 | 1, fired.shot.from);
+      }
+    }
+
     this.armoury?.update(step);
     this.held?.update(step, this.players[this.localIndex].moving);
 
@@ -639,6 +729,10 @@ export class HouseScene implements GameScene {
       );
       if (shot) {
         this.heldView.fired();
+        // A TALÁLAT KÖVETKEZMÉNYE: ellökés és minden cukorka a földre. Eddig
+        // a lövés elsült és zajt csapott, de a célpontnak nem történt semmi —
+        // egy fegyver, aminek nincs hatása, csak egy hangeffekt.
+        if (shot.hit) this.takeHit(Number(shot.hit.id) as 0 | 1, shot.from);
         // A lövés ZAJ is: a fegyver hangja odahívja a lakót. Ez a fegyver
         // harmadik ára, a lőszer és az idő mellett.
         this.noise.emit(shot.noiseAt, this.held.gun.noiseRadius, 'lövés');
@@ -684,6 +778,21 @@ export class HouseScene implements GameScene {
   }
 
   /** Akik tényleg ott vannak — a lakó csak ezeket keresheti. */
+  /**
+   * Eltalálták: ellökés, és ami a kezében volt, a földre esik.
+   *
+   * Egy helyen, mert két lövő van (te és az AI), és két helyen írva a két
+   * találat előbb-utóbb másképp viselkedne.
+   */
+  private takeHit(who: 0 | 1, from: THREE.Vector3): void {
+    if (!this.capture) return;
+    const body = this.players[who];
+    const { push } = this.capture.hit(who, body.position, from);
+    body.applyKnockback(body.position.clone().sub(push));
+    sound.thud(0.7);
+    this.game.banner = who === this.localIndex ? 'ELTALÁLTAK!' : 'TALÁLAT';
+  }
+
   private cast(): PlayerController[] {
     return this.game.cast.map((i) => this.players[i]);
   }
@@ -693,6 +802,7 @@ export class HouseScene implements GameScene {
   }
 
   render(frameTime: number, width: number, height: number): void {
+    this.corners?.update(frameTime);
     if (this.armoury) {
       this.pickups.update(frameTime, this.armoury, () => 0);
     }

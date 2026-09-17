@@ -244,6 +244,13 @@ export class InputManager {
     window.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
       if ((e.target as HTMLElement)?.tagName !== 'CANVAS') return;
+      // AZ ELSŐ KATTINTÁS CÉLZÁSRA VÁLT, NEM LŐ.
+      //
+      // Ugyanaz a kattintás kéri el a mutatót, amivel a játékos „belép" a
+      // belső nézetbe. Ha ez egyben lövés is lenne, minden egyes
+      // visszakapcsolás egy elpazarolt lövéssel járna — és pont akkor, amikor
+      // a játékos még nem is céloz sehova.
+      if (this.lookLock && !this.locked) return;
       this.firePressed = true;
     });
 
@@ -295,8 +302,14 @@ export class InputManager {
       lastT = performance.now();
     });
     window.addEventListener('mousemove', (e) => {
-      // ELKAPOTT MUTATÓ: minden mozdulat nézés, húzás nélkül.
-      if (this.locked) {
+      // BELSŐ NÉZETBEN A KURZORT KÖVETJÜK, húzás nélkül.
+      //
+      // A böngésző a mutató elkapását csak KATTINTÁS után engedi — ez az ő
+      // szabálya, nem a miénk. Addig viszont nem kell tétlenül állni: belső
+      // nézetben minden egérmozdulat nézés, gomb nélkül. A kattintás utáni
+      // elkapás így már csak ráadás (nem ütközik a képernyő szélébe), nem
+      // feltétel.
+      if (this.locked || this.lookLock) {
         const now = performance.now();
         const dt = Math.max(8, now - lastT) / 1000;
         this.mouseX = e.movementX / dt;

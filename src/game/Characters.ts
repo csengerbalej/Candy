@@ -114,6 +114,14 @@ export const CHARACTER_ORDER: CharacterId[] = ['werewolf', 'vampire', 'ghost', '
 export type RoleId = 'driver' | 'navigator';
 
 export interface Selection {
+  /**
+   * FOGÓ mód: versengés a kooperáció helyett.
+   *
+   * A választásban él, nem külön beállításban: a mód a ház szabályait írja
+   * át, tehát a futam elején dől el, és utána nem változhat — egy félidőben
+   * átkapcsolt szabálykészlet csak vitát szülne.
+   */
+  fogo?: boolean;
   /** What the players called themselves, for the HUD and the end-of-run awards. */
   names: [string, string];
   characters: [CharacterId, CharacterId];
