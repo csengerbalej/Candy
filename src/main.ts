@@ -461,7 +461,15 @@ window.addEventListener('keydown', (e) => {
   // T: kameraszög. Nem beállítás, hanem VÁLASZTÁS — háromszor hangoltam félre
   // ezt a számot, és a szög ízlés kérdése, amit fejetlen próbával nem lehet
   // eldönteni. A falak rajzolt magassága automatikusan követi.
-  if (e.code === 'KeyT' && active?.setCameraPitch) {
+  // NÉZETVÁLTÁS a házban: belső és külső között.
+  if (e.code === 'KeyC' && active?.toggleFirstPerson) {
+    active.toggleFirstPerson();
+  }
+
+  // A kameraszög a C-vel VETÉLKEDETT a T-vel, és a T-t közben a beszélgetés
+  // is elvitte: egy T leütés megnyitotta a chatet ÉS elfordította a kamerát.
+  // Két külön dolog, két külön gomb — a szög mostantól V.
+  if (e.code === 'KeyV' && active?.setCameraPitch) {
     const degrees = cyclePitch();
     active.setCameraPitch(degrees);
   }

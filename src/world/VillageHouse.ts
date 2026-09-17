@@ -407,6 +407,18 @@ export class VillageHouse implements HouseWorld {
    * fal is elveszi a kép alját. A valódi falmagasságnál megállítva: nincs
    * értelme több falat rajzolni, mint amennyi van.
    */
+  /**
+   * A fal TELJES magassága, vágás nélkül.
+   *
+   * Belső nézetben ez kell: a levágott falkorona fölött a szomszéd szobába
+   * látni, és a lopakodásból nem marad semmi. A szám ugyanaz, amit a
+   * `wallHeightFor` felső korlátként használ — egy helyen él, hogy ne tudjon
+   * elcsúszni tőle.
+   */
+  static get fullWallHeight(): number {
+    return 0.45 * HOUSE1_SCALE;
+  }
+
   static wallHeightFor(pitch: number, distance: number): number {
     const real = 0.45 * HOUSE1_SCALE;
     // Az osztó 1,3 volt, és az csak arra volt elég, hogy a fal ne álljon

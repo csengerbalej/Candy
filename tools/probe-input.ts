@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { PlayerController } from '../src/player/PlayerController';
 import { PITCH_MAX, PITCH_MIN, resetStage, stage, tiltStage, turnStage } from '../src/camera/Stage';
 import { InputManager } from '../src/input/InputManager';
+import { retarget } from '../src/render/CharacterRig';
 
 /**
  * Headless probe for the edge-latch (bug found in review).
@@ -474,6 +475,90 @@ let ok = true;
   down(button);
   move(300, 100);
   ok = line('menügombon húzva nem fordul', man.look().x === 0, `x = ${man.look().x}`) && ok;
+}
+
+
+/**
+ * BELSŐ NÉZET: arra megy, amerre néz.
+ *
+ * A külső nézet szabálya az, hogy „előre = a kamerától elfelé" — ez akkor
+ * helyes, ha a kamera mögötted van. Belső nézetben a kamera a szemedben ül,
+ * tehát ugyanez a szabály HÁTRAFELÉ küld. Élőben mérve mind a négy égtájon
+ * 180 fokot tévedett a mozgás, ezért a próba nem a kódot ismétli, hanem a
+ * KÖVETKEZMÉNYT méri: merre mozdul a test a nézéshez képest.
+ *
+ * Fal nélkül mérünk: falba csúszva a test oldalra siklik, és akkor nem az
+ * irányítást mérnénk, hanem az ütközést.
+ */
+{
+  const forward = {
+    moveX: 0, moveY: 1, jump: false, jumpHeld: false, sprint: false,
+    interact: false, interactHeld: false, pause: false, usingGamepad: false, nitro: false,
+  };
+  const walk = (fp: boolean, yaw: number): number => {
+    stage.yaw = yaw;
+    const p = new PlayerController(0, 0xffffff, new THREE.Vector3(0, 0, 0));
+    p.firstPerson = fp;
+    const from = p.position.clone();
+    for (let f = 0; f < 60; f++) p.update(1 / 60, forward, [], 0);
+    const d = p.position.clone().sub(from);
+    let off = Math.atan2(d.x, d.z) - yaw;
+    while (off > Math.PI) off -= Math.PI * 2;
+    while (off < -Math.PI) off += Math.PI * 2;
+    return Math.abs((off * 180) / Math.PI);
+  };
+
+  const fpOff = [0, 1.1, 2.4, -1.9].map((y) => walk(true, y));
+  ok = line('belső nézetben arra megy, amerre néz',
+    Math.max(...fpOff) < 2,
+    `legnagyobb eltérés ${Math.max(...fpOff).toFixed(1)}°`) && ok;
+
+  const tpOff = [0, 1.1, 2.4, -1.9].map((y) => walk(false, y));
+  ok = line('külső nézetben a kamerától elfelé megy',
+    Math.min(...tpOff) > 178,
+    `legkisebb eltérés ${Math.min(...tpOff).toFixed(0)}° (180 a helyes)`) && ok;
+
+  resetStage();
+}
+
+
+/**
+ * A T-PÓZ OKA: a klip olyan csontot címzett, ami nem létezik.
+ *
+ * A lakó animációja LEFUTOTT — a művelet súlya 1,0 volt, a keverő órája
+ * ketyegett —, és közben nulla csontot mozgatott. A sávok
+ * `mixamorigHead_1`-et címezték, a csontváz csontja viszont `mixamorigHead`.
+ * Az `_1` utótagot a betöltő teszi hozzá, amikor a klipfájlban ütközik egy
+ * név; a régi kettőspontos `mixamorig:Head` alakot ugyanígy átírja. A keverő
+ * az ismeretlen nevet NÉMÁN elnyeli: se hiba, se figyelmeztetés, csak egy
+ * T-pózban álló ember.
+ *
+ * Ezért a próba nem azt kérdezi, „lejátszódik-e", hanem hogy HÁNY SÁV TALÁL
+ * valódi csontot.
+ */
+{
+  const bones = new Set(['mixamorigHips', 'mixamorigHead', 'mixamorigSpine1', 'Hips', 'Spine02']);
+  const track = (name: string): THREE.KeyframeTrack =>
+    new THREE.QuaternionKeyframeTrack(name, [0, 1], [0, 0, 0, 1, 0, 0, 0, 1]);
+
+  const tally = { hit: 0, miss: 0 };
+  const clip = new THREE.AnimationClip('proba', 1, [
+    track('mixamorigHead_1.quaternion'),      // a betöltő utótagja
+    track('mixamorig:Hips.quaternion'),       // a régi kettőspontos alak
+    track('mixamorigSpine1.quaternion'),      // már jó név
+    track('Hips.quaternion'),                 // a szörnyek csontváza
+    track('nincs_ilyen_csont.quaternion'),    // tényleg nincs
+  ]);
+  const fixed = retarget(clip, bones, tally);
+  const names = fixed.tracks.map((t) => t.name.split('.')[0]);
+
+  ok = line('az _1 utótagos név csontra talál', names.includes('mixamorigHead'),
+    names.join(', ')) && ok;
+  ok = line('a kettőspontos név is csontra talál', names.includes('mixamorigHips'), '') && ok;
+  ok = line('a már jó nevet nem rontja el',
+    names.includes('mixamorigSpine1') && names.includes('Hips'), '') && ok;
+  ok = line('a sehová nem kötő sáv kiesik', fixed.tracks.length === 4 && tally.miss === 1,
+    `${tally.hit} kötött, ${tally.miss} elveszett`) && ok;
 }
 
 console.log('');

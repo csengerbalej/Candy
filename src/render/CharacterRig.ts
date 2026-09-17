@@ -77,13 +77,18 @@ export class CharacterRig implements Rig {
   /** Igaz, ha az `idle` csak egy kölcsönvett járáspóz, nem saját klip. */
   private readonly frozenIdle: boolean;
 
+  /** Hány sáv kötött valódi csontra, és hány veszett el. A próba ezt kérdezi. */
+  readonly bound: { hit: number; miss: number } = { hit: 0, miss: 0 };
+
   constructor(root: THREE.Object3D, clips: THREE.AnimationClip[], clipFor: ClipMap = CLIP_FOR) {
     this.mixer = new THREE.AnimationMixer(root);
 
+    const bones = boneNames(root);
     const byName = new Map(clips.map((c) => [c.name, c]));
     for (const [state, clipName] of Object.entries(clipFor) as Array<[RigState, string]>) {
-      const clip = byName.get(clipName);
-      if (!clip) continue;
+      const raw = byName.get(clipName);
+      if (!raw) continue;
+      const clip = retarget(raw, bones, this.bound);
       const action = this.mixer.clipAction(stripRootTranslation(clip));
       if (ONCE[state]) {
         action.setLoop(THREE.LoopOnce, 1);
@@ -159,4 +164,67 @@ function stripRootTranslation(clip: THREE.AnimationClip): THREE.AnimationClip {
     }
   }
   return stripped;
+}
+
+/** A csontváz csontjainak neve, a gyökér alatt bárhol. */
+function boneNames(root: THREE.Object3D): Set<string> {
+  const names = new Set<string>();
+  root.traverse((o) => {
+    if ((o as THREE.Bone).isBone) names.add(o.name);
+  });
+  return names;
+}
+
+/**
+ * A klip sávjait ÁTNEVEZI a célcsontváz neveire.
+ *
+ * Ez volt a T-póz oka, és a legpontosabb példa arra, miért kell mérni:
+ * a lakó animációja LEFUTOTT (a művelet súlya 1,0, a keverő órája ketyegett),
+ * és közben nulla csontot mozgatott — mert a sávok `mixamorigHead_1`-et
+ * címeztek, a csontváz csontja viszont `mixamorigHead`. Az `_1` utótagot a
+ * betöltő teszi hozzá, amikor a klipfájlban ütközik egy név; a régi
+ * kettőspontos `mixamorig:Head` alakot ugyanígy átírja. A keverő némán
+ * elnyeli az ismeretlen nevet — se hiba, se figyelmeztetés, csak egy T-póz.
+ *
+ * A párosítás normalizált néven megy: kettőspont és `mixamorig` előtag el,
+ * a záró `_szám` utótag el, kisbetűsítve. Ami így sem talál csontot, az
+ * kimarad — egy sáv, ami senkit nem mozgat, csak számol.
+ */
+export function retarget(
+  clip: THREE.AnimationClip,
+  bones: Set<string>,
+  tally: { hit: number; miss: number }
+): THREE.AnimationClip {
+  const norm = (name: string): string =>
+    name.replace(/^mixamorig:?/i, '').replace(/_\d+$/, '').replace(/[:_\s]/g, '').toLowerCase();
+
+  // ELSŐ NYER. Ha két csont neve ugyanarra normalizálódik (`mixamorigHips` és
+  // `Hips`), a későbbi ne írja felül a korábbit: a csontváz sorrendje a
+  // gyökértől halad, tehát az első a valódi lánc része. Felülírva a klip egy
+  // mellékágra kötne — és az ugyanolyan némán rossz, mint a T-póz.
+  const lookup = new Map<string, string>();
+  for (const bone of bones) if (!lookup.has(norm(bone))) lookup.set(norm(bone), bone);
+
+  const out = clip.clone();
+  const kept: THREE.KeyframeTrack[] = [];
+  for (const track of out.tracks) {
+    const dot = track.name.lastIndexOf('.');
+    const node = dot < 0 ? track.name : track.name.slice(0, dot);
+    const property = dot < 0 ? '' : track.name.slice(dot);
+    if (bones.has(node)) {
+      kept.push(track);
+      tally.hit++;
+      continue;
+    }
+    const target = lookup.get(norm(node));
+    if (!target) {
+      tally.miss++;
+      continue;
+    }
+    track.name = target + property;
+    kept.push(track);
+    tally.hit++;
+  }
+  out.tracks = kept;
+  return out;
 }

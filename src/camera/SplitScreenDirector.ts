@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { leadLimit, stage } from './Stage';
-import { CAMERA, SPLIT } from '../core/config';
+import { FIRST_PERSON, CAMERA, SPLIT } from '../core/config';
 import type { PlayerController } from '../player/PlayerController';
 
 /** A játékos magassága. MOVE-ból átvéve, hogy a kamera ne importáljon mozgásbeállítást. */
@@ -143,6 +143,18 @@ export class SplitScreenDirector {
    * másik ott áll, ahol hagyta, és ha kell, a Tab odaviszi a nézetet is.
    */
   soloActive: number | null = null;
+
+  /**
+   * BELSŐ NÉZET: melyik játékos saját szeméből látjuk a világot.
+   *
+   * `null` = külső nézet, ahogy eddig. Ha be van állítva, az ő kamerája NEM
+   * a szobát keretezi, hanem a szemében ül — a keretezés, a vezetés és a
+   * simítás mind kimarad, mert mind arról szólt, hogy a TESTET hol lássuk.
+   * Belső nézetben nincs test, amit keretezni kell.
+   */
+  firstPerson: number | null = null;
+  /** A fel-le nézés szöge belső nézetben. A jelenet állítja a bemenetből. */
+  fpPitch = 0;
 
   update(dt: number, players: PlayerController[], width: number, height: number): void {
     const a = players[0].position;
@@ -325,8 +337,31 @@ export class SplitScreenDirector {
       // The lens belongs to the section, not to the camera object: indoors it
       // is wider and further back so a room fits on screen.
       cam.fov = stage.fov;
-      cam.position.copy(this.positions[i]);
-      cam.lookAt(this.targets[i]);
+
+      if (this.firstPerson === i) {
+        // BELSŐ NÉZET. A kamera a szemben ül, és semmit nem simítunk:
+        // egy késleltetett saját fejmozgás pontosan az, amitől a belső
+        // nézettől megfájdul az ember feje.
+        const eye = p.clone();
+        eye.y += FIRST_PERSON.eye;
+        const look = new THREE.Vector3(
+          Math.sin(stage.yaw) * Math.cos(this.fpPitch),
+          Math.sin(this.fpPitch),
+          Math.cos(stage.yaw) * Math.cos(this.fpPitch)
+        );
+        // A saját test ne lógjon a képbe: egy tenyérrel előre.
+        eye.addScaledVector(look, FIRST_PERSON.forward);
+        cam.fov = FIRST_PERSON.fov;
+        cam.position.copy(eye);
+        cam.lookAt(eye.clone().add(look));
+        // A simított pózokat is átírjuk, különben nézetváltáskor a kamera
+        // átzuhan a szoba túlsó feléből.
+        this.positions[i].copy(eye);
+        this.targets[i].copy(eye.clone().add(look));
+      } else {
+        cam.position.copy(this.positions[i]);
+        cam.lookAt(this.targets[i]);
+      }
       cam.updateProjectionMatrix();
 
       // A vágás MINDIG él, nem csak osztott képen.

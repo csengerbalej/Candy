@@ -22,6 +22,8 @@ export interface GameScene {
    * amelyiknek számít: odabent a falak rajzolt magassága függ tőle.
    */
   setCameraPitch?(degrees: number): void;
+  /** Nézetváltás belső és külső között. Csak a ház tudja. */
+  toggleFirstPerson?(): boolean;
   /**
    * A játékos körülnéz (nyilak / jobb analóg kar).
    *

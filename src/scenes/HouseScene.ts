@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { setStageLens, stage, tiltStage, turnStage } from '../camera/Stage';
-import { CAMERA, PLAYER_COUNT, PALETTE, HOMEOWNER, DOG } from '../core/config';
+import { FIRST_PERSON, CAMERA, PLAYER_COUNT, PALETTE, HOMEOWNER, DOG } from '../core/config';
 // The first house is a real flat now, not the greybox kitchen. Both offer the
 // same surface to this scene, so the swap is one import and one await.
 import { VillageHouse } from '../world/VillageHouse';
@@ -268,8 +268,48 @@ export class HouseScene implements GameScene {
   /** A T gomb hívja: az új szög után a falak magasságát is igazítani kell. */
   /** Odabent a nyilak a szobát keretező színpadot forgatják. */
   look(x: number, y: number, dt: number): void {
+    // Belső nézetben a fel-le nézés a SAJÁT fejem szöge, nem a színpad
+    // dőlése: a színpad dőlése azt mondja meg, milyen szögből LÁTJUK a
+    // szobát, és belső nézetben nincs ilyen szög.
     turnStage(x, dt);
+    if (this.director.firstPerson !== null) {
+      this.director.fpPitch = THREE.MathUtils.clamp(
+        this.director.fpPitch + y * 1.6 * dt,
+        FIRST_PERSON.pitchMin,
+        FIRST_PERSON.pitchMax
+      );
+      return;
+    }
     tiltStage(y, dt);
+  }
+
+  /**
+   * Nézetváltás: belső és külső között.
+   *
+   * A saját testet belső nézetben el kell tüntetni — a kamera a fejben ül,
+   * és onnan a saját koponya belseje látszana. A TÁRSÉ viszont marad: őt
+   * látni kell, különben egy láthatatlan ellenfél ellen játszol.
+   */
+  toggleFirstPerson(): boolean {
+    const on = this.director.firstPerson === null;
+    this.director.firstPerson = on ? this.localIndex : null;
+    this.director.fpPitch = 0;
+    const mine = this.players[this.localIndex];
+    // A MOZGÁS is tudja meg: belső nézetben az „előre" a nézés iránya.
+    mine.firstPerson = on;
+    // A blokkolt test és a modell is az enyém: mindkettőt el kell tenni.
+    mine.mesh.visible = !on;
+    this.game.banner = on ? 'BELSŐ NÉZET' : 'KÜLSŐ NÉZET';
+    // A FAL MAGASSÁGA a nézettel jár.
+    //
+    // Külső nézetben a falkorona LE VAN VÁGVA (9,9 egység), hogy a kamera
+    // belásson a szobába — ez a „Sims-féle bontás". Belső nézetben ugyanez a
+    // vágás azt jelentené, hogy a szomszéd szobába átlátsz a falon fölött,
+    // és a lopakodásból nem marad semmi: a lakót a falon keresztül látnád
+    // jönni. Belül tehát a fal a teljes magasságát visszakapja.
+    if (on) this.world.setWallHeight(VillageHouse.fullWallHeight);
+    else this.syncWallHeight();
+    return on;
   }
 
   setCameraPitch(degrees: number): void {

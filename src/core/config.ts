@@ -806,3 +806,26 @@ export const CAPTURE = {
   /** Ennyi cukorka kell a kör megnyeréséhez. */
   win: 5,
 } as const;
+
+/**
+ * BELSŐ NÉZET a házban.
+ *
+ * Miért pont a házban: a ház a lopakodás és a keresés helye, és mindkettő
+ * ARRÓL szól, hogy mit LÁTSZ. Felülről nézve a fáklyakúp egy rajz a padlón,
+ * a vaksötét második ház pedig csak egy sötét alaprajz. Szemből nézve
+ * ugyanaz a két dolog a játék tárgya lesz. A puska célzása is innen nyeri
+ * az értelmét: ahová nézel, oda lősz.
+ */
+export const FIRST_PERSON = {
+  /** Szemmagasság a láb síkjától. A szörny 1,7 magas. */
+  eye: 1.52,
+  /** Meddig lehet fel- és lenézni, radiánban. */
+  pitchMax: 1.15,
+  pitchMin: -1.05,
+  /** Belső nézetben szűkebb a lencse: a halszem szédít. */
+  fov: 72,
+  /** Hány egységgel előre kerül a kamera, hogy a saját test ne lógjon bele. */
+  forward: 0.12,
+  /** A fordulás simítása. Nulla nem kell: a nyers bemenet remeg. */
+  smoothing: 22,
+} as const;

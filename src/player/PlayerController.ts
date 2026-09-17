@@ -38,6 +38,14 @@ import { BlobShadow } from '../render/BlobShadow';
  * That is the whole reason the yaw is a constant.
  */
 export class PlayerController {
+  /**
+   * Belső nézetben van-e EZ a játékos.
+   *
+   * Nem a kamera dolga, hanem a MOZGÁSÉ: a nézet dönti el, mit jelent az
+   * „előre". A jelenet állítja, amikor nézetet váltasz.
+   */
+  firstPerson = false;
+
   readonly mesh: THREE.Group;
   /** Authored model, once it arrives. */
   private readonly art = new THREE.Group();
@@ -154,10 +162,20 @@ export class PlayerController {
     // Stage-relative basis (yaw only). Reading the LIVE stage yaw rather than
     // the authored constant is what lets the camera turn without the controls
     // going strange: turn the view a quarter and "forward" turns with it.
+    //
+    // BELSŐ NÉZETBEN viszont MEGFORDUL az egész.
+    //
+    // A külső nézet szabálya az, hogy „előre = a kamerától elfelé" — ez akkor
+    // helyes, ha a kamera MÖGÖTTED van. Belső nézetben a kamera a szemedben
+    // ül, tehát ugyanez a szabály hátrafelé küld. Mérve: mind a négy
+    // égtájon 180 fokot tévedett a mozgás.
     const cos = Math.cos(stage.yaw);
     const sin = Math.sin(stage.yaw);
-    const wishX = input.moveX * cos - input.moveY * sin;
-    const wishZ = -(input.moveX * sin + input.moveY * cos);
+    // Belső nézetben az „előre" a NÉZÉS iránya; külsőben a kamerától elfelé.
+    // A kettő pontosan egymás ellentéte, tehát egy előjel a különbség.
+    const flip = this.firstPerson ? -1 : 1;
+    const wishX = (input.moveX * cos - input.moveY * sin) * flip;
+    const wishZ = -(input.moveX * sin + input.moveY * cos) * flip;
 
     const speed = (input.sprint ? MOVE.sprintSpeed : MOVE.walkSpeed) * this.traits.speed;
     const control = this.grounded ? 1 : MOVE.airControl;
