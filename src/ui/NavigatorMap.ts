@@ -57,7 +57,9 @@ export class NavigatorMap {
      * tart, a ház zárva — és egy térkép, ami olyan helyet jelöl célként,
      * ahova még nem mehetsz, félrevezet.
      */
-    gates: THREE.Vector3[] = []
+    gates: THREE.Vector3[] = [],
+    /** A társ kocsija, ha ketten játszotok. */
+    partner: THREE.Vector3 | null = null
   ): void {
     const ctx = this.ctx;
     const dpr = Math.min(window.devicePixelRatio, 2);
@@ -129,6 +131,23 @@ export class NavigatorMap {
         ctx.lineTo(gx, gy);
         ctx.stroke();
       }
+    }
+
+    // A TÁRS KOCSIJA. Kétfős módban a ház ajtaja kettőtökre nyílik, tehát
+    // tudnod kell, hol tart — enélkül csak annyit látnál, hogy „várj a
+    // társadra", és fogalmad sem lenne, mennyit.
+    if (partner) {
+      const tx = px(partner.x);
+      const ty = py(partner.z);
+      ctx.fillStyle = '#9d5cff';
+      ctx.beginPath();
+      ctx.arc(tx, ty, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(157,92,255,.5)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(tx, ty, 9, 0, Math.PI * 2);
+      ctx.stroke();
     }
 
     // Houses. The target is the only one drawn loud.

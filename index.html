@@ -2,7 +2,7 @@
 <html lang="hu">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
     <title>CANDYPOCALYPSE — Slice 2</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -425,8 +425,9 @@
       .kb kbd.boost { color: #d7c4ff; background: #9d5cff2e; border-color: #9d5cff80; }
       .kb kbd.use   { color: #9ff0c8; background: #6ef0c026; border-color: #6ef0c066; }
       .kb kbd.look  { color: #cfd6ff; background: #9fb6ff1f; border-color: #9fb6ff4d; }
+      .kb kbd.chat  { color: #9ff0ff; background: #4fd6e626; border-color: #4fd6e666; }
       .kb kbd.move, .kb kbd.jump, .kb kbd.drift,
-      .kb kbd.boost, .kb kbd.use, .kb kbd.look { transform: translateY(-1px); }
+      .kb kbd.boost, .kb kbd.use, .kb kbd.look, .kb kbd.chat { transform: translateY(-1px); }
       .kb-legend { grid-column: 1 / -1; display: flex; flex-wrap: wrap;
                    justify-content: center; gap: 4px 14px; margin-top: 4px;
                    list-style: none; font-size: 10px; letter-spacing: .08em;
@@ -439,6 +440,7 @@
       .kb-legend i.boost { background: #9d5cff; }
       .kb-legend i.use { background: #6ef0c0; }
       .kb-legend i.look { background: #9fb6ff; }
+      .kb-legend i.chat { background: #4fd6e6; }
       @media (width <= 560px) { .kb { grid-template-columns: auto; gap: 10px; } }
       .schemes {
         display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 4px;
@@ -544,7 +546,31 @@
 
       /* --- Kapcsolatjelzo --------------------------------------------- */
       /* Mindig a jobb felso sarokban, a menu fole is: a parositas ott dol el. */
-      .net-badge {
+            /* --- A két játékos beszélgetése ------------------------------------
+         Bal alul, a vezetés igéi fölött. A sorok maguktól eltűnnek: egy
+         beszélgetés, ami felhalmozódik a képernyőn, előbb-utóbb a játékot
+         takarja el. */
+      .chat { position: fixed; left: 14px; bottom: 84px; z-index: 6;
+              width: min(320px, 38vw); display: grid; gap: 6px; }
+      .chat-log { display: grid; gap: 3px; }
+      .chat-log p { margin: 0; padding: 5px 9px; border-radius: 4px;
+                    font-size: 11.5px; line-height: 1.45;
+                    background: rgba(10, 6, 22, .74);
+                    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+                    border-left: 3px solid #9d5cff; color: #fff;
+                    animation: chat-in .16s ease-out; }
+      .chat-log p.mine { border-left-color: #ff7a29; }
+      .chat-log b { color: #9d5cff; letter-spacing: .08em; font-size: 9.5px;
+                    display: block; }
+      .chat-log p.mine b { color: #ff7a29; }
+      @keyframes chat-in { from { opacity: 0; transform: translateY(4px); } }
+      .chat-field { font: inherit; font-size: 12px; color: #fff;
+                    background: rgba(10, 6, 22, .9); border: 1px solid #ff7a2980;
+                    border-radius: 4px; padding: 7px 10px; outline: none;
+                    pointer-events: auto; }
+      .chat-field::placeholder { color: rgba(255,255,255,.35); }
+      @media (prefers-reduced-motion: reduce) { .chat-log p { animation: none; } }
+.net-badge {
         position: fixed; top: 12px; right: 14px; z-index: 60; pointer-events: none;
         display: flex; align-items: center; gap: 8px;
         padding: 7px 12px 7px 10px; border-radius: 999px;
@@ -596,6 +622,91 @@
       }
       /* A portré a kártya főszereplője: a szörnyet ránézésre kell eldönteni,
          nem elolvasva. A számok ott maradnak, csak alárendelve. */
+
+      /* ÉRINTŐVEZÉRLÉS. Csak telón jön létre (lásd hasTouch), tehát itt nem
+         kell média-lekérdezés — az elem egyszerűen nincs ott gépen.
+         `touch-action: none`: enélkül a böngésző a hüvelykujj mozdulatát
+         görgetésnek hiszi, és a kormányzás közben elúszik az oldal. */
+      .touch { position: fixed; inset: 0; pointer-events: none; z-index: 40; touch-action: none; }
+      .touch[data-on="0"] { display: none; }
+      .touch * { touch-action: none; -webkit-user-select: none; user-select: none; }
+
+      .touch-pad {
+        position: absolute; left: 22px; bottom: 26px; width: 132px; height: 132px;
+        border-radius: 50%; pointer-events: auto;
+        background: radial-gradient(circle, rgba(255,255,255,.10), rgba(255,255,255,.03) 70%);
+        border: 1px solid rgba(255,255,255,.16);
+      }
+      .touch-knob {
+        position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px;
+        border-radius: 50%; background: rgba(255,170,60,.55);
+        border: 1px solid rgba(255,210,150,.7); box-shadow: 0 0 18px rgba(255,140,40,.45);
+      }
+
+      .touch-keys {
+        position: absolute; right: 20px; bottom: 26px;
+        display: flex; flex-direction: column-reverse; gap: 12px; align-items: flex-end;
+        pointer-events: auto;
+      }
+      .touch-btn {
+        min-width: 84px; height: 62px; padding: 0 16px; border-radius: 34px;
+        font: 700 13px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .08em;
+        color: #ffe9cf; background: rgba(255,255,255,.07);
+        border: 1px solid rgba(255,255,255,.2);
+      }
+      .touch-btn[data-on] { background: rgba(255,150,50,.5); color: #fff; }
+      .touch-btn.nitro { color: #bff3ff; border-color: rgba(120,230,255,.4); }
+      .touch-btn.nitro[data-on] { background: rgba(70,200,255,.5); }
+
+      .touch-top {
+        position: absolute; right: 16px; top: 14px; display: flex; gap: 8px; pointer-events: auto;
+      }
+      .touch-mini {
+        min-width: 54px; height: 34px; border-radius: 17px;
+        font: 700 11px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .1em;
+        color: #cfd6ff; background: rgba(12,8,24,.6); border: 1px solid rgba(255,255,255,.18);
+      }
+
+
+      /* MOBIL ELRENDEZÉS. A HUD gépre készült: 375 képpont széles képernyőn a
+         sebességmérő a nitró gomb alatt volt, a billentyűnevek a kép alá
+         lógtak, a pontsáv pedig 738 képpont széles egy 375-ösben.
+         Nem külön HUD-ot építek, hanem AZT VESZEM KI, aminek érintőn nincs
+         értelme, és a maradékot arrébb teszem a hüvelykujjak elől. */
+      body[data-touch] .hud-legend,
+      body[data-touch] .drive-verbs { display: none; }
+
+      body[data-touch][data-playing] .net-badge { display: none; }
+
+      /* A sebességmérő helyét a HUD kódja írja be inline stílusként (a
+         navigátor panelhez igazítva), ezért itt CSAK `!important` tudja
+         felülírni. Telón ez indokolt: a gépre szabott hely pont a nitró gomb
+         alá esik, és a saját sebességedet nem takarhatja el a saját hüvelykujjad. */
+      body[data-touch] .drive-speed {
+        left: 12px !important; right: auto !important;
+        top: auto !important; bottom: 176px !important;
+        transform: scale(.78); transform-origin: 0 100%;
+      }
+      /* A kisterkép a navigátor képpaneljének a sarkában ül — azt nem mozgatom,
+         mert akkor elválna attól, amit mutat. Helyette a GOMBOK mennek feljebb. */
+      body[data-touch] .touch-keys { bottom: 150px; }
+      /* A pontsáv FELÜLRE megy: alul a bal hüvelykujj és a botja ül rajta,
+         és egy szám, amit a kezed takar, nem szám. */
+      body[data-touch] .hud-watch {
+        left: 8px; right: 8px; width: auto; max-width: none; transform: none;
+        top: 46px; bottom: auto;
+        font-size: 10px; gap: 8px; flex-wrap: wrap; justify-content: center;
+      }
+      /* Az üzenetsáv NE érjen a gombok alá: telón jobbról helyet hagyunk
+         nekik, különben a szöveg a nitró gomb alatt folytatódik. */
+      body[data-touch] .hud-banner {
+        bottom: 250px; max-width: 220px; margin-right: 110px;
+      }
+      /* A fejlécben a beviteli eszköz neve („keyboard") telón se nem igaz,
+         se nem fér ki — a CHAT gomb alá csúszott. */
+      body[data-touch] .hud-panel { max-width: 200px; }
+      body[data-touch] .chat { bottom: 200px; }
+
       .select .card .portrait {
         display: block; width: 100%; height: 150px; object-fit: cover;
         object-position: 50% 32%;

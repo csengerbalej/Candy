@@ -17,8 +17,16 @@ import type { DriveWorld } from './DriveWorld';
 export class StreetCandy {
   readonly group = new THREE.Group();
 
-  /** Hány darab fekszik egyszerre a városban. */
-  private static readonly LIVE = 7;
+  /**
+   * Hány darab fekszik egyszerre a városban.
+   *
+   * Hét volt, a 233 egységes városhoz mérve. A város ötszörös területén ez
+   * annyit jelentett, hogy percekig vezettél anélkül, hogy egyet is láttál
+   * volna — és a „szedj fel hármat" kihívás ettől nem kitérő lett, hanem
+   * kutatás.
+   */
+  /** Nyilvános, mert a próba ehhez méri a készletet — nem egy régi számhoz. */
+  static readonly LIVE = 22;
   /** Mennyi idő múlva bukkan fel újra, amit felszedtél. */
   private static readonly RESPAWN = 11;
   /** Ennyire kell megközelíteni. Nagyvonalú: 120-szal nehéz célozni. */
@@ -116,7 +124,10 @@ export class StreetCandy {
       if (!this.world.onRoad(x, z)) continue;
       // Ne kerüljön oda, ahol már fekszik egy: két cukorka egy helyen egy
       // cukorkának látszik, és a hetedik darab elvész.
-      if (this.pieces.some((p) => p.home.distanceToSquared(new THREE.Vector3(x, 0.75, z)) < 400)) {
+      // A minimális távolság a DARABSZÁMHOZ igazodik: huszonkét darabot nem
+      // lehet húsz egységenként elhelyezni egy városban úgy, hogy közben
+      // mindegyik úton legyen.
+      if (this.pieces.some((p) => p.home.distanceToSquared(new THREE.Vector3(x, 0.75, z)) < 900)) {
         continue;
       }
       return new THREE.Vector3(x, 0.75, z);

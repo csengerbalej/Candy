@@ -374,6 +374,8 @@ json.dump({
     # város utcáin kelnek át; egy autópályán gyalogoló szörny nem nehezítés,
     # hanem hiba.
     "ring": _built.get('ring'),
+    # Az utcarács, hogy az NPC forgalom sávokban tudjon menni.
+    "grid": _built.get('grid'),
     "houses": houses,
 }, open(out, "w"))
 

@@ -25,10 +25,19 @@ export interface LightSpot {
 export class TrafficLights {
   readonly group = new THREE.Group();
 
-  /** Ennyi ideig zöld az egyik irány. */
-  private static readonly GREEN = 9;
+  /**
+   * Ennyi ideig zöld az egyik irány.
+   *
+   * Kilenc volt, és az NPC forgalom megmutatta, miért sok: egy piros
+   * kilenc másodperc, egy áthaladás egy — tehát az autók a pirosnál
+   * GYŰLNEK. Mérve a tizenkettőből átlagosan 6,6 állt, vagyis a város fele
+   * mindig vesztegelt.
+   *
+   * Hat és fél: a szabály megmarad, a város viszont mozog.
+   */
+  private static readonly GREEN = 6.5;
   /** A sárga a zöld VÉGÉN, ebből. */
-  private static readonly AMBER = 2.2;
+  private static readonly AMBER = 1.6;
 
   private clock = 0;
   private readonly spots: { centre: THREE.Vector3; half: number; stop: number }[] = [];

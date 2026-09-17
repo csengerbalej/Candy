@@ -1,3 +1,4 @@
+import { hasTouch } from '../input/TouchControls';
 /**
  * Az éjszaka felütése: sötét képernyő, betűnként kiíródó szöveg.
  *
@@ -15,19 +16,32 @@
  * részlet, amitől az emberek nem indítják újra a játékot.
  */
 const LINES: Array<{ text: string; pause: number; className?: string }> = [
+  // A HÁROM ÜTEM: mi történt, hol vagytok, mit kell csinálni.
+  //
+  // Az első változatban „Tizenhat ház" szerepelt — az a RÉGI, négyszer
+  // négyes térkép száma volt, és azóta hatvannégy telek van, amiből hármat
+  // jársz végig egy este. Egy intró, ami rosszul mondja meg a szabályt,
+  // rosszabb, mint ami nem mond semmit.
+  //
+  // És bekerült a KONYHA is: mióta a panoráma ott van az üveg mögött, a
+  // játékos látja is, hol van — az intrónak meg kell neveznie, különben a
+  // kép és a szöveg két külön dologról beszél.
   { text: 'Volt egyszer egy Halloween.', pause: 0.9 },
   { text: 'Aztán valaki leszedte a polcról…', pause: 0.9 },
   { text: '…és befőttesüvegbe zárta.', pause: 1.3 },
   { text: '', pause: 0.35 },
   { text: 'Bent rekedt a város.', pause: 0.4 },
   { text: 'Bent rekedt minden cukorka.', pause: 0.5 },
-  { text: 'És bent rekedtetek ti is.', pause: 1.3 },
+  { text: 'És bent rekedtetek ti is.', pause: 1.2 },
   { text: '', pause: 0.4 },
-  { text: 'Egy éjszaka. Tizenhat ház.', pause: 0.6 },
-  { text: 'Szedjétek össze — aztán törjetek ki!', pause: 1.2, className: 'shout' },
+  { text: 'Odakint egy konyha. Egy asztal.', pause: 0.7 },
+  { text: 'Egy lámpa, ami nem nektek ég.', pause: 1.3 },
+  { text: '', pause: 0.4 },
+  { text: 'Egy éjszakátok van. Három ház.', pause: 0.7 },
+  { text: 'Szedjétek össze — aztán tűnjetek el!', pause: 1.2, className: 'shout' },
   { text: '', pause: 0.5 },
-  { text: 'De a szülők nem adják oda könnyen.', pause: 0.9, className: 'warn' },
-  { text: 'Odakint meg valami mászik az üvegen.', pause: 1.6, className: 'warn' },
+  { text: 'De a lakók nem alszanak.', pause: 0.9, className: 'warn' },
+  { text: 'És az üvegen kívül mászik valami.', pause: 1.6, className: 'warn' },
 ];
 
 /** Másodperc betűnként. A felkiáltás gyorsabb, a fenyegetés lassabb. */
@@ -62,7 +76,10 @@ export class Intro {
 
     this.skip = document.createElement('div');
     this.skip.className = 'intro-skip';
-    this.skip.textContent = 'bármelyik gomb: tovább';
+    // Telón nincs „bármelyik gomb". A koppintás eddig is továbbvitt (a
+    // kattintás-kezelő miatt), de EZT KI IS KELL ÍRNI: egy működő gomb, amiről
+    // a játékos nem tudja, hogy létezik, nem működő gomb.
+    this.skip.textContent = hasTouch() ? 'koppints: tovább' : 'bármelyik gomb: tovább';
     this.root.appendChild(this.skip);
 
     window.addEventListener('keydown', this.onSkip);

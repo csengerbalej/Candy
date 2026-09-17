@@ -31,6 +31,8 @@ export interface InputSource {
   get(playerIndex: number): PlayerInput;
 }
 
+import type { TouchControls } from './TouchControls';
+
 const DEADZONE = 0.22;
 
 interface KeyMap {
@@ -105,6 +107,40 @@ export class InputManager {
    */
   localIndex: 0 | 1 = 0;
 
+  /**
+   * A képernyőre rajzolt vezérlő, ha érintőképernyőn vagyunk.
+   *
+   * A HELYI játékosé, mindig: a társ gombjai a másik telefonon vannak. Ezért
+   * nem kiosztás, hanem harmadik forrás a billentyűzet és a pad mellé — és a
+   * három közül az nyer, amelyiket épp használják.
+   */
+  touch: TouchControls | null = null;
+
+  /**
+   * A beszélgetés gombjai.
+   *
+   * Nem a `PlayerInput` része, és ez szándékos: az a szörny bemenete, amit a
+   * hálózat át is küld a társnak. Hogy én épp gépelni akarok, az nem az ő
+   * dolga — és a sávszélességre költeni rá pazarlás.
+   */
+  private chatOpen = false;
+  private quickSlot = -1;
+
+  /** Igaz EGYSZER, ha megnyomtad a beszélgetés gombját. */
+  consumeChat(): boolean {
+    if (this.touch?.consumeChat()) this.chatOpen = true;
+    const hit = this.chatOpen;
+    this.chatOpen = false;
+    return hit;
+  }
+
+  /** A megnyomott gyorsüzenet sorszáma, vagy −1. Egyszer adja vissza. */
+  consumeQuick(): number {
+    const slot = this.quickSlot;
+    this.quickSlot = -1;
+    return slot;
+  }
+
   private readonly held = new Set<string>();
   private readonly prevJump: boolean[];
   private readonly prevInteract: boolean[];
@@ -147,6 +183,11 @@ export class InputManager {
       // While a text field has focus the keyboard belongs to it: swallowing
       // Space there would make it impossible to type a name with a space in it.
       if (isTyping()) return;
+      // A beszélgetés gombjai AZONNAL érvényesülnek, nem a képkocka-hurokban:
+      // egy megnyitás nem veszhet el attól, hogy épp nem futott szimuláció.
+      if (e.code === 'KeyT') this.chatOpen = true;
+      const quick = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(e.code);
+      if (quick >= 0) this.quickSlot = quick;
       this.held.add(e.code);
       // Stop the page from scrolling out from under the game.
       if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
@@ -195,7 +236,23 @@ export class InputManager {
         usingGamepad = moveX !== 0 || moveY !== 0 || jumpHeld || sprint || interactHeld;
       }
 
-      if (!usingGamepad) {
+      // AZ ÉRINTŐVEZÉRLŐ a helyi játékosé, és megelőzi a billentyűzetet: ha
+      // az ujj a boton van, nem kell azt is figyelni, nyomva maradt-e egy
+      // billentyű valahol.
+      const touch = i === this.localIndex ? this.touch : null;
+      const touching =
+        !!touch &&
+        (touch.state.moveX !== 0 || touch.state.moveY !== 0 || touch.state.jumpHeld ||
+          touch.state.interactHeld || touch.state.nitro);
+
+      if (touching && touch) {
+        moveX = touch.state.moveX;
+        moveY = touch.state.moveY;
+        jumpHeld = touch.state.jumpHeld;
+        interactHeld = touch.state.interactHeld;
+        nitro = touch.state.nitro;
+        sprint = touch.state.sprint;
+      } else if (!usingGamepad) {
         // A BILLENTYUZET MINDIG A HELYI JATEKOSE, barmi is a sorszama.
         //
         // Ez okozta, hogy a masodik eszkozon ulo jatekosnak nem mozdult a
@@ -223,6 +280,9 @@ export class InputManager {
       s.sprint = sprint;
       s.nitro = nitro;
       s.jumpHeld = jumpHeld;
+      // A szünet gomb a képernyőről ÉLKÉNT jön (egyszer igaz), nem tartott
+      // állapotként — ezért közvetlenül a várólistára kerül.
+      if (touch?.consumePause()) this.pendingPause[i] = true;
       if (pauseHeld && !this.prevPause[i]) this.pendingPause[i] = true;
       this.prevPause[i] = pauseHeld;
 

@@ -45,6 +45,8 @@ interface NavData {
   lights?: Array<{ centre: [number, number]; half: number; stop: number }>;
   /** A körpálya sugarai — ami közé esik, az autópálya, nem városi utca. */
   ring?: { inner: number; outer: number };
+  /** Az utcarács, hogy az NPC forgalom sávokban tudjon menni. */
+  grid?: { pitchX: number; pitchZ: number; count: number; street: number; builtX: number; builtZ: number };
 }
 
 const HOUSE_NAMES = [
@@ -95,6 +97,11 @@ export class VillageWorld implements DriveWorld {
     if (!ring) return false;
     const r = Math.hypot(x, z) / VILLAGE_SCALE;
     return r > ring.inner - 0.02 && r < ring.outer + 0.02;
+  }
+
+  /** Az utcarács, ahogy a térkép megadta. `null`, ha régi falutérkép. */
+  get streetGrid(): { pitchX: number; pitchZ: number; count: number; street: number; builtX: number; builtZ: number } | null {
+    return this.nav.grid ?? null;
   }
 
   /** A lámpás kereszteződések, ahogy a térkép megadta őket. */

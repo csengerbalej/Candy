@@ -46,7 +46,7 @@ export type DriveVerb = 'target' | 'ping' | 'radar';
 export class DriveLink {
   /** A sofőrtől kapott legutolsó állapot; a navigátor gépe ebből rajzol. */
   readonly remote: DrivePresence = {};
-  /** Ki szállt ki a kocsiból — a sofőr gépe tartja számon. */
+  /** Ki szállt ki a kocsiból — mindkét gép számon tartja. */
   readonly outOfCar: [boolean, boolean] = [false, false];
 
   private readonly stops: Array<() => void> = [];
@@ -83,9 +83,16 @@ export class DriveLink {
     this.stops.length = 0;
   }
 
-  /** A sofőr gépe kiteszi az autót. Másodpercenként ~30-szor bőven elég. */
+  /**
+   * MINDKÉT gép kiteszi a SAJÁT autóját. Másodpercenként ~30-szor bőven elég.
+   *
+   * Eddig csak a sofőré tette ki, mert egy autó volt. Két autónál a szabály
+   * ugyanaz marad — egy autót egy gép számol —, csak most mindkettőnek van
+   * mit kitennie. Ez nem bonyolítás: pontosan attól működik, hogy senki nem
+   * számolja a másikét.
+   */
   publish(car: Car, targetId: number, score: number, arrived: boolean, radarLeft: number): void {
-    if (!this.room || !this.amDriver) return;
+    if (!this.room) return;
     const now = Date.now();
     if (now - this.lastSent < 33) return;
     this.lastSent = now;
@@ -104,9 +111,13 @@ export class DriveLink {
     } satisfies DrivePresence as unknown as Record<string, unknown>);
   }
 
-  /** A navigátor gépe átveszi a kapott állapotot a saját autójára. */
+  /**
+   * A TÁRS autóját rajzoljuk a kapott állapotból.
+   *
+   * A sajátunkat sosem — azt mi számoljuk. Ha mindkét gép átvenné a másikét,
+   * a két kocsi egymást rángatná, és egyiknek sem lenne igaza.
+   */
   apply(car: Car, peers: readonly { isMe: boolean; presence: Readonly<Record<string, unknown>> }[]): void {
-    if (this.amDriver) return;
     const from = peers.find((p) => !p.isMe && Array.isArray((p.presence as DrivePresence).c));
     if (!from) return;
     const state = from.presence as DrivePresence;

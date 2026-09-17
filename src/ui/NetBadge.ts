@@ -15,12 +15,45 @@ import type { NetSession, NetState } from '../net/NetSession';
 export class NetBadge {
   private readonly el: HTMLDivElement;
   private stop: (() => void) | null = null;
+  /** A megosztandó kód, ha a szoba nem a futtatókörnyezeté. */
+  private code: string | null = null;
+  private last: NetState | null = null;
 
   constructor(parent: HTMLElement) {
     this.el = document.createElement('div');
     this.el.className = 'net-badge';
     parent.appendChild(this.el);
     this.show(null);
+  }
+
+  /**
+   * Megjeleníti a MEGHÍVÓT.
+   *
+   * Enélkül a közvetlen (fiók nélküli) szoba használhatatlan: a kód létezik,
+   * de a játékos nem látja, tehát nincs mit elküldenie a társának. A linkre
+   * kattintva vágólapra kerül — begépelni nem kell.
+   */
+  invite(code: string): void {
+    this.code = code;
+    this.el.onclick = () => {
+      const link = location.origin + location.pathname + location.search + '#j=' + code;
+      void navigator.clipboard?.writeText(link).then(
+        () => this.flash('LINK MÁSOLVA'),
+        () => this.flash(link)
+      );
+    };
+    this.el.style.cursor = 'pointer';
+    this.show(this.last);
+  }
+
+  private flash(text: string): void {
+    const note = this.el.querySelector('span');
+    if (!note) return;
+    const before = note.textContent;
+    note.textContent = text;
+    setTimeout(() => {
+      if (note.textContent === text) note.textContent = before;
+    }, 1800);
   }
 
   /** A munkamenet lecserélődik, amikor a szoba megnyílik — ezért követhető. */
@@ -30,6 +63,16 @@ export class NetBadge {
   }
 
   private show(state: NetState | null): void {
+    this.last = state;
+    // A közvetlen szobában az „egyedül vagyok" nem hiba, hanem a VÁRAKOZÁS
+    // állapota: a kód már él, csak még nem jött meg a társ. Ha ilyenkor
+    // „nincs szoba" volna kiírva, a játékos jogosan hinné, hogy nem működik.
+    if (this.code && (!state || !state.paired)) {
+      this.el.dataset.state = 'wait';
+      this.el.innerHTML =
+        `<i></i><b>KÓD: ${this.code}</b><span>kattints: meghívó link másolása</span>`;
+      return;
+    }
     if (!state || !state.online) {
       this.el.dataset.state = 'off';
       this.el.innerHTML = `<i></i><b>EGY GÉPEN</b><span>nincs szoba</span>`;

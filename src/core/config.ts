@@ -665,7 +665,27 @@ export const STREET = {
    * stopping should open a door.
    */
   parkSpeed: 1.6,
-  critterCount: 16,
+  /**
+   * Hány szörnyecske van egyszerre az utcákon.
+   *
+   * Tizenhat volt, és az a RÉGI, 233 egységes városhoz tartozott. A város
+   * azóta 540 egység — a területe ÖTSZÖRÖSÉRE nőtt —, tehát ugyanaz a
+   * tizenhat egy ötödannyira sűrű forgalom: egész utcákon nem találkoztál
+   * senkivel.
+   *
+   * Az azonos sűrűség 86-ot kívánna. Negyvennyolc: érezhetően élő utcák,
+   * de nem hangyaboly — és a városnak vannak csendesebb sarkai is, ami jó,
+   * mert akkor a forgalmas részek jelentenek valamit.
+   */
+  critterCount: 48,
+  /**
+   * Hány NPC autó jár a városban.
+   *
+   * Tizenkettő: elég ahhoz, hogy minden nagyobb kereszteződésnél lásd őket
+   * és néha sorban álljanak, kevés ahhoz, hogy dugó legyen. Egy üres város
+   * pálya; egy tele város akadálypálya — a kettő között van a város.
+   */
+  npcCarCount: 12,
   critterSpeed: 1.9,
   /**
    * Ennyire kell megközelíteni, hogy a várakozó szörnyecske kiugorjon.

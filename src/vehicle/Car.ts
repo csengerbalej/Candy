@@ -446,7 +446,10 @@ export class Car {
    * The normal is what lets a graze behave like a graze: see `respond`.
    */
   private resolve(colliders: THREE.Box3[], step: THREE.Vector3): void {
-    const boxes = this.prepare(colliders);
+    const statics = this.prepare(colliders);
+    // A mozgó akadályok a statikus falak MÖGÉ kerülnek: ugyanaz a kör-doboz
+    // próba fut rájuk, ugyanaz a válasz (súrolás vagy frontális) születik.
+    const boxes = this.obstacles.length ? statics.concat(this.obstacles) : statics;
     const r = CAR.bodyRadius;
     const budget = step.length() + r * 2;
 
@@ -612,6 +615,20 @@ export class Car {
 
   /** Local-z offsets of the three collision circles: rear, centre, nose. */
   private static readonly SPINE = [-CAR.spineSpread, 0, CAR.spineSpread];
+
+  /**
+   * MOZGÓ akadályok: a másik játékos kocsija és az NPC autók.
+   *
+   * Külön lista, nem a világ falai közé keverve, két okból. Egy: a falakat
+   * `prepare()` egyszer megszűri és gyorsítótárazza a tömb azonossága
+   * alapján — egy képkockánként újraépülő tömb ezt a gyorsítótárat minden
+   * képkockán eldobná (1029 doboz újraszűrése 60-szor másodpercenként).
+   * Kettő: az autódobozokat NEM szabad a név-heurisztikával zsugorítani, mert
+   * nincs nevük; úgy kerülnének be, ahogy vannak.
+   *
+   * Ürítve nem kerül semmibe: a kör-doboz próba a széles fázison elhasal.
+   */
+  obstacles: THREE.Box3[] = [];
 
   private preparedFrom: THREE.Box3[] | null = null;
   private prepared: THREE.Box3[] = [];

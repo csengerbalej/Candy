@@ -408,6 +408,10 @@ let ok = true;
   const world = {
     roads: [{ centre: new THREE.Vector3(0, 0, 0) }],
     tileSize: 20,
+    // A szörnyecskék a sztrádára nem mehetnek; ebben a tokban nincs sztráda,
+    // de a KÉRDÉST fel kell tudni tenni — enélkül a próba elszáll, és a
+    // hibája nem a mérésről szól.
+    onMotorway: () => false,
   };
 
   const path = (swap: boolean): number[] => {
@@ -882,7 +886,7 @@ let ok = true;
   // Amit mérni kell, az nem az, hogy „több mozgás van", hanem hogy a kiugrás
   // KÖVETKEZMÉNYE helyes: akkor jöjjön, amikor az autó közel van, és akkor
   // se legyen elkerülhetetlen.
-  const world = { roads: [{ centre: new THREE.Vector3(0, 0, 0) }], tileSize: 20 };
+  const world = { roads: [{ centre: new THREE.Vector3(0, 0, 0) }], tileSize: 20, onMotorway: () => false };
   const traffic = new CritterTraffic(world as never);
   const car = new Car(new THREE.Vector3(0, 0, -60));
 
@@ -936,7 +940,7 @@ let ok = true;
   // lennie, különben egy nyomásra az egész utca szétugrik, és a
   // szörnyecskék veszélye megszűnik. Épp az az egy dolog, ami vezetés közben
   // valódi döntést kér.
-  const world = { roads: [{ centre: new THREE.Vector3(0, 0, 0) }], tileSize: 20 };
+  const world = { roads: [{ centre: new THREE.Vector3(0, 0, 0) }], tileSize: 20, onMotorway: () => false };
   const traffic = new CritterTraffic(world as never);
 
   // Mindegyiket ismert távolságra tesszük a kürt helyétől.
@@ -1306,7 +1310,10 @@ if (!ok) process.exitCode = 1;
   for (let t = 0; t < 14; t += 1 / 60) candy.update(1 / 60, t, new THREE.Vector3(9999, 0, 9999));
   const moved = (candy as any).pieces[0].home.distanceTo(before);
   ok = line('a felszedett cukorka máshol bukkan fel',
-    again === 0 && moved > 10 && candy.live === 7,
+    // A darabszám a kérésre nőtt 7-ről; a próba a KÖVETKEZMÉNYT méri (a
+    // felszedett máshol jön vissza, és közben nem fogy el a készlet), nem a
+    // konstans egy régi értékét.
+    again === 0 && moved > 10 && candy.live === StreetCandy.LIVE,
     `azonnal újra: ${again} darab; új helye ${moved.toFixed(0)} egységre; kint ${candy.live}`) && ok;
 }
 
@@ -1512,6 +1519,57 @@ if (!ok) process.exitCode = 1;
     'a behozás nem fagyaszt be', SIM.maxSteps <= 20,
     `${SIM.maxSteps} lépés a felső határ`
   ) && ok;
+}
+
+/**
+ * AUTÓ AUTÓNAK. Eddig a két kocsi — a társé és az NPC-ké — átment egymáson:
+ * a világ falai ütköztek, a mozgó autók nem szerepeltek sehol. Ez nem
+ * „hiányzó extra" volt, hanem látható hiba: a társad kocsija szellem.
+ *
+ * Amit mérünk, az nem a doboz mérete, hanem a KÖVETKEZMÉNY: aki nekimegy,
+ * az megáll előtte, nem benne.
+ */
+{
+  const solid = new Car(0);
+  solid.position.set(0, 0, 0);
+  // Egy álló autó tizennyolc egységgel előttünk, keresztben az úton.
+  const parked = new THREE.Box3(
+    new THREE.Vector3(-2.3, 0, 16),
+    new THREE.Vector3(2.3, 2.2, 20.6)
+  );
+
+  const through = new Car(0);
+  through.position.set(0, 0, 0);
+  run(3, input(0, 1), through);
+  const far = through.position.z;
+
+  solid.obstacles = [parked];
+  run(3, input(0, 1), solid);
+
+  ok =
+    line(
+      'akadály nélkül elhajt mellette',
+      far > 25,
+      `${far.toFixed(1)} egység 3 mp alatt`
+    ) && ok;
+  ok =
+    line(
+      'a másik autó előtt megáll',
+      solid.position.z < 16 && solid.position.z > 6,
+      `${solid.position.z.toFixed(1)} egységnél (az autó 16-nál kezdődik)`
+    ) && ok;
+  ok =
+    line(
+      'nem hajt át rajta',
+      solid.position.z < 16,
+      `${solid.position.z.toFixed(1)} < 16`
+    ) && ok;
+  ok =
+    line(
+      'az ütközés le is lassít',
+      Math.abs(solid.speed) < Math.abs(through.speed),
+      `${Math.abs(solid.speed).toFixed(1)} vs ${Math.abs(through.speed).toFixed(1)} egység/mp`
+    ) && ok;
 }
 
 console.log(ok ? 'MIND OK — a vezetés hangolása stabil' : 'VAN BUKÓ TESZT');

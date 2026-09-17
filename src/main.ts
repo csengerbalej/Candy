@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PLAYER_COUNT, SIM } from './core/config';
 import { stepBudget, Resolution } from './core/Loop';
+import { TouchControls, hasTouch } from './input/TouchControls';
 import { InputManager } from './input/InputManager';
 import { Frontend, type FrontendPhase, type FrontendResult } from './ui/Frontend';
 import { PauseMenu, type PauseActions } from './ui/PauseMenu';
@@ -10,9 +11,11 @@ import { Session } from './game/Session';
 import { loadSelection, saveSelection, type Selection } from './game/Characters';
 import { cyclePitch, resetStage, rotateStage, tiltStage, turnStage } from './camera/Stage';
 import { openRoom, type RoomTransport } from './net/Room';
+import { openPeerRoom, makeCode } from './net/PeerRoom';
 import { NetSession } from './net/NetSession';
 import { NetBadge } from './ui/NetBadge';
 import { Identity } from './net/Identity';
+import { Chat } from './ui/Chat';
 import { Intro } from './ui/Intro';
 import { VillageWorld } from './world/VillageWorld';
 import { saveRun, loadRun, clearRun } from './game/SaveGame';
@@ -59,6 +62,22 @@ applySettings(renderer);
 
 const input = new InputManager(PLAYER_COUNT);
 
+/**
+ * A képernyőre rajzolt vezérlő — CSAK érintőképernyőn.
+ *
+ * Egérrel nincs értelme, sőt kárt okoz: eltakarná a képet olyan gombokkal,
+ * amikre soha nem kattint senki. A menüben is rejtve marad; ott a kártyákra
+ * lehet koppintani.
+ */
+const touch = hasTouch() ? new TouchControls(app) : null;
+if (touch) {
+  input.touch = touch;
+  touch.setVisible(false);
+  // A HUD-ot is tudni kell, hogy érintőn vagyunk: a billentyűnevek („jobb
+  // Shift") telón nemcsak feleslegesek, hanem takarnak is.
+  document.body.dataset.touch = '1';
+}
+
 let width = 0;
 let height = 0;
 function resize(): void {
@@ -104,6 +123,15 @@ function hideLoading(): void {
 // --- the run --------------------------------------------------------------
 let active: GameScene | null = null;
 let session: Session | null = null;
+
+/**
+ * A két játékos beszélgetése.
+ *
+ * A JELENETEKEN KÍVÜL él, mert a beszélgetés nem a vezetéshez vagy a házhoz
+ * tartozik, hanem hozzátok: egy üzenet nem tűnhet el attól, hogy közben
+ * bementetek egy házba. Ezért itt jön létre, és itt is marad.
+ */
+let chat: Chat | null = null;
 let pause: PauseMenu | null = null;
 let stopped = false;
 let advancing = false;
@@ -166,6 +194,8 @@ function makePauseMenu(extra: Partial<PauseActions>): PauseMenu {
 }
 
 async function showFrontend(): Promise<FrontendResult> {
+  touch?.setVisible(false);
+  delete document.body.dataset.playing;
   const frontend = new Frontend(app, input, takeFrontendPhase());
   frontend.onSettings = () => settingsPanel().toggle();
 
@@ -297,6 +327,9 @@ function frame(): void {
   requestAnimationFrame(frame);
 
   const frameTime = Math.min(clock.getDelta(), 0.25);
+  // Játék közben látszik a vezérlő; a menü a saját ágán elrejti.
+  touch?.setVisible(true);
+  if (touch) document.body.dataset.playing = '1';
   input.update();
   tickFps();
 
@@ -313,6 +346,17 @@ function frame(): void {
   // közben is változhat (a társ belép, kilép) — ezért itt frissül, nem
   // egyszer az induláskor.
   input.soloActive = net.current.paired ? net.current.playerIndex : 0;
+  // A CHAT csak kétfős módban él, és csak akkor, ha van kinek üzenni.
+  if (chat) {
+    chat.update(frameTime);
+    // A gépelés ALATT a játék nem kap gombot — az `InputManager` a
+    // szövegmezőt amúgy is kihagyja, ez csak a megnyitást zárja.
+    if (!chat.typing && net.current.paired && active && !pause?.isOpen) {
+      if (input.consumeChat()) chat.open();
+      const quick = input.consumeQuick();
+      if (quick >= 0) chat.quick(quick);
+    }
+  }
   // ...és a BILLENTYŰZET is az övé. Enélkül a második eszközön ülő játékos a
   // KEYMAPS[1]-et olvasta, amiből a mozgás pont akkor tűnt el, amikor az „egy
   // gépen ketten" mód kikerült: WASD-ot nyomott, és nem indult el a kocsi.
@@ -434,13 +478,50 @@ export let net = new NetSession(null);
 const netBadge = new NetBadge(app);
 netBadge.watch(net);
 
+/**
+ * A szoba KÓDJA, ha nem a futtatókörnyezetén megyünk.
+ *
+ * A címsor végén él (`#j=ABCD`), mert így a meghívás maga a link: a társnak
+ * nincs mit begépelnie, és nekünk nincs mit tárolnunk. Ha nincs benne kód,
+ * gyártunk egyet és VISSZAÍRJUK — enélkül minden újratöltés új szobát
+ * nyitna, és a már elküldött link holnap üresbe vezetne.
+ */
+function roomCode(): string {
+  const found = /[#&]j=([A-Za-z]{4})/.exec(location.hash);
+  if (found) return found[1].toUpperCase();
+  const fresh = makeCode();
+  try {
+    history.replaceState(null, '', location.pathname + location.search + '#j=' + fresh);
+  } catch {
+    // Ha a címsort nem írhatjuk (fájlból nyitva), a kód akkor is él, csak
+    // kézzel kell továbbadni. A jelző kiírja.
+  }
+  return fresh;
+}
+
+function adopt(room: RoomTransport): void {
+  net = new NetSession(room);
+  netRoom = room;
+  identity = new Identity(room, net);
+  netBadge.watch(net);
+  // A beszélgetés akkor születik, amikor a szoba megnyílik. Egyedül
+  // játszva sosem — nincs kivel.
+  chat = new Chat(app, room, 'ÉN');
+}
+
 void openRoom()
-  .then((room) => {
-    if (!room) return;
-    net = new NetSession(room);
-    netRoom = room;
-    identity = new Identity(room, net);
-    netBadge.watch(net);
+  .then(async (room) => {
+    if (room) {
+      adopt(room);
+      return;
+    }
+    // Nincs futtatókörnyezeti szoba (saját tárhelyről nyitva), vagy a másik
+    // fél nem ugyanabból a Claude-szervezetből jön. Ilyenkor a két böngésző
+    // közvetlenül beszél egymással.
+    const peer = await openPeerRoom(roomCode());
+    if (!peer) return;
+    netBadge.invite(peer.code);
+    adopt(peer);
   })
   .catch(() => {});
 

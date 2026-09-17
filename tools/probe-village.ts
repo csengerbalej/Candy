@@ -5,6 +5,7 @@ import { VILLAGE_SCALE, VillageWorld } from '../src/world/VillageWorld';
 import { TrafficLights } from '../src/world/TrafficLights';
 import { Checkpoints } from '../src/world/Checkpoints';
 import { CritterTraffic } from '../src/ai/CritterTraffic';
+import { CarTraffic } from '../src/ai/CarTraffic';
 import { Challenge } from '../src/game/Challenge';
 import { Car } from '../src/vehicle/Car';
 import type { PadState } from '../src/input/InputManager';
@@ -1379,6 +1380,73 @@ console.log('');
     ways >= 6,
     `nyolc irányból ${ways} érhető el`
   ) && ok;
+}
+
+// --- Az NPC forgalom -------------------------------------------------------
+{
+  const grid = world.streetGrid;
+  if (!grid) {
+    ok = line('a térkép megadja az utcarácsot', false, 'nincs rács a nav fájlban') && ok;
+  } else {
+    let seed = 31;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    const traffic = new CarTraffic(grid, 12, world.lightSpots, rnd);
+    const lights = new TrafficLights(world.lightSpots, VILLAGE_SCALE);
+
+    // 1. AZ ÚTON MENNEK. Egy NPC autó, ami a kertben köröz, nem forgalom.
+    let offRoad = 0;
+    let samples = 0;
+    for (let t = 0; t < 40; t += 1 / 30) {
+      lights.update(1 / 30, new THREE.Vector3(1e6, 0, 1e6), 0);
+      traffic.update(1 / 30, lights);
+      for (const c of traffic.cars) {
+        samples++;
+        if (!world.onRoad(c.mesh.position.x, c.mesh.position.z)) offRoad++;
+      }
+    }
+    ok = line(
+      'az NPC autók végig az úttesten maradnak',
+      offRoad / samples < 0.02,
+      `${samples} mintából ${offRoad} esett le az útról`
+    ) && ok;
+
+    // 2. MEGÁLLNAK A PIROSNÁL. Ez az egész értelme: a lámpa eddig üresben
+    //    váltott, és egy szabály, amit senki nem tart be, nem szabály.
+    // NEM AZ A KÉRDÉS, hányan állnak egy pillanatban.
+    //
+    // Egy szinkronizált rácsban a forgalom fele mindig piros tengelyen van —
+    // hogy közülük hányan érnek épp egy lámpához, az ingadozik. Mérve
+    // átlagosan öt autó áll a tizenkettőből, és ez nem hiba, hanem az, amit
+    // egy lámpás város csinál.
+    //
+    // A valódi kérdés: BERAGAD-E VALAKI. Egy autó, ami húsz másodperc alatt
+    // sem tesz meg érdemi utat, nem forgalom, hanem díszlet — és pont ez az,
+    // amit a korábbi, minden kereszteződésnél megálló változat csinált.
+    let everWaited = 0;
+    let waitSum = 0;
+    let waitFrames = 0;
+    let prev = traffic.cars.map((c) => c.mesh.position.clone());
+    const covered = traffic.cars.map(() => 0);
+    for (let t = 0; t < 20; t += 1 / 30) {
+      lights.update(1 / 30, new THREE.Vector3(1e6, 0, 1e6), 0);
+      traffic.update(1 / 30, lights);
+      everWaited = Math.max(everWaited, traffic.waitingCount);
+      waitSum += traffic.waitingCount;
+      waitFrames++;
+      traffic.cars.forEach((c, i) => {
+        covered[i] += c.mesh.position.distanceTo(prev[i]);
+      });
+      prev = traffic.cars.map((c) => c.mesh.position.clone());
+    }
+    const avgWaiting = waitSum / waitFrames;
+    const stuck = covered.filter((d) => d < 40).length;
+    ok = line(
+      'senki nem ragad be, de a pirosnál megállnak',
+      everWaited > 0 && stuck === 0,
+      `húsz másodperc alatt ${stuck} autó ragadt be; átlagosan ${avgWaiting.toFixed(1)} áll a 12-ből`
+    ) && ok;
+
+  }
 }
 
 console.log(ok ? 'MIND OK — a falu vezethető' : 'VAN BUKÓ TESZT');

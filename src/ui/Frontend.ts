@@ -377,8 +377,9 @@ export class Frontend {
     return `
       <div class="kb" aria-hidden="true">
         <div class="kb-keys">
-          ${row([['Q'], ['W', 'move'], ['E', 'use'], ['R'], ['T']])}
+          ${row([['Q'], ['W', 'move'], ['E', 'use'], ['R'], ['T', 'chat']])}
           ${row([['A', 'move'], ['S', 'move'], ['D', 'move'], ['F', 'boost'], ['G']])}
+          ${row([['1', 'chat'], ['2', 'chat'], ['3', 'chat'], ['4', 'chat']])}
           ${row([['Shift', 'wide drift'], ['Space', 'wide jump']])}
         </div>
         <div class="kb-arrows">
@@ -392,6 +393,7 @@ export class Frontend {
           <li><i class="boost"></i>nitró</li>
           <li><i class="use"></i>duda / használat</li>
           <li><i class="look"></i>kamera</li>
+          <li><i class="chat"></i>üzenet a társnak</li>
         </ul>
       </div>`;
   }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAR } from '../core/config';
+import { CAR, PALETTE, STREET } from '../core/config';
 // The drive happens in the Meshy village now, not the kit-built town. Both
 // satisfy DriveWorld, so nothing downstream of here — the navigator's map, the
 // critters, the scoring — had to change.
@@ -11,6 +11,7 @@ import { CritterTraffic } from '../ai/CritterTraffic';
 import { StreetCandy } from '../world/StreetCandy';
 import { TrafficLights } from '../world/TrafficLights';
 import { Checkpoints } from '../world/Checkpoints';
+import { CarTraffic } from '../ai/CarTraffic';
 import { Challenge } from '../game/Challenge';
 import { Anger } from '../game/Anger';
 import { DriveGame } from '../game/DriveGame';
@@ -102,6 +103,15 @@ export class DriveScene implements GameScene {
   private readonly stage = new DriveStage();
   private link!: DriveLink;
   private amDriver = true;
+  /**
+   * Melyik szörny a MIÉNK ezen a gépen.
+   *
+   * Kétfős módban a szoba dönti el (0 vagy 1); egyedül mindig a nulladik.
+   * A bemenet, a pontszám és a kocsi is ehhez tartozik.
+   */
+  private localIndex: 0 | 1 = 0;
+  /** A társ kocsija. `null`, ha egyedül játszol. */
+  private readonly partner: Car | null;
   private readonly parking: ParkingSpot;
   private readonly dome: Dome;
   private readonly spider: ShelfSpider;
@@ -118,6 +128,7 @@ export class DriveScene implements GameScene {
   private readonly lights: TrafficLights;
   private sky: THREE.Object3D | null = null;
   private readonly challenge: Challenge;
+  private readonly cars: CarTraffic | null;
   private readonly checkpoints: Checkpoints | null;
   private readonly lastCarAt = new THREE.Vector3();
   /**
@@ -156,6 +167,26 @@ export class DriveScene implements GameScene {
     this.car = new Car(world.carSpawn, world.carHeading);
     this.scene.add(this.car.mesh);
 
+    // A TÁRS KOCSIJA — kétfős módban KÉT autó van.
+    //
+    // Eddig egy kocsi volt, sofőrrel és navigátorral: a navigátor gépe nem
+    // szimulált semmit, csak rajzolta, amit kapott. Ez működött, de a
+    // második játékos NÉZŐ volt a saját estéjén.
+    //
+    // Most mindkettőnek saját kocsija van. A szabály ugyanaz marad, ami egy
+    // autót egyáltalán szimulálhatóvá tesz: EGY AUTÓT EGY GÉP SZÁMOL. A
+    // sajátodat te, a társadét ő — és a két gép a HELYZETET cseréli, nem a
+    // gombnyomásokat. Így nincs két, egymástól elcsúszó valóság.
+    //
+    // Kicsit odébb indul: két autó nem születhet ugyanarra a pontra.
+    this.partner = net.current.paired
+      ? new Car(
+          world.carSpawn.clone().add(new THREE.Vector3(Math.cos(world.carHeading) * 7, 0, -Math.sin(world.carHeading) * 7)),
+          world.carHeading
+        )
+      : null;
+    if (this.partner) this.scene.add(this.partner.mesh);
+
     this.traffic = new CritterTraffic(world);
     this.scene.add(this.traffic.group);
 
@@ -173,6 +204,13 @@ export class DriveScene implements GameScene {
     this.checkpoints =
       this.challenge.kind === 'IDOFUTAM' ? new Checkpoints(gatePoints, Challenge.GATE_REACH) : null;
     if (this.checkpoints) this.scene.add(this.checkpoints.group);
+
+    // NPC FORGALOM. A lámpák eddig üresben váltottak: nem állt meg előttük
+    // senki. Egy sor álló autó a pirosnál adja a városnak azt a jelentést,
+    // hogy ITT SZABÁLYOK VANNAK — amit aztán te megszeghetsz.
+    const grid = world.streetGrid;
+    this.cars = grid ? new CarTraffic(grid, STREET.npcCarCount, world.lightSpots) : null;
+    if (this.cars) this.scene.add(this.cars.group);
 
     // A jelzőlámpák. Nem csak szabály: ez a kilenc váltakozó fény az első
     // dolog a városban, ami MAGÁTÓL mozog.
@@ -198,6 +236,7 @@ export class DriveScene implements GameScene {
     }
     toonify(world.group, { floor: 0.15, fill: 0.04, steps: 4, tint: TINT_TOWN });
     toonify(this.car.mesh, { floor: 0.42 });
+    if (this.partner) toonify(this.partner.mesh, { floor: 0.42, tint: PALETTE.p2 });
 
     void models
       .instance('models/car.json', { length: CAR.length, yaw: Math.PI / 2 })
@@ -211,6 +250,39 @@ export class DriveScene implements GameScene {
         this.car.setArt(m);
       })
       .catch((e) => console.warn('car model failed', e));
+
+    // A TÁRS KOCSIJA ugyanazt a modellt kapja, más színnel.
+    //
+    // Külön példány, mert egy mesh nem lehet két helyen. A színe viszont
+    // MÁS — lila, a második játékos színe —, különben menet közben nem
+    // tudnád megmondani, melyik a tiéd, és a parkolónál a kettő
+    // összekeverhető lenne.
+    if (this.partner) {
+      void models
+        .instance('models/car.json', { length: CAR.length, yaw: Math.PI / 2 })
+        .then((m) => {
+          if (this.disposed || !this.partner) return;
+          toonify(m, { floor: 0.5, steps: 5, fill: 0.12, tint: PALETTE.p2 });
+          addOutlines(m, 0.55, 0x0a0616, 0.22);
+          this.partner.setArt(m);
+        })
+        .catch((e) => console.warn('a társ kocsijának modellje nem töltött be', e));
+    }
+
+    // Az NPC autók modellje. EGY betöltés, sok példány — a `clone` a
+    // geometriát és a textúrákat megosztja, tehát tizenkét autó nem kerül
+    // tizenkétszer annyiba.
+    if (this.cars) {
+      void models
+        .instance('models/npc-car.json', { length: CAR.length * 0.95, yaw: Math.PI / 2 })
+        .then((m) => {
+          if (this.disposed || !this.cars) return;
+          toonify(m, { floor: 0.45, steps: 4, fill: 0.1, tint: TINT_TOWN });
+          addOutlines(m, 0.5, 0x0a0616, 0.22);
+          this.cars.setArt(() => m.clone(true));
+        })
+        .catch((e) => console.warn('az NPC autó modellje nem töltött be', e));
+    }
 
     // A választott szörnyek NEM ülnek a kocsiban.
     //
@@ -245,7 +317,7 @@ export class DriveScene implements GameScene {
       })
       .catch((e) => console.warn('critter model failed', e));
 
-    this.game = new DriveGame(world, this.car, this.traffic, session.stats, this.challenge);
+    this.game = new DriveGame(world, this.car, this.traffic, session.stats, this.challenge, this.partner);
     this.game.driverIndex = session.driverIndex;
     this.game.targetId = session.chooseTarget(world.houses.map((h) => h.id));
     this.game.names = session.selection.names;
@@ -267,6 +339,7 @@ export class DriveScene implements GameScene {
       else this.game.pulseRadar();
     });
     this.amDriver = amDriver;
+    this.localIndex = net.current.paired ? net.current.playerIndex : 0;
 
     // A parkolóhely a CÉLNÁL van, nem minden háznál: tizenhat narancsszínű
     // folt egy faluban nem jelölés, hanem díszlet.
@@ -527,19 +600,83 @@ export class DriveScene implements GameScene {
   }
 
 
+  /**
+   * Az autó ütközőteste, tengelyhez igazított dobozként.
+   *
+   * A doboz nem forog, a kocsi igen — ezért a félméretek a szögből nőnek:
+   * keresztben álló autó szélesebb dobozt kap. Ez kicsit nagyvonalúbb a
+   * valódi karosszériánál átlós állásban, de a hibája a JÓ irányba esik:
+   * inkább koccan egy centivel előbb, mint hogy átcsússzon a másikon.
+   */
+  private static box(
+    into: THREE.Box3,
+    position: THREE.Vector3,
+    heading: number
+  ): THREE.Box3 {
+    const halfLong = CAR.spineSpread + CAR.bodyRadius;
+    const halfWide = CAR.bodyRadius;
+    const sin = Math.abs(Math.sin(heading));
+    const cos = Math.abs(Math.cos(heading));
+    const ex = halfLong * sin + halfWide * cos;
+    const ez = halfLong * cos + halfWide * sin;
+    return into.set(
+      new THREE.Vector3(position.x - ex, position.y, position.z - ez),
+      new THREE.Vector3(position.x + ex, position.y + 2.2, position.z + ez)
+    );
+  }
+
+  /** Újrahasznált dobozok: képkockánként új Box3 nem kell a szemétgyűjtőnek. */
+  private readonly obstacleBoxes: THREE.Box3[] = [];
+
+  private refreshObstacles(): void {
+    const list = this.car.obstacles;
+    list.length = 0;
+    let n = 0;
+    const take = (): THREE.Box3 => {
+      if (!this.obstacleBoxes[n]) this.obstacleBoxes[n] = new THREE.Box3();
+      return this.obstacleBoxes[n++];
+    };
+    if (this.partner) DriveScene.box(take(), this.partner.position, this.partner.heading);
+    if (this.cars) {
+      for (const npc of this.cars.cars) {
+        // Csak a KÖZELIEK: tizenkét NPC autóból egyszerre egy-kettő van
+        // olyan közel, hogy számítson.
+        const p = npc.mesh.position;
+        if (Math.abs(p.x - this.car.position.x) > 24 || Math.abs(p.z - this.car.position.z) > 24) continue;
+        DriveScene.box(take(), p, npc.mesh.rotation.y);
+      }
+    }
+    for (let i = 0; i < n; i++) list.push(this.obstacleBoxes[i]);
+  }
+
+  /** Hol vannak a JÁTÉKOSOK kocsijai — az NPC-knek, hogy ne hajtsanak át rajtunk. */
+  private readonly playerSpots: THREE.Vector3[] = [];
+  private carPositions(): readonly THREE.Vector3[] {
+    this.playerSpots.length = 0;
+    this.playerSpots.push(this.car.position);
+    if (this.partner) this.playerSpots.push(this.partner.position);
+    return this.playerSpots;
+  }
+
   update(step: number, elapsed: number): void {
     const networked = net.current.paired;
 
     if (!this.game.stats.arrived) {
-      if (this.amDriver) {
-        this.car.update(step, this.input.get(this.session.driverIndex), this.world.colliders);
-        this.session.stats.secondsDriving[this.session.driverIndex] += step;
-      } else if (netRoom) {
-        // A navigátor gépe nem szimulál: átveszi, amit a sofőré küldött.
-        this.link.apply(this.car, netRoom.peers());
-        // A vendég gépén a kocsi nem szimulál, tehát a modelljét külön kell
-        // a kapott állapotra igazítani.
-        this.car.syncMesh(step);
+      // AZ ÚTON ÁLLÓ TÖBBI AUTÓ. A falak listája állandó; ezek képkockánként
+      // mozognak, ezért külön mennek — és a szimuláció ELŐTT frissülnek,
+      // hogy azzal a helyzettel ütközzünk, amit a képernyőn is látunk.
+      this.refreshObstacles();
+      // A SAJÁT kocsidat MINDIG te szimulálod — kétfős módban is. Ez a
+      // legfontosabb szabály az egészben: egy autót egy gép számol.
+      this.car.update(step, this.input.get(this.localIndex), this.world.colliders);
+      this.session.stats.secondsDriving[this.localIndex] += step;
+
+      // A TÁRSÉT viszont sosem: azt a kapott állapotból rajzoljuk. Ha
+      // mindkét gép átvenné a másikét, a két kocsi egymást rángatná, és
+      // egyiknek sem lenne igaza.
+      if (this.partner && netRoom) {
+        this.link.apply(this.partner, netRoom.peers());
+        this.partner.syncMesh(step);
       }
     }
     // A jelzőlámpák a KOCSITÓL FÜGGETLENÜL járnak: a piros akkor is vált, ha
@@ -557,7 +694,8 @@ export class DriveScene implements GameScene {
     }
 
     this.lights.update(step, this.car.position, this.car.heading);
-    if (this.lights.justRan && this.amDriver) {
+    this.cars?.update(step, this.lights, this.carPositions());
+    if (this.lights.justRan) {
       this.game.say('PIROSON MENTÉL ÁT');
       this.anger.ranRedLight();
     }
@@ -571,7 +709,7 @@ export class DriveScene implements GameScene {
       step,
       onPavement && Math.abs(this.car.speed) > 1,
       Math.abs(this.car.speed) / CAR.maxSpeed,
-      this.input.get(this.session.driverIndex).interact,
+      this.input.get(this.localIndex).interact,
       this.car.boosting
     );
     if (this.game.stats.crittersHit > this.lastCrittersHit) {
@@ -581,7 +719,7 @@ export class DriveScene implements GameScene {
 
     // Az utcán heverő cukorka: forog, lebeg, és felszedhető.
     const picked = this.streetCandy.update(step, elapsed, this.car.position);
-    if (picked > 0 && this.amDriver) {
+    if (picked > 0) {
       this.session.stats.candy += picked;
       this.challenge.tookCandy(picked);
       this.game.say(picked > 1 ? `+${picked} cukorka az utcáról` : '+1 cukorka az utcáról');
@@ -598,7 +736,7 @@ export class DriveScene implements GameScene {
     // régi: a kézifék csak egy méter/másodperc fölött kapcsol be (lásd
     // `Car.update`), tehát álló helyzetben úgysem csinál semmit. Aki egy
     // szörnyekkel teli terepjáróban ül és megáll, az rá fog nyomni.
-    const driver = this.input.get(this.session.driverIndex);
+    const driver = this.input.get(this.localIndex);
     const standing = Math.abs(this.car.speed) < 1;
     const revving = standing && driver.sprint ? 1 : 0;
     this.engine?.update(
@@ -681,7 +819,8 @@ export class DriveScene implements GameScene {
       this.traffic,
       this.game.targetId,
       this.game.radarLeft,
-      this.challenge.remainingGates
+      this.challenge.remainingGates,
+      this.partner ? this.partner.position : null
     );
     this.hud.update(
       this.game,

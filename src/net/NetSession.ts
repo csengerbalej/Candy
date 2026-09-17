@@ -147,4 +147,11 @@ export const TOPICS = {
   verb: 'verb',
   /** Kiszállás a kocsiból, felvett cukorka, elsütött csíny. */
   act: 'act',
+  /**
+   * A két játékos üzenetei.
+   *
+   * PILLANAT, nem állapot: ha egy üzenet elveszik, nem baj — semmilyen
+   * szabály nem függ tőle. Ezért `emit`, nem jelenlét.
+   */
+  chat: 'chat',
 } as const;

@@ -93,7 +93,14 @@ export class DriveGame {
      * A kihívás nem a DriveGame-ben lakik, mert nem a vezetésről szól, hanem
      * arról, mit kérünk cserébe a házért — és ez a kettő külön romolhat el.
      */
-    readonly challenge: Challenge | null = null
+    readonly challenge: Challenge | null = null,
+    /**
+     * A TÁRS kocsija, ha ketten játszotok.
+     *
+     * A szabályoknak tudniuk kell róla: a ház ajtaja kettőtökre nyílik, nem
+     * arra, aki elsőként odaér.
+     */
+    private readonly partner: Car | null = null
   ) {
     this.targetId = Math.floor(Math.random() * world.houses.length);
     // The car owns the kerb penalty but must not own a dependency on the town.
@@ -223,10 +230,22 @@ export class DriveGame {
     // leparkolást: így a narancsszínű folt fölött állva is egyértelmű, hogy
     // nem a gombbal van baj, hanem hogy még tartozol valamivel.
     const open = !this.challenge || this.challenge.done;
-    this.parked =
-      open &&
+    // MINDKÉT KOCSINAK ott kell állnia.
+    //
+    // Kétfős módban két autó van, és a ház ajtaja kettőtökre nyílik: ha egy
+    // ember megérkezése elég lenne, a társ egész este a város másik végén
+    // kóborolhatna, és a „kétfős" csak a menüben lenne igaz.
+    //
+    // A társ kocsija a kapott állapotból van, tehát ezt MINDKÉT gép
+    // ugyanúgy látja — nem kell megegyezni róla.
+    const mineParked =
       this.distanceToTarget < STREET.arriveRadius &&
       Math.abs(this.car.speed) < STREET.parkSpeed;
+    const theirsParked =
+      !this.partner ||
+      (this.partner.position.distanceTo(this.target.driveway) < STREET.arriveRadius &&
+        Math.abs(this.partner.speed) < STREET.parkSpeed);
+    this.parked = open && mineParked && theirsParked;
 
     if (!this.parked) {
       // Drive off and you are back in the car, both of you.
@@ -259,9 +278,14 @@ export class DriveGame {
     // csak azt nem mondta meg neki senki, hogy MEG IS KELL ÁLLNI rajta.
     if (this.challenge && !this.challenge.done) return this.challenge.label;
     if (!this.parked) {
-      return this.distanceToTarget < STREET.arriveRadius
-        ? 'ÁLLJ MEG A NARANCSSZÍNŰ HELYEN'
-        : '';
+      const mineThere = this.distanceToTarget < STREET.arriveRadius;
+      const theirsThere =
+        !this.partner || this.partner.position.distanceTo(this.target.driveway) < STREET.arriveRadius;
+      // Megmondjuk, KIRE várunk. Enélkül ott állsz a helyeden, és nem érted,
+      // miért nem történik semmi.
+      if (mineThere && !theirsThere) return 'VÁRJ A TÁRSADRA — ő még úton van';
+      if (!mineThere && theirsThere) return 'A TÁRSAD MÁR OTT VAN — igyekezz';
+      return mineThere ? 'ÁLLJ MEG A NARANCSSZÍNŰ HELYEN' : '';
     }
     const waiting = this.cast.find((i) => !this.outOfCar[i]);
     if (waiting === undefined) return '';

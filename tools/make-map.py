@@ -645,7 +645,16 @@ bpy.ops.object.transform_apply(scale=True)
 json.dump({'groundY': 0.0, 'roadY': 0.0, 'plots': plots, 'lights': lights,
            # A KÖRPÁLYA helye. A játéknak tudnia kell, mert oda nem való
            # minden, ami a városba igen — például a gyalogos szörnyecskék.
-           'ring': {'inner': RING_IN / VILLAGE_SCALE, 'outer': RING_OUT / VILLAGE_SCALE}},
+           'ring': {'inner': RING_IN / VILLAGE_SCALE, 'outer': RING_OUT / VILLAGE_SCALE},
+           # A UTCARÁCS. A forgalomnak tudnia kell, hol futnak a sávok —
+           # enélkül egy NPC autó csak „valahol az aszfalton" menne, és a
+           # kereszteződésekben nem lenne mihez igazodnia.
+           'grid': {'pitchX': PITCH_X / VILLAGE_SCALE,
+                    'pitchZ': PITCH_Z / VILLAGE_SCALE,
+                    'count': GRID,
+                    'street': STREET / VILLAGE_SCALE,
+                    'builtX': BUILT_X / VILLAGE_SCALE,
+                    'builtZ': BUILT_Z / VILLAGE_SCALE}},
           open('raw/houses/plots.json', 'w'), indent=1)
 
 bpy.ops.export_scene.gltf(filepath=out_path, export_format='GLB')

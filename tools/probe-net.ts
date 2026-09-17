@@ -2,6 +2,8 @@ import { Loopback } from '../src/net/Room';
 import { NetSession } from '../src/net/NetSession';
 import * as THREE from 'three';
 import { HouseLink } from '../src/net/HouseLink';
+import { DriveLink } from '../src/net/DriveLink';
+import { Car } from '../src/vehicle/Car';
 import type { PlayerInput } from '../src/input/InputManager';
 
 const QUIET: PlayerInput = {
@@ -215,6 +217,50 @@ console.log('');
     'a valódi társ kapja a második helyet',
     tabA.current.paired && other.current.paired && other.current.playerIndex === 1,
     `a másik gép sorszáma ${other.current.playerIndex}, a fülek: ${tabA.current.playerIndex}/${tabB.current.playerIndex}`
+  ) && ok;
+}
+
+{
+  // KÉT KOCSI, KÉT GÉP.
+  //
+  // A kétfős mód eddig egy autót jelentett, sofőrrel és navigátorral — a
+  // második játékos NÉZŐ volt a saját estéjén. Most mindkettőnek saját
+  // kocsija van, és a szabály, ami ezt egyáltalán lehetővé teszi: EGY AUTÓT
+  // EGY GÉP SZÁMOL. A sajátodat te, a társadét ő, és a két gép a HELYZETET
+  // cseréli, nem a gombnyomásokat.
+  const room = new Loopback();
+  const mine = new Car(new THREE.Vector3());
+  const theirs = new Car(new THREE.Vector3(50, 0, 50));
+
+  const a = room.join('gepA');
+  const b = room.join('gepB');
+  const linkA = new DriveLink(a, true, () => {});
+  const linkB = new DriveLink(b, false, () => {});
+
+  // Az A gép elviszi a SAJÁT kocsiját, és kiteszi magáról.
+  mine.position.set(120, 0, -40);
+  mine.heading = 1.2;
+  mine.speed = 22;
+  linkA.publish(mine, 3, 100, false, 0);
+
+  // A B gépen ebből kell összeállnia a TÁRS kocsijának.
+  const ghost = new Car(new THREE.Vector3());
+  for (let k = 0; k < 40; k++) linkB.apply(ghost, b.peers());
+
+  ok = line(
+    'a társ kocsija átjön a másik gépre',
+    ghost.position.distanceTo(mine.position) < 2 && Math.abs(ghost.speed - mine.speed) < 0.1,
+    `${ghost.position.x.toFixed(0)},${ghost.position.z.toFixed(0)} — az eredeti ${mine.position.x.toFixed(0)},${mine.position.z.toFixed(0)}`
+  ) && ok;
+
+  // ...és MINDKÉT gép tesz ki magáról állapotot. Eddig csak a sofőré tette:
+  // ha most is így lenne, az egyik kocsi láthatatlan maradna a másiknál.
+  linkB.publish(theirs, 3, 0, false, 0);
+  const seenByA = a.peers().filter((p) => !p.isMe && Array.isArray((p.presence as { c?: unknown }).c));
+  ok = line(
+    'mindkét gép kiteszi a saját kocsiját',
+    seenByA.length === 1,
+    `az A gép ${seenByA.length} idegen autót lát`
   ) && ok;
 }
 
