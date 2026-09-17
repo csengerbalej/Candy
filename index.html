@@ -707,6 +707,25 @@
       body[data-touch] .hud-panel { max-width: 200px; }
       body[data-touch] .chat { bottom: 200px; }
 
+
+      /* ALACSONY KÉPERNYŐ (fekvő telefon) és ÉRINTŐ.
+         Mérve 812×375-ön: a menü 501 képpont magas volt egy 375-ösben, tehát
+         a CÍM csúszott ki a tetején — pont az, amiről a képernyő szól. A
+         rajzolt billentyűzet 145 képpontot evett; érintőn ráadásul olyasmit
+         mutat, ami ott nincs is. Ezért telón és alacsony képernyőn kimarad,
+         és a helyére egy igaz mondat kerül. */
+      body[data-touch] .kb { display: none; }
+      @media (max-height: 560px) {
+        .kb { display: none; }
+        .title-inner { padding: 14px 20px; gap: 7px; }
+        .title-inner .tagline { display: none; }
+        .logo { font-size: clamp(22px, 5vw, 38px); }
+        .menu-item { padding: 8px 12px; }
+      }
+      body[data-touch] .title-inner .foot::after {
+        content: 'koppints a kártyára'; display: block; margin-top: 4px; opacity: .8;
+      }
+
       .select .card .portrait {
         display: block; width: 100%; height: 150px; object-fit: cover;
         object-position: 50% 32%;

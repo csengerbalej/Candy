@@ -128,7 +128,16 @@ export class DriveHud {
     this.verbs.style.top = solo
       ? `${panes.navigator.cssTop - 30}px`
       : `${panes.navigator.cssTop + 12}px`;
-    this.verbs.style.left = solo ? `${panes.navigator.x}px` : '';
+    // Az igék a JOBB szélhez igazodnak, mindig.
+    //
+    // Korábban egyedül a térkép bal széléhez kerültek (`left: navigator.x`),
+    // miközben a `right: 20px` is érvényben maradt: a doboz mindkét oldalról
+    // meg volt fogva, a három ige pedig szélesebb volt a panelnél, és
+    // kilógott — mérve 1337 képpontig egy 1280 képpont széles ablakban.
+    // Jobbról igazítva a szélessége már nem tud kifutni a képernyőről,
+    // és a térkép fölött marad, ami az eredeti szándék volt.
+    this.verbs.style.left = 'auto';
+    this.verbs.style.right = '20px';
     this.verbs.innerHTML =
       `<span${game.radarLeft > 0 ? ' class="hot"' : ''}>` +
       `<kbd>${keyFor('sprint', n, navPad)}</kbd>RADAR</span>` +
@@ -137,7 +146,15 @@ export class DriveHud {
 
     // The driver only ever steers and brakes, so their legend is two entries.
     this.driveLegend.style.left = '20px';
-    this.driveLegend.style.top = `${panes.driver.cssTop + panes.driver.h - 30}px`;
+    // ALULRÓL, nem felülről. A magyarázó hét bejegyzésből áll, és keskeny
+    // ablakban két-három sorra tördel: egy 1280×800-as ablakban 770-től
+    // 813-ig ért, vagyis a fele a képernyő alatt volt. Az alsó élhez kötve a
+    // magassága már nem számít.
+    this.driveLegend.style.top = 'auto';
+    this.driveLegend.style.bottom = `${Math.max(
+      10,
+      window.innerHeight - (panes.driver.cssTop + panes.driver.h) + 12
+    )}px`;
     this.driveLegend.innerHTML =
       hint('steer', d, padSources[d], 'kormány') +
       hint('brake', d, padSources[d], 'fék / tolatás') +

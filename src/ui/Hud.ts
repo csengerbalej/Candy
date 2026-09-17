@@ -163,8 +163,17 @@ export class Hud {
       const legend = this.legends[i];
       legend.style.opacity = String(visible ? opacity * 0.85 : 0);
       legend.style.left = `${vp.x + 14}px`;
-      // Clear of the shared watch pill, which is centred along the bottom.
-      legend.style.top = `${cssTop + vp.h - 52}px`;
+      // ALULRÓL mérve, nem felülről.
+      //
+      // Eddig `cssTop + vp.h - 52` volt: egy SOR magasságát feltételezte. A
+      // magyarázó viszont tördel, ha a panel keskeny — 1280×800-on három
+      // sorra nőtt, és 770-től 813-ig ért egy 800 képpontos ablakban, vagyis
+      // a fele a képernyő alatt volt. Alsó éllel rögzítve a magassága már
+      // nem számít, akárhány sorra tördel.
+      legend.style.top = 'auto';
+      legend.style.bottom = `${height - (cssTop + vp.h) + 14}px`;
+      // ...és nem lóghat ki oldalra sem: a panel az övé, nem a képernyő.
+      legend.style.maxWidth = `${Math.max(120, vp.w - 28)}px`;
       legend.innerHTML =
         hint('move', i, pad, 'mozgás') +
         hint('sprint', i, pad, 'futás') +
