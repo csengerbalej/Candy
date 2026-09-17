@@ -1,3 +1,4 @@
+import { Delivery } from './Delivery';
 import type { Selection } from './Characters';
 
 export type SessionPhase = 'drive' | 'house' | 'results';
@@ -47,6 +48,15 @@ export class Session {
    * kapcsolóval, nem két játék.
    */
   fogo = false;
+
+  /**
+   * A SZÁLLÍTÁS könyvelése, fogó módban.
+   *
+   * A munkameneté, nem a jeleneté: a rakomány túléli a házból kilépést és a
+   * kocsiba ülést — pont ez a lényege. Egy jelenethez kötött könyvelés minden
+   * ajtónál elfelejtené, amit összeszedtél.
+   */
+  delivery: Delivery | null = null;
   readonly stats: SessionStats = {
     candy: 0,
     housesVisited: 0,

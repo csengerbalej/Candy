@@ -97,6 +97,9 @@ export class HouseGame {
    */
   capture: Capture | null = null;
 
+  /** A jelenet akasztja be: a kijutás pillanatában fut le. */
+  onEscape: (() => void) | null = null;
+
   update(dt: number, players: PlayerController[], input: InputSource): void {
     if (this.stats.escaped) return;
     this.stats.time += dt;
@@ -342,6 +345,10 @@ export class HouseGame {
       this.exitTimer += dt;
       if (this.exitTimer >= HOUSE.exitHoldTime) {
         this.stats.escaped = true;
+        // FOGÓ MÓDBAN a sarokban álló készlet most KERÜL A KOCSIBA, és
+        // onnantól mozog: a hazaút nem formalitás, hanem a játék második
+        // fele. A jelenet ezt a `session.delivery`-ből olvassa ki.
+        this.onEscape?.();
         this.say('KIJUTOTTATOK!');
       }
     } else {

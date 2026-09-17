@@ -9,6 +9,7 @@ import { SplitScreenDirector } from '../camera/SplitScreenDirector';
 import { Armoury } from '../game/Armoury';
 import { Capture } from '../game/Capture';
 import { Corners } from '../world/Corners';
+import { FogoHud } from '../ui/FogoHud';
 import { Rival } from '../ai/Rival';
 import { PickupsView } from '../world/PickupsView';
 import { HeldWeapon } from '../render/HeldWeapon';
@@ -77,6 +78,9 @@ export class HouseScene implements GameScene {
   private rival: Rival | null = null;
   /** Az AI teste. A második játékos helyén ül, ha nincs valódi társ. */
   private rivalBody: PlayerController | null = null;
+
+  /** A fogó mód kijelzője. Kooperatívban nem születik meg. */
+  private fogoHud: FogoHud | null = null;
 
   /** A célkereszt. Csak belső nézetben és csak fegyverrel látszik. */
   private readonly crosshair = (() => {
@@ -267,8 +271,19 @@ export class HouseScene implements GameScene {
       this.corners = new Corners(spots);
       this.scene.add(this.corners.group);
       this.capture = new Capture(this.corners.list);
+      this.fogoHud = new FogoHud(document.body);
       this.game.capture = this.capture;
       this.game.localSlot = this.localIndex;
+      // A KIJUTÁS pillanatában a sarok tartalma a kocsiba kerül. A könyvelés
+      // a munkameneté, nem a jeleneté: a rakománynak túl kell élnie az ajtót.
+      this.game.onEscape = () => {
+        const delivery = session.delivery;
+        if (!delivery || !this.capture) return;
+        for (const i of [0, 1] as const) {
+          delivery.setCorner(i, this.capture.banked[i]);
+          delivery.escaped(i);
+        }
+      };
 
       // AZ ELLENFÉL. Ha nincs valódi társ, egy AI ül a második helyen — és a
       // TESTE a második játékos meglévő szabályozója, nem egy külön dolog:
@@ -803,6 +818,19 @@ export class HouseScene implements GameScene {
 
   render(frameTime: number, width: number, height: number): void {
     this.corners?.update(frameTime);
+    if (this.capture && this.fogoHud) {
+      const me = this.localIndex as 0 | 1;
+      const them = (1 - me) as 0 | 1;
+      this.fogoHud.update(
+        this.capture.carried[me],
+        this.capture.banked[me],
+        this.capture.banked[them],
+        this.held?.kind ?? null,
+        this.held?.ammo ?? 0,
+        this.held?.reserve ?? 0,
+        (this.held?.reloading ?? 0) > 0
+      );
+    }
     if (this.armoury) {
       this.pickups.update(frameTime, this.armoury, () => 0);
     }
@@ -904,6 +932,7 @@ export class HouseScene implements GameScene {
 
   dispose(): void {
     this.crosshair.remove();
+    this.fogoHud?.dispose();
     this.pickups.dispose();
     this.heldView.dispose();
     this.input.lookLock = false;

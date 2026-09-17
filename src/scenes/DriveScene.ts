@@ -12,6 +12,9 @@ import { StreetCandy } from '../world/StreetCandy';
 import { TrafficLights } from '../world/TrafficLights';
 import { Checkpoints } from '../world/Checkpoints';
 import { SkidMarks } from '../vehicle/SkidMarks';
+import { Base } from '../world/Base';
+import { FogoHud } from '../ui/FogoHud';
+import { Delivery } from '../game/Delivery';
 import { CarTraffic } from '../ai/CarTraffic';
 import { Challenge } from '../game/Challenge';
 import { Anger } from '../game/Anger';
@@ -118,6 +121,11 @@ export class DriveScene implements GameScene {
   private readonly spider: ShelfSpider;
   private readonly shelf: Shelf;
   private readonly engine: Engine | null;
+  /** A bázis, fogó módban: ide kell hazavinni a rakományt. */
+  private base: Base | null = null;
+  /** A rakomány kijelzője. Ugyanaz a doboz, mint a házban — más számokkal. */
+  private fogoHud: FogoHud | null = null;
+
   /** A talajon maradó gumicsík. Egyetlen háló, gyűrűpufferrel. */
   private readonly skids = new SkidMarks();
   /** Kötött hivatkozás, hogy ne szülessen új függvény képkockánként. */
@@ -412,6 +420,16 @@ export class DriveScene implements GameScene {
     this.engine = sound.startEngine();
     this.scene.add(this.skids.mesh);
 
+    // A BÁZIS a kocsi indulóhelyén áll: ez az egyetlen pont a városban, amit
+    // minden játékos ismer, mert onnan indult. Egy külön kijelölt hely
+    // ugyanilyen jó volna, de ezt nem kell megtanulni.
+    if (session.fogo) {
+      if (!session.delivery) session.delivery = new Delivery(world.carSpawn.clone());
+      this.base = new Base(session.delivery.base);
+      this.scene.add(this.base.group);
+      this.fogoHud = new FogoHud(document.body, 'varos');
+    }
+
     this.hud = new DriveHud(parent);
     this.map = new NavigatorMap(parent);
   }
@@ -699,6 +717,15 @@ export class DriveScene implements GameScene {
       sound.pickup();
     }
 
+    // LERAKÁS a bázison: állni kell rajta, nem elhajtani mellette.
+    if (this.session.delivery) {
+      const put = this.session.delivery.update(step, this.localIndex as 0 | 1, this.car.position);
+      if (put > 0) {
+        this.game.say(`LERAKVA ${put} CUKORKA — összesen ${this.session.delivery.loads[this.localIndex as 0 | 1].delivered}`);
+        sound.pickup();
+      }
+    }
+
     this.lights.update(step, this.car.position, this.car.heading);
     this.cars?.update(step, this.lights, this.carPositions());
     if (this.lights.justRan) {
@@ -756,6 +783,24 @@ export class DriveScene implements GameScene {
     sound.skid(this.car.slip, Math.abs(this.car.speed) / CAR.maxSpeed);
     // A talajszintet a VILÁG mondja meg, pontonként: az út teteje nem a
     // kocsi magassága (lásd SkidMarks).
+    this.base?.update(step);
+    if (this.session.delivery && this.fogoHud) {
+      const me = this.localIndex as 0 | 1;
+      const them = (1 - me) as 0 | 1;
+      const mine = this.session.delivery.loads[me];
+      // Kint a „kézben" a KOCSIBAN lévő rakomány, a „sarokban" a leadott —
+      // ugyanaz a két szerep, más helyen. Egy harmadik kijelzőt tanulni
+      // kellene; ezt már ismered a házból.
+      this.fogoHud.update(
+        mine.inCar,
+        mine.delivered,
+        this.session.delivery.loads[them].delivered,
+        null,
+        0,
+        0,
+        false
+      );
+    }
     this.skids.update(step, this.car, this.groundAt);
     // A társ kocsija is nyomot hagy: a drift az ő teljesítménye, és kétfős
     // módban pont az a jó, ha látod, mit csinált.
@@ -869,6 +914,7 @@ export class DriveScene implements GameScene {
     // házban is szólna — és mivel folyamatos, azonnal észrevehető lenne.
     this.engine?.stop();
     sound.skidOff();
+    this.fogoHud?.dispose();
     this.skids.dispose();
     this.disposed = true;
     this.commit();

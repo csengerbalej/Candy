@@ -742,6 +742,29 @@
       .crosshair[data-steady="0"] { transform: scale(1.9); opacity: .4; }
       .crosshair[hidden] { display: none; }
 
+
+      /* FOGÓ MÓD kijelzője. Bal alul a saját állásod, jobb alul az ellenfélé —
+         a kettő nem keveredhet, mert egy pillantásra kell eldönteni, sietni
+         kell-e. */
+      /* A ház alján szabad a hely; a VÁROSBAN viszont ott fut a pontsáv, a
+         billentyű-magyarázó és a sebességmérő — mérve mind a három ütközött
+         vele. Kint ezért FELÜLRE megy, a névtábla alá. */
+      .fogo { position: fixed; inset: auto 0 12px 0; display: flex; justify-content: space-between;
+        align-items: flex-end; padding: 0 18px; pointer-events: none; z-index: 28;
+        font-family: ui-monospace, Menlo, monospace; }
+      .fogo[data-where="varos"] { inset: 52px 0 auto 0; align-items: flex-start; }
+      .fogo-me, .fogo-them { display: grid; grid-auto-flow: column; align-items: baseline; gap: 6px 10px; }
+      .fogo b { font-size: 22px; color: #ffd9a8; letter-spacing: .02em; }
+      .fogo span { font-size: 10px; letter-spacing: .12em; color: rgba(255,255,255,.55); }
+      .fogo .kez[data-full="1"] { color: #ff7a29; }
+      .fogo .bank[data-done="1"] { color: #6ef0c0; }
+      .fogo-them b { color: #9d5cff; }
+      .fogo-gun { display: flex; align-items: baseline; gap: 8px; }
+      .fogo-gun b { font-size: 26px; }
+      .fogo-gun b[data-state="empty"] { color: #ff4d3d; }
+      .fogo-gun b[data-state="reload"] { color: #7ad7ff; }
+      .fogo[hidden] { display: none; }
+
       .select .card .portrait {
         display: block; width: 100%; height: 150px; object-fit: cover;
         object-position: 50% 32%;
