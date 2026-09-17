@@ -320,9 +320,13 @@ export class HouseScene implements GameScene {
     // Egyedül a co-op kapuk egy emberre szűkülnek: nincs kit odavinni a
     // másik szörnnyel, tehát a kijárat sem kérhet kettőt.
     this.game.cast = this.partnered ? [0, 1] : [this.localIndex];
-    if (!this.partnered) {
+    if (!this.partnered && !session.fogo) {
       // A társ szörnye ne álljon mozdulatlanul a lakásban: nincs mögötte
       // senki, és a lakó sem keresheti.
+      //
+      // FOGÓ MÓDBAN VISZONT VAN mögötte valaki: az AI. Ha itt elrejtenénk,
+      // az ellenfél láthatatlan lenne — versenyezni valamivel, amit nem
+      // látsz, nem verseny.
       this.players[this.localIndex === 0 ? 1 : 0].mesh.visible = false;
     }
 
@@ -702,11 +706,23 @@ export class HouseScene implements GameScene {
       this.rivalBody.mesh.position.copy(this.rival.position);
       if (fired?.shot) {
         this.noise.emit(fired.shot.noiseAt, this.rival.weapon!.gun.noiseRadius, 'lövés');
-        if (fired.shot.hit) this.takeHit(this.localIndex as 0 | 1, fired.shot.from);
+        if (fired.shot.hit) {
+          this.takeHit(this.localIndex as 0 | 1, fired.shot.from, fired.shot.strength);
+        }
       }
     }
 
     this.armoury?.update(step);
+    // TÁVCSŐ: a jobb egérgomb (vagy a Shift) nagyít. Csak a mesterlövészen —
+    // a sörétesre távcsövet tenni annyi volna, mint kalapácsra.
+    if (this.held) {
+      this.held.scoped = this.held.canScope && this.input.scoping;
+      // A nagyítás a kamerán történik: a látószög szűkül, tehát ugyanaz a
+      // képernyő kevesebb világot mutat — ettől lesz „közelebb" a célpont.
+      this.director.fpFov = this.held.scoped ? this.held.gun.scopeFov : 0;
+    } else {
+      this.director.fpFov = 0;
+    }
     this.held?.update(step, this.players[this.localIndex].moving);
 
     // FELVÉTEL RÁÁLLÁSRA, nem gombra.
@@ -747,7 +763,7 @@ export class HouseScene implements GameScene {
         // A TALÁLAT KÖVETKEZMÉNYE: ellökés és minden cukorka a földre. Eddig
         // a lövés elsült és zajt csapott, de a célpontnak nem történt semmi —
         // egy fegyver, aminek nincs hatása, csak egy hangeffekt.
-        if (shot.hit) this.takeHit(Number(shot.hit.id) as 0 | 1, shot.from);
+        if (shot.hit) this.takeHit(Number(shot.hit.id) as 0 | 1, shot.from, shot.strength);
         // A lövés ZAJ is: a fegyver hangja odahívja a lakót. Ez a fegyver
         // harmadik ára, a lőszer és az idő mellett.
         this.noise.emit(shot.noiseAt, this.held.gun.noiseRadius, 'lövés');
@@ -799,16 +815,26 @@ export class HouseScene implements GameScene {
    * Egy helyen, mert két lövő van (te és az AI), és két helyen írva a két
    * találat előbb-utóbb másképp viselkedne.
    */
-  private takeHit(who: 0 | 1, from: THREE.Vector3): void {
+  private takeHit(who: 0 | 1, from: THREE.Vector3, strength = 1): void {
     if (!this.capture) return;
     const body = this.players[who];
-    const { push } = this.capture.hit(who, body.position, from);
+    const { push } = this.capture.hit(who, body.position, from, strength);
     body.applyKnockback(body.position.clone().sub(push));
     sound.thud(0.7);
     this.game.banner = who === this.localIndex ? 'ELTALÁLTAK!' : 'TALÁLAT';
   }
 
   private cast(): PlayerController[] {
+    // A LAKÓ CÉLPONTJAI.
+    //
+    // Fogó módban MINDKÉT test közéjük tartozik, akkor is, ha egyedül
+    // játszol: a második az AI ellenfél. Enélkül a lakó észre sem venné —
+    // sérthetetlen ellenfél ellen pedig nincs értelme versenyezni.
+    //
+    // (Ezt korábban félreolvastam: azt hittem, a lakó már kergeti az AI-t,
+    // pedig a `game.cast` egyedül csak a saját szörnyemet tartalmazta, és
+    // a CHASE, amit mértem, rám vonatkozott.)
+    if (this.capture) return this.players;
     return this.game.cast.map((i) => this.players[i]);
   }
 
@@ -890,7 +916,21 @@ export class HouseScene implements GameScene {
               },
             ]
           : []),
-      ]
+      ],
+      // A térkép VELED FOROG belső nézetben: a kép teteje az, amerre nézel.
+      // Külső nézetben marad állva — ott a kamera úgyis a szobát keretezi, és
+      // a forgás csak szédítene.
+      this.director.firstPerson !== null ? stage.yaw : undefined,
+      // A SARKOK a térképen is ott vannak. Nem díszítés: a fényoszlop a
+      // szomszéd szobából nem látszik, és egy cél, amit keresni kell, nem
+      // cél, hanem bosszúság.
+      this.corners
+        ? this.corners.list.map((c) => ({
+            position: c.position,
+            colour: c.player === this.localIndex ? '#ff7a29' : '#9d5cff',
+            ring: c.player !== this.localIndex,
+          }))
+        : []
     );
   }
 

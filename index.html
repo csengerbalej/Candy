@@ -427,7 +427,7 @@
       .kb kbd.look  { color: #cfd6ff; background: #9fb6ff1f; border-color: #9fb6ff4d; }
       .kb kbd.chat  { color: #9ff0ff; background: #4fd6e626; border-color: #4fd6e666; }
       .kb kbd.move, .kb kbd.jump, .kb kbd.drift,
-      .kb kbd.boost, .kb kbd.use, .kb kbd.look, .kb kbd.chat { transform: translateY(-1px); }
+      .kb kbd.boost, .kb kbd.use, .kb kbd.look, .kb kbd.msg { transform: translateY(-1px); }
       .kb-legend { grid-column: 1 / -1; display: flex; flex-wrap: wrap;
                    justify-content: center; gap: 4px 14px; margin-top: 4px;
                    list-style: none; font-size: 10px; letter-spacing: .08em;
@@ -440,7 +440,7 @@
       .kb-legend i.boost { background: #9d5cff; }
       .kb-legend i.use { background: #6ef0c0; }
       .kb-legend i.look { background: #9fb6ff; }
-      .kb-legend i.chat { background: #4fd6e6; }
+      .kb-legend i.msg { background: #4fd6e6; }
       @media (width <= 560px) { .kb { grid-template-columns: auto; gap: 10px; } }
       .schemes {
         display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 4px;
@@ -550,6 +550,12 @@
          Bal alul, a vezetés igéi fölött. A sorok maguktól eltűnnek: egy
          beszélgetés, ami felhalmozódik a képernyőn, előbb-utóbb a játékot
          takarja el. */
+      /* A BESZÉLGETŐ PANEL. A neve nem lehet `chat` a billentyű-ábrában is:
+         ott öt `<kbd class="chat">` van, és erre a szabályra mind az öt
+         RÁRAGADT — `position: fixed`-del a képernyő aljára szögezve, egymáson,
+         198 képpont szélesen. A menüben ez egy nagy türkiz folt volt a
+         magyarázó fölött, és semmi nem árulta el, honnan jön. A billentyűk
+         azóta `msg` osztályt viselnek. */
       .chat { position: fixed; left: 14px; bottom: 84px; z-index: 6;
               width: min(320px, 38vw); display: grid; gap: 6px; }
       .chat-log { display: grid; gap: 3px; }
@@ -753,6 +759,11 @@
         align-items: flex-end; padding: 0 18px; pointer-events: none; z-index: 28;
         font-family: ui-monospace, Menlo, monospace; }
       .fogo[data-where="varos"] { inset: 52px 0 auto 0; align-items: flex-start; }
+      /* A HÁZBAN is felülre megy: a kép alján a pontsáv és a
+         billentyű-magyarázó fut (mérve mindkettővel ütközött), a térkép pedig
+         a jobb felső sarkot foglalja — marad a bal felső és a középső sáv. */
+      .fogo[data-where="haz"] { inset: 52px 0 auto 0; align-items: flex-start; }
+      .fogo[data-where="haz"] .fogo-them { margin-right: 168px; }
       .fogo-me, .fogo-them { display: grid; grid-auto-flow: column; align-items: baseline; gap: 6px 10px; }
       .fogo b { font-size: 22px; color: #ffd9a8; letter-spacing: .02em; }
       .fogo span { font-size: 10px; letter-spacing: .12em; color: rgba(255,255,255,.55); }

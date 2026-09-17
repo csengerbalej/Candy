@@ -18,8 +18,18 @@ import { GUNS, type GunId } from '../core/config';
  *   lengés      — járás közben finoman ring, hogy ne ragadjon a képre.
  */
 
-/** A markolat helye a kamerához képest: jobbra, lejjebb, előre. */
-const HOLD = new THREE.Vector3(0.28, -0.24, 0.42);
+/**
+ * A markolat helye a kamerához képest: jobbra, lejjebb, előre.
+ *
+ * A fegyver KICSINYÍTVE kerül a kézbe. Nem hazugság: a modell valódi hossza
+ * a világban 0,95–1,5 egység (ekkora egy puska egy 1,7-es szörny mellett),
+ * de a kamera elé téve ugyanez a hossz a fél képernyőt elfoglalná. Minden
+ * belső nézetes játék ezt csinálja — a „kézifegyver" a képen egy külön,
+ * kisebb tárgy, mint a világban heverő.
+ */
+const HOLD = new THREE.Vector3(0.17, -0.16, 0.34);
+/** Ekkorára zsugorodik a modell a kézben. */
+const HAND_SCALE = 0.42;
 
 export class HeldWeapon {
   readonly group = new THREE.Group();
@@ -43,6 +53,7 @@ export class HeldWeapon {
     // Nem `instance()`: az újraközépre tenné a modellt, és pont az origót
     // dobná el, amit a markolathoz igazítottunk a sütéskor.
     const clone = scene.clone(true);
+    clone.scale.setScalar(HAND_SCALE);
     this.art?.removeFromParent();
     this.art = clone;
     this.group.clear();
@@ -123,5 +134,6 @@ function lengthOf(kind: GunId): number {
   // maradék ~70%. Egy helyen él, hogy a torkolattűz és a lövés zaja ugyanott
   // szülessen.
   const total = { shotgun: 0.95, sniper: 1.5, rocket: 1.3 }[kind];
-  return total * 0.7;
+  // A kézben kicsinyítve van, tehát a csővég is arrébb kerül.
+  return total * 0.7 * HAND_SCALE;
 }

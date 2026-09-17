@@ -137,6 +137,30 @@ export class InputManager {
    */
   private firePressed = false;
 
+  /**
+   * TÁVCSŐ: nyomva tartott jobb egérgomb, vagy a jobb Shift.
+   *
+   * Nem él (egyszeri), hanem TARTOTT állapot: a távcső addig van fent, amíg
+   * tartod. Egy kapcsolós távcső a legrosszabb pillanatban maradna bent —
+   * amikor menekülni kell, és a fél képernyő egy cső belseje.
+   */
+  private scopeHeld = false;
+  /** A húzásos körülnézés állapota (ha a mutató nincs elkapva). */
+  private dragging = false;
+  private dragX = 0;
+  private dragY = 0;
+
+  /** Húzás kezdete. Az egyetlen mousedown-kezelő hívja. */
+  private dragFrom(x: number, y: number): void {
+    this.dragging = true;
+    this.dragX = x;
+    this.dragY = y;
+  }
+
+  get scoping(): boolean {
+    return this.scopeHeld || this.held.has('ShiftRight');
+  }
+
   /** Igaz egyszer, ha lőttek. */
   consumeFire(): boolean {
     const hit = this.firePressed;
@@ -241,9 +265,22 @@ export class InputManager {
     // LŐGOMB: bal egérgomb a képen, vagy Ctrl. Az egérgomb azért a képre van
     // kötve, mert a menügombokra kattintás nem lövés — ugyanaz a szűrés, mint
     // a kamerahúzásnál.
+    // EGYETLEN mousedown-kezelő, három feladattal.
+    //
+    // Nem takarékosság: a fejetlen próba DOM-tokja TÍPUSONKÉNT EGY kezelőt
+    // tart, tehát a második `mousedown` némán felülírná az elsőt — a
+    // játékban működne, a mérésben elnémulna az egér. Ez a hiba egyszer már
+    // megtörtént a billentyűzettel.
     window.addEventListener('mousedown', (e) => {
+      if (e.button === 2) {
+        this.scopeHeld = true;
+        return;
+      }
       if (e.button !== 0) return;
       if ((e.target as HTMLElement)?.tagName !== 'CANVAS') return;
+      wantLock(e);
+      // A húzásos körülnézés kezdete (ha nincs elkapva a mutató).
+      this.dragFrom(e.clientX, e.clientY);
       // AZ ELSŐ KATTINTÁS CÉLZÁSRA VÁLT, NEM LŐ.
       //
       // Ugyanaz a kattintás kéri el a mutatót, amivel a játékos „belép" a
@@ -272,7 +309,10 @@ export class InputManager {
       if (!this.lookLock) return;
       void (canvas as HTMLCanvasElement).requestPointerLock?.();
     };
-    window.addEventListener('mousedown', wantLock);
+    // A jobb gomb helyi menüje a játék közben csak útban van.
+    window.addEventListener('contextmenu', (e) => {
+      if ((e.target as HTMLElement)?.tagName === 'CANVAS') e.preventDefault();
+    });
     // A fejetlen próbában a `document` egy tok, amiben nincs eseménykezelő.
     // A bemenet nem feltételezhet teljes böngészőt: a mérés ugyanazt a kódot
     // futtatja, amit a játék, és egy hiányzó függvény ott az EGÉSZ próbát
@@ -289,18 +329,8 @@ export class InputManager {
     //
     // A ráta ugyanaz a mértékegység, mint az érintésnél (képpont/mp), tehát
     // a két eszköz ugyanolyan gyorsan fordít, és nem kell külön hangolni.
-    let dragging = false;
-    let lastX = 0;
-    let lastY = 0;
     let lastT = 0;
-    window.addEventListener('mousedown', (e) => {
-      // Csak a képen: egy menügombra kattintás nem kameramozgatás.
-      if (e.button !== 0 || (e.target as HTMLElement)?.tagName !== 'CANVAS') return;
-      dragging = true;
-      lastX = e.clientX;
-      lastY = e.clientY;
-      lastT = performance.now();
-    });
+    // (A húzás kezdete a fenti EGYETLEN mousedown-kezelőben van: lásd ott.)
     window.addEventListener('mousemove', (e) => {
       // BELSŐ NÉZETBEN A KURZORT KÖVETJÜK, húzás nélkül.
       //
@@ -318,22 +348,25 @@ export class InputManager {
         this.mouseAt = now;
         return;
       }
-      if (!dragging) return;
+      if (!this.dragging) return;
       const now = performance.now();
       const dt = Math.max(8, now - lastT) / 1000;
-      this.mouseX = (e.clientX - lastX) / dt;
-      this.mouseY = (e.clientY - lastY) / dt;
-      lastX = e.clientX;
-      lastY = e.clientY;
+      this.mouseX = (e.clientX - this.dragX) / dt;
+      this.mouseY = (e.clientY - this.dragY) / dt;
+      this.dragX = e.clientX;
+      this.dragY = e.clientY;
       lastT = now;
       this.mouseAt = now;
     });
     const drop = () => {
-      dragging = false;
+      this.dragging = false;
       this.mouseX = 0;
       this.mouseY = 0;
     };
-    window.addEventListener('mouseup', drop);
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 2) this.scopeHeld = false;
+      drop();
+    });
     window.addEventListener('mouseleave', drop);
     window.addEventListener('blur', () => this.held.clear());
   }

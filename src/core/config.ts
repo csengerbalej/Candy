@@ -826,6 +826,15 @@ export const FIRST_PERSON = {
   fov: 72,
   /** Hány egységgel előre kerül a kamera, hogy a saját test ne lógjon bele. */
   forward: 0.12,
+  /**
+   * A KÖZELI VÁGÓSÍK belső nézetben.
+   *
+   * A közös kameráé 0,6 — a szobát keretező külső nézetben ez helyes, mert
+   * semmi nem kerül ilyen közel. A kézben tartott fegyver viszont IGEN, és
+   * a vágósík mögé kerülve nem eltűnik, hanem BELÜLRŐL tölti ki a képet:
+   * egy kék-lila massza a fél képernyőn. Ez volt a „pislákoló fegyver".
+   */
+  near: 0.05,
   /** A fordulás simítása. Nulla nem kell: a nyers bemenet remeg. */
   smoothing: 22,
 } as const;
@@ -845,61 +854,74 @@ export const GUNS = {
   shotgun: {
     name: 'SÖRÉTES',
     model: 'models/shotgun.json',
-    range: 9,
-    /** Hány szem megy ki egy lövésre, és mekkora kúpban. */
+    /**
+     * Egy SZOBÁN belül úr. A legnagyobb szoba kb. 29 egység széles (mérve a
+     * navigációs rácsból), tehát 16 egység a fél szoba: innen még eléri az
+     * ajtóban állót, a folyosó túlvégén állót viszont már nem.
+     */
+    range: 16,
+    /** Eddig TELJES a hatás; azon túl gyengül a nullára. Ez a „közelharc". */
+    full: 7,
     pellets: 6,
     spread: 0.31,
     radius: 0.9,
     magazine: 2,
-    cooldown: 0.75,
+    cooldown: 0.9,
     reload: 2.6,
-    /** Ellökés: közelről a legnagyobb a játékban. */
     knockback: 16,
     stun: 1.0,
-    /** MINDENT elejtet, ami a kézben van. */
     dropsAll: true,
     noiseRadius: 44,
-    /** Mozgás közben is pontos: ez a közelharc fegyvere. */
     needsStillness: 0,
+    scopeFov: 0,
   },
   sniper: {
     name: 'MESTERLÖVÉSZ',
     model: 'models/sniper.json',
-    /** Átlő a lakáson. */
-    range: 60,
+    /**
+     * ÁTLŐ A LAKÁSON. A lakás átlója mérve 96 egység — a mesterlövész
+     * hatótávja ennél épp egy hajszállal kevesebb, tehát a leghosszabb
+     * rálátást is kihasználja, de a falon túlra ő sem lát.
+     */
+    range: 90,
+    full: 90,
     pellets: 1,
     spread: 0,
     radius: 0.35,
     magazine: 1,
-    cooldown: 1.2,
+    cooldown: 1.5,
     reload: 3.2,
-    /** Nem lök: HELYBEN TARTJA a másikat, és ez a távolról értékes. */
     knockback: 0,
     stun: 2.0,
     dropsAll: false,
-    /** Hangos, és a nyomjelző csík meg is mutatja, honnan jött. */
     noiseRadius: 52,
-    /** Ennyi ideig kell mozdulatlannak lenni, különben szétmegy a szórás. */
     needsStillness: 0.35,
+    /** TÁVCSŐ: ennyire szűkül a látószög. A 72 fokos alapból 26 — ez ~2,8× nagyítás. */
+    scopeFov: 26,
   },
   rocket: {
     name: 'RAKÉTAVETŐ',
     model: 'models/rocket.json',
-    range: 34,
+    /**
+     * EGY SZOBÁNYI táv. A legnagyobb szoba átlója kb. 41 egység: a rakéta
+     * ezen belül bárhová elér, de a lakáson nem lő át — különben egyetlen
+     * helyben állva le lehetne uralni az egész pályát.
+     */
+    range: 38,
+    full: 38,
     pellets: 1,
     spread: 0,
-    /** A robbanás sugara — ez talál, nem a lövedék. */
-    radius: 4.5,
+    /** A ROBBANÁS sugara: ez talál, nem a lövedék. */
+    radius: 5,
     magazine: 1,
-    cooldown: 1.6,
+    cooldown: 1.95,
     reload: 4.0,
     knockback: 20,
     stun: 1.4,
     dropsAll: true,
-    /** Hangosabb a csínynél: a lakó IDE jön. */
     noiseRadius: 90,
     needsStillness: 0,
-    /** Ezen belül magadat is ellöki — ebből lesz a rakétaugrás. */
+    scopeFov: 0,
     selfRadius: 5,
   },
 } as const;

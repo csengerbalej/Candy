@@ -46,11 +46,23 @@ export class HouseMap {
     }
   }
 
+  /**
+   * @param heading Merre nézel. Ha meg van adva, a térkép VELED EGYÜTT FOROG:
+   * a kép teteje mindig az, amerre nézel.
+   *
+   * Belső nézetben ez nem kényelmi kérdés. Álló térképnél a fejedben kell
+   * elforgatni a világot, hogy megtaláld, merre van „balra" — és pont akkor,
+   * amikor menekülsz. Forgó térképnél a bal kéz felőli folyosó a képen is
+   * balra van.
+   * @param marks Külön jelölések: a sarkok és a bázis.
+   */
   draw(
     house: VillageHouse,
     players: { position: THREE.Vector3; index: number }[],
     localIndex: number,
-    hunters: { position: THREE.Vector3; facing: number; known: boolean; colour: string }[]
+    hunters: { position: THREE.Vector3; facing: number; known: boolean; colour: string }[],
+    heading?: number,
+    marks: { position: THREE.Vector3; colour: string; ring?: boolean }[] = []
   ): void {
     const ctx = this.ctx;
     const dpr = Math.min(window.devicePixelRatio, 2);
@@ -69,6 +81,19 @@ export class HouseMap {
     const k = (s - pad * 2) / n;
     const px = (x: number): number => pad + house.col(x) * k;
     const py = (z: number): number => pad + house.row(z) * k;
+
+    // A FORGATÁS a vászon körül történik, nem elemenként: így az alaprajz, a
+    // célok és az üldözők egyszerre fordulnak, és nem tud egyik a másikhoz
+    // képest elcsúszni. A saját jelölőnk marad álló — az mindig felfelé néz,
+    // mert az VAGY TE.
+    const me = players.find((p) => p.index === localIndex);
+    const spin = heading !== undefined && me;
+    if (spin) {
+      ctx.save();
+      ctx.translate(s / 2, s / 2);
+      ctx.rotate(heading);
+      ctx.translate(-px(me.position.x), -py(me.position.z));
+    }
 
     // --- az alaprajz --------------------------------------------------------
     // Nyers cellánként rajzolni 384×384-et minden képkockán drága lenne. A
@@ -91,6 +116,18 @@ export class HouseMap {
     ctx.arc(px(house.exitZone.x), py(house.exitZone.z), 5, 0, Math.PI * 2);
     ctx.stroke();
 
+    // --- külön jelölések: a sarkok és a bázis -------------------------------
+    for (const m of marks) {
+      const mx = px(m.position.x);
+      const my = py(m.position.z);
+      ctx.strokeStyle = m.colour;
+      ctx.fillStyle = m.colour;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(mx, my, 6, 0, Math.PI * 2);
+      m.ring ? ctx.stroke() : ctx.fill();
+    }
+
     // --- az üldözők, ha tudsz róluk ----------------------------------------
     for (const h of hunters) {
       if (!h.known) continue;
@@ -112,6 +149,7 @@ export class HouseMap {
     // --- a szörnyek ---------------------------------------------------------
     for (const p of players) {
       const mine = p.index === localIndex;
+      if (mine && spin) continue; // forgó térképen a sajátunk a közepén, állva
       ctx.fillStyle = mine ? '#ff7a29' : '#9d5cff';
       ctx.beginPath();
       ctx.arc(px(p.position.x), py(p.position.z), mine ? 4 : 3, 0, Math.PI * 2);
@@ -123,6 +161,20 @@ export class HouseMap {
         ctx.arc(px(p.position.x), py(p.position.z), 7.5, 0, Math.PI * 2);
         ctx.stroke();
       }
+    }
+
+    if (spin) {
+      ctx.restore();
+      // A SAJÁT JELÖLŐ a forgatáson KÍVÜL: mindig a kép közepén áll, és
+      // mindig felfelé néz. Ez adja a forgó térkép értelmét — te vagy a
+      // rögzített pont, és a világ fordul körülötted.
+      ctx.fillStyle = '#ff7a29';
+      ctx.beginPath();
+      ctx.moveTo(s / 2, s / 2 - 7);
+      ctx.lineTo(s / 2 - 5, s / 2 + 5);
+      ctx.lineTo(s / 2 + 5, s / 2 + 5);
+      ctx.closePath();
+      ctx.fill();
     }
   }
 

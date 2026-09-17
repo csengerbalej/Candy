@@ -160,6 +160,8 @@ export class SplitScreenDirector {
   firstPerson: number | null = null;
   /** A fel-le nézés szöge belső nézetben. A jelenet állítja a bemenetből. */
   fpPitch = 0;
+  /** Nulla = alap látószög; nagyobb nulla = távcső. A jelenet állítja. */
+  fpFov = 0;
 
   update(dt: number, players: PlayerController[], width: number, height: number): void {
     const a = players[0].position;
@@ -356,7 +358,12 @@ export class SplitScreenDirector {
         );
         // A saját test ne lógjon a képbe: egy tenyérrel előre.
         eye.addScaledVector(look, FIRST_PERSON.forward);
-        cam.fov = FIRST_PERSON.fov;
+        // A TÁVCSŐ a látószöget szűkíti — ez maga a nagyítás. A jelenet
+        // állítja be, mert csak ő tudja, van-e távcsöves fegyver a kézben.
+        cam.fov = this.fpFov || FIRST_PERSON.fov;
+        // A vágósík is a nézeté: enélkül a kézben tartott fegyver a sík mögé
+        // kerül, és belülről tölti ki a képet.
+        cam.near = FIRST_PERSON.near;
         cam.position.copy(eye);
         cam.lookAt(eye.clone().add(look));
         // A simított pózokat is átírjuk, különben nézetváltáskor a kamera
@@ -364,6 +371,7 @@ export class SplitScreenDirector {
         this.positions[i].copy(eye);
         this.targets[i].copy(eye.clone().add(look));
       } else {
+        cam.near = CAMERA.near;
         cam.position.copy(this.positions[i]);
         cam.lookAt(this.targets[i]);
       }

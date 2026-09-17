@@ -27,6 +27,15 @@ export interface Target {
 }
 
 export interface Shot {
+  /**
+   * Mennyire volt ERŐS a találat: 1 = teljes, 0 = épp csak súrolta.
+   *
+   * A sörétes ettől lesz „közelre erős, távolra semmi": ugyanaz a lövés
+   * közelről mindent kiver a kézből, a hatótáv szélén viszont csak egy
+   * darabot, és meg sem lök rendesen. Egy fegyver, ami a hatótávja végéig
+   * ugyanolyan halálos, nem sörétes, hanem lézer.
+   */
+  strength: number;
   /** Honnan indult — a lövedék rajzolásához és a próbához. */
   from: THREE.Vector3;
   /** Ameddig elért: vagy a célpont, vagy a hatótáv vége. */
@@ -59,6 +68,20 @@ export class Weapon {
 
   /** Mennyi ideje áll egy helyben a lövő. A mesterlövésznek ez számít. */
   private still = 0;
+
+  /**
+   * TÁVCSŐ: be van-e nagyítva.
+   *
+   * Csak annak a fegyvernek van értelme, amelyiknek a beállításában van
+   * `scopeFov` — a sörétesre nagyítani annyi volna, mint távcsövet tenni egy
+   * kalapácsra.
+   */
+  scoped = false;
+
+  /** Van-e egyáltalán távcsöve. */
+  get canScope(): boolean {
+    return this.gun.scopeFov > 0;
+  }
 
   /** Hány lövés van a tárban. */
   ammo: number = WEAPON.magazine;
@@ -166,10 +189,20 @@ export class Weapon {
       bestT = along;
     }
 
+    // A TÁVOLSÁG GYENGÍT. A `full` távolságon belül teljes a hatás, azon túl
+    // lineárisan fogy a hatótáv széléig. A mesterlövésznél és a rakétánál a
+    // `full` egyenlő a hatótávval, tehát nincs gyengülés — ott a távolság
+    // nem hátrány, hanem a fegyver lényege.
+    const reachEdge = Math.max(1e-3, g.range - g.full);
+    const strength = best
+      ? THREE.MathUtils.clamp(1 - Math.max(0, bestT - g.full) / reachEdge, 0, 1)
+      : 0;
+
     return {
       from: from.clone(),
       to: best ? best.position.clone() : end,
       hit: best,
+      strength,
       noiseAt: from.clone(),
     };
   }

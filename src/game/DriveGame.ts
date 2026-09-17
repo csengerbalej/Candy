@@ -129,9 +129,25 @@ export class DriveGame {
    * segítség, hanem félrevezetés.
    */
   private get waypoint(): THREE.Vector3 {
+    // HA RAKOMÁNY VAN A KOCSIBAN, a nyíl a BÁZISRA mutat.
+    //
+    // Ez megelőz mindent, és szándékosan: a cukorka a kocsiban addig nem ér
+    // semmit, amíg le nem raktad, és egy megrakott kocsival a következő
+    // házhoz menni pont a rossz sorrend. A nyíl mondja meg, mi a dolgod —
+    // ne kelljen kitalálni.
+    if (this.cargo && this.cargo.amount > 0) return this.cargo.base;
     const gate = this.challenge?.nextGate;
     return gate ?? this.target.driveway;
   }
+
+  /**
+   * A rakomány és a bázis, fogó módban. A jelenet állítja be.
+   *
+   * Azért van itt, és nem a `Delivery`-ben, mert az IRÁNYJELZŐ dolga: a
+   * könyvelés nem tudja, hogy van egy nyíl a képernyőn, és nem is kell
+   * tudnia.
+   */
+  cargo: { amount: number; base: THREE.Vector3 } | null = null;
 
   get pingBearing(): number {
     return relativeBearing(this.car, this.waypoint);
@@ -139,6 +155,7 @@ export class DriveGame {
 
   /** Mire mutat épp: a kapura vagy a házra. A HUD felirata ebből jön. */
   get pingLabel(): string {
+    if (this.cargo && this.cargo.amount > 0) return 'BÁZIS';
     return this.challenge?.nextGate ? 'KAPU' : 'IRÁNY';
   }
 

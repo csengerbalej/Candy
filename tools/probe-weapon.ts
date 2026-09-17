@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Weapon, type Target } from '../src/game/Weapon';
-import { WEAPON, SIM, CAPTURE, GUNS, PICKUP, MOVE, DELIVERY, type GunId } from '../src/core/config';
+import { WEAPON, SIM, CAPTURE, GUNS, PICKUP, MOVE, DELIVERY, FIRST_PERSON, type GunId } from '../src/core/config';
 import { Capture, type Corner } from '../src/game/Capture';
 import { Armoury } from '../src/game/Armoury';
 import { Rival, type RivalWorld } from '../src/ai/Rival';
@@ -488,6 +488,75 @@ for (const kind of ['shotgun', 'sniper', 'rocket'] as GunId[]) {
   let semmi = 0;
   for (let t = 0; t < 5; t += SIM.step) semmi += ures.update(SIM.step, 0, bazis);
   line('üres kocsival nincs mit lerakni', semmi === 0, '');
+}
+
+
+// --- A HÁROM FEGYVER HANGOLÁSA ----------------------------------------------
+//
+// A számok nem ízlésből valók, hanem a PÁLYA MÉRETÉBŐL: egy lakás mérve
+// 67 × 67 egység (átló 96), a legnagyobb szoba kb. 29 egység széles. Ehhez
+// képest kell mindegyik fegyvernek megtalálnia a maga távolságát — és a
+// próba ezt az ARÁNYT védi, nem a konkrét számot.
+{
+  line('a sörétes egy szobán belül ér el',
+    GUNS.shotgun.range >= 12 && GUNS.shotgun.range <= 20,
+    `${GUNS.shotgun.range} egység (a legnagyobb szoba ~29 széles)`);
+  line('a mesterlövész átlő a lakáson',
+    GUNS.sniper.range >= 80 && GUNS.sniper.range <= 96,
+    `${GUNS.sniper.range} (a lakás átlója 96)`);
+  line('a rakéta egy szobányit repül, a lakáson nem lő át',
+    GUNS.rocket.range > GUNS.shotgun.range && GUNS.rocket.range < 60,
+    `${GUNS.rocket.range}`);
+
+  // A LÖVÉSKÖZÖK: a kért ütem.
+  line('sörétes ütem 0,8–1,0 mp',
+    GUNS.shotgun.cooldown >= 0.8 && GUNS.shotgun.cooldown <= 1.0, `${GUNS.shotgun.cooldown}`);
+  line('mesterlövész ütem 1,5 mp', GUNS.sniper.cooldown === 1.5, `${GUNS.sniper.cooldown}`);
+  line('rakéta ütem 1,9–2,0 mp',
+    GUNS.rocket.cooldown >= 1.9 && GUNS.rocket.cooldown <= 2.0, `${GUNS.rocket.cooldown}`);
+
+  // A SÖRÉTES GYENGÜL a távolsággal — ez a „közelre erős, távolra nem jó".
+  {
+    const w = new Weapon('shotgun');
+    const kozel = w.fire(at(0, 0), 0, [target(0, 5)]);
+    tick(w, GUNS.shotgun.cooldown);
+    const tavol = w.fire(at(0, 0), 0, [target(0, 15)]);
+    line('a sörétes közelről teljes erejű', (kozel?.strength ?? 0) > 0.99,
+      `${kozel?.strength.toFixed(2)}`);
+    line('a hatótáv szélén viszont alig', (tavol?.strength ?? 1) < 0.25,
+      `${tavol?.strength.toFixed(2)}`);
+  }
+
+  // A MESTERLÖVÉSZ nem gyengül: a távolság a fegyver lényege, nem hátránya.
+  {
+    const w = new Weapon('sniper');
+    w.update(1, false);
+    const messze = w.fire(at(0, 0), 0, [target(0, 80)]);
+    line('a mesterlövész 80 egységről is teljes erejű',
+      (messze?.strength ?? 0) > 0.99, `${messze?.strength.toFixed(2)}`);
+  }
+
+  // A GYENGE TALÁLAT kevesebbet ver ki a kézből, de legalább egyet —
+  // különben a hatótáv szélén a lövésnek semmi következménye nem lenne.
+  {
+    const g = new Capture([{ player: 0, position: at(0, 0) }, { player: 1, position: at(30, 0) }]);
+    for (let i = 0; i < CAPTURE.carry; i++) g.takeFromBowl(1);
+    const gyenge = g.hit(1, at(10, 0), at(0, 0), 0.2);
+    line('gyenge találatra kevesebb esik ki',
+      gyenge.dropped >= 1 && gyenge.dropped < CAPTURE.carry,
+      `${gyenge.dropped} a ${CAPTURE.carry}-ból`);
+
+    const g2 = new Capture([{ player: 0, position: at(0, 0) }, { player: 1, position: at(30, 0) }]);
+    for (let i = 0; i < CAPTURE.carry; i++) g2.takeFromBowl(1);
+    line('teljes találatra minden kiesik',
+      g2.hit(1, at(10, 0), at(0, 0), 1).dropped === CAPTURE.carry, '');
+  }
+
+  // A TÁVCSŐ csak a mesterlövészen van.
+  line('távcső csak a mesterlövészen',
+    new Weapon('sniper').canScope && !new Weapon('shotgun').canScope &&
+      !new Weapon('rocket').canScope,
+    `nagyítás ${(FIRST_PERSON.fov / GUNS.sniper.scopeFov).toFixed(1)}×`);
 }
 
 console.log('');

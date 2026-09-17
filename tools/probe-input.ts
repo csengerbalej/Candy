@@ -458,14 +458,22 @@ let ok = true;
   const up = () => listeners.get('mouseup')?.({} as never);
 
   down(canvas);
-  move(160, 100); // 60 képpont jobbra, egy szempillantás alatt
+  move(160, 100); // 60 képpont jobbra
   const turning = man.look();
-  ok = line('egérhúzásra fordul a kamera', turning.x > 0.2, `x = ${turning.x.toFixed(2)}`) && ok;
+  // Az IRÁNYT mérjük, nem a nagyságot: a ráta valós időből számol
+  // (képpont/másodperc), és a próbák láncban futva más gépterhelés mellett
+  // más időközt látnak — egy küszöbszám itt nem a kódot mérné, hanem azt,
+  // mennyire volt elfoglalva a gép. Egyszer már megbukott ettől.
+  ok = line('egérhúzásra jobbra fordul', turning.x > 0, `x = ${turning.x.toFixed(2)}`) && ok;
+
+  down(canvas);
+  move(40, 100); // balra
+  ok = line('balra húzva balra fordul', man.look().x < 0, `x = ${man.look().x.toFixed(2)}`) && ok;
 
   down(canvas);
   move(100, 160); // lefelé húzás = lefelé nézés
   const tilting = man.look();
-  ok = line('lefelé húzva lefelé néz', tilting.y < -0.2, `y = ${tilting.y.toFixed(2)}`) && ok;
+  ok = line('lefelé húzva lefelé néz', tilting.y < 0, `y = ${tilting.y.toFixed(2)}`) && ok;
 
   up();
   ok = line('elengedve megáll', man.look().x === 0 && man.look().y === 0, 'x = 0, y = 0') && ok;

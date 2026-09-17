@@ -106,17 +106,30 @@ export class Capture {
    * hány cukorka esett ki. A `Capture` nem mozgat testet: nem ismeri a
    * falakat, a ház dolga kiszámolni, meddig repül.
    */
+  /**
+   * @param strength 0..1 — mennyire volt erős a találat. A sörétes a
+   * hatótávja szélén már csak EGY cukorkát ver ki, és alig lök; közelről
+   * mindent. Egy fegyver, ami a hatótáv végéig ugyanolyan halálos, nem
+   * sörétes, hanem lézer.
+   */
   hit(
     player: 0 | 1,
     at: THREE.Vector3,
-    from: THREE.Vector3
+    from: THREE.Vector3,
+    strength = 1
   ): { push: THREE.Vector3; dropped: number } {
     const dir = at.clone().sub(from);
     dir.y = 0;
     if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
     dir.normalize();
 
-    const dropped = this.carried[player];
+    // Gyenge találatra csak egy darab esik ki — de legalább egy, különben a
+    // lövésnek a hatótáv szélén semmi következménye nem lenne.
+    const dropped =
+      strength >= 0.99
+        ? this.carried[player]
+        : Math.min(this.carried[player], Math.max(1, Math.round(this.carried[player] * strength)));
+    const kept = this.carried[player] - dropped;
     for (let i = 0; i < dropped; i++) {
       // Szétszóródnak, nem egy kupacba: egy kupacot egy mozdulattal
       // visszaszedne az, aki elejtette.
@@ -128,10 +141,10 @@ export class Capture {
         age: 0,
       });
     }
-    this.carried[player] = 0;
-    this.knocked[player] = CAPTURE.knockTime;
+    this.carried[player] = kept;
+    this.knocked[player] = CAPTURE.knockTime * Math.max(0.35, strength);
 
-    return { push: dir.multiplyScalar(CAPTURE.knockback), dropped };
+    return { push: dir.multiplyScalar(CAPTURE.knockback * Math.max(0.3, strength)), dropped };
   }
 
   /** Irányítható-e most a játékos. Repülés közben nem. */

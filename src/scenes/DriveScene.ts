@@ -784,6 +784,11 @@ export class DriveScene implements GameScene {
     // A talajszintet a VILÁG mondja meg, pontonként: az út teteje nem a
     // kocsi magassága (lásd SkidMarks).
     this.base?.update(step);
+    if (this.session.delivery) {
+      // Az irányjelző a rakománytól függ: megrakott kocsival a bázisra mutat.
+      const mine = this.session.delivery.loads[this.localIndex as 0 | 1];
+      this.game.cargo = { amount: mine.inCar, base: this.session.delivery.base };
+    }
     if (this.session.delivery && this.fogoHud) {
       const me = this.localIndex as 0 | 1;
       const them = (1 - me) as 0 | 1;
