@@ -12,6 +12,7 @@ import { loadSelection, saveSelection, type Selection } from './game/Characters'
 import { cyclePitch, resetStage, rotateStage, tiltStage, turnStage } from './camera/Stage';
 import { openRoom, type RoomTransport } from './net/Room';
 import { openPeerRoom, makeCode } from './net/PeerRoom';
+import { Latency } from './net/Latency';
 import { NetSession } from './net/NetSession';
 import { NetBadge } from './ui/NetBadge';
 import { Identity } from './net/Identity';
@@ -203,6 +204,9 @@ async function showFrontend(): Promise<FrontendResult> {
   const poll = (): void => {
     if (!polling) return;
     input.update();
+    // A menüben is mérünk: a párosítás itt dől el, tehát itt a leghasznosabb
+    // látni a késést — még az indulás előtt.
+    latency?.update(1 / 60);
     // While the settings panel is up it owns the input; the menu underneath
     // must not also act on the same button press.
     if (settings_panel?.isOpen) settings_panel.update();
@@ -327,6 +331,9 @@ function frame(): void {
   requestAnimationFrame(frame);
 
   const frameTime = Math.min(clock.getDelta(), 0.25);
+  // A késésmérés a KÉPKOCKA hurokban fut, nem a szimulációéban: azt méri,
+  // milyen gyorsan ér át egy állapot, és ez nem a szimuláció dolga.
+  latency?.update(frameTime);
   // Játék közben látszik a vezérlő; a menü a saját ágán elrejti.
   touch?.setVisible(true);
   if (touch) document.body.dataset.playing = '1';
@@ -502,6 +509,8 @@ function roomCode(): string {
 function adopt(room: RoomTransport): void {
   net = new NetSession(room);
   netRoom = room;
+  latency = new Latency(room);
+  netBadge.watchLatency(latency);
   identity = new Identity(room, net);
   netBadge.watch(net);
   // A beszélgetés akkor születik, amikor a szoba megnyílik. Egyedül
@@ -526,6 +535,8 @@ void openRoom()
   .catch(() => {});
 
 export let netRoom: RoomTransport | null = null;
+/** A késésmérő. A jelző írja ki, a képkocka-hurok hajtja. */
+export let latency: Latency | null = null;
 let identity: Identity | null = null;
 
 void start();

@@ -1,4 +1,5 @@
 import type { NetSession, NetState } from '../net/NetSession';
+import type { Latency } from '../net/Latency';
 
 /**
  * Egy sarokba kitett jelző arról, hogy a szoba él-e.
@@ -17,6 +18,8 @@ export class NetBadge {
   private stop: (() => void) | null = null;
   /** A megosztandó kód, ha a szoba nem a futtatókörnyezeté. */
   private code: string | null = null;
+  /** A késésmérő, ha van szoba. A PvP tervezéséhez ez a szám a kiindulás. */
+  private latency: Latency | null = null;
   private last: NetState | null = null;
 
   constructor(parent: HTMLElement) {
@@ -56,6 +59,20 @@ export class NetBadge {
     }, 1800);
   }
 
+  /** A késés a jelzőn látszik, mert a döntéshez a JÁTÉKOSNAK kell leolvasnia. */
+  watchLatency(latency: Latency): void {
+    this.latency = latency;
+    // A jelző eddig CSAK állapotváltáskor rajzolt újra — a késés viszont
+    // folyton változik, tehát az első mért szám örökre ott állna. Egy
+    // másodperces újrarajzolás elég: ennél gyakrabban egy szám amúgy is
+    // olvashatatlan.
+    if (this.tick === null) {
+      this.tick = window.setInterval(() => this.show(this.last), 1000);
+    }
+  }
+
+  private tick: number | null = null;
+
   /** A munkamenet lecserélődik, amikor a szoba megnyílik — ezért követhető. */
   watch(session: NetSession): void {
     this.stop?.();
@@ -86,12 +103,20 @@ export class NetBadge {
       return;
     }
     this.el.dataset.state = 'on';
+    const ms = this.latency?.median;
+    const worst = this.latency?.worst;
+    const ping =
+      ms === null || ms === undefined
+        ? ' · késés: mérés…'
+        : ` · késés ${Math.round(ms)} ms (legrosszabb ${Math.round(worst ?? ms)})`;
     this.el.innerHTML =
       `<i></i><b>${state.role === 'host' ? 'GAZDA' : 'VENDÉG'}</b>` +
-      `<span>${state.count} eszköz · te vagy a ${state.playerIndex + 1}. szörny</span>`;
+      `<span>${state.count} eszköz · te vagy a ${state.playerIndex + 1}. szörny${ping}</span>`;
   }
 
   dispose(): void {
+    if (this.tick !== null) window.clearInterval(this.tick);
+    this.tick = null;
     this.stop?.();
     this.el.remove();
   }
