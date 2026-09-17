@@ -1,0 +1,43 @@
+{
+  "name": "candypocalypse",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "probe": "vite-node tools/probe-camera.ts",
+    "build:file": "vite build --config vite.file.config.ts",
+    "probe:ai": "vite-node tools/probe-ai.ts",
+    "probe:drive": "vite-node tools/probe-drive.ts",
+    "probe:all": "npm run probe && npm run probe:ai && npm run probe:drive && npm run probe:input && npm run probe:town && npm run probe:village && npm run probe:house1 && npm run probe:net && npm run probe:camera && npm run probe:dog",
+    "pack:models": "node tools/pack-models.mjs",
+    "probe:input": "vite-node tools/probe-input.ts",
+    "probe:town": "vite-node tools/probe-town.ts",
+    "probe:village": "vite-node tools/probe-village.ts",
+    "probe:house1": "vite-node tools/probe-house1.ts",
+    "probe:net": "vite-node tools/probe-net.ts",
+    "probe:camera": "vite-node tools/probe-camera.ts",
+    "publish:prep": "npm run build:file && cp dist-file/index.html \"$CP_PUBLISH_HTML\"",
+    "probe:dog": "vite-node tools/probe-dog.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@gltf-transform/cli": "^4.5.0",
+    "@gltf-transform/core": "^4.5.0",
+    "@gltf-transform/extensions": "^4.5.0",
+    "@gltf-transform/functions": "^4.5.0",
+    "@types/three": "^0.186.0",
+    "sharp": "^0.35.4",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vite-node": "^6.0.0"
+  }
+}

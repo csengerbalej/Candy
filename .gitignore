@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-file
+
+# A NYERS LETÖLTÉSEK NEM MENNEK FEL.
+#
+# A `raw/` a letöltött modellek és hangok gyűjtőhelye: 937 MB, és három
+# fájl önmagában túllépi a GitHub 100 MB-os fájlhatárát. Ami ebből a
+# játékhoz kell, az már SÜTVE van a `public/models` alatt — a nyers
+# forrásokra csak akkor van szükség, ha valaki újra akarja süttetni őket.
+#
+# A sütés lépései a `tools/` szkriptekben és a kommentjeikben végig le
+# vannak írva, tehát a folyamat nem vész el, csak a bemenete.
+raw/
+
+.DS_Store
