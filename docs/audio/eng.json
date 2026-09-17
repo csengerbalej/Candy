@@ -1,0 +1,58 @@
+[
+ {
+  "name": "b0",
+  "rpm": 2100,
+  "seconds": 0.1714,
+  "revolutions": 6,
+  "at": 80.5
+ },
+ {
+  "name": "b1",
+  "rpm": 2510,
+  "seconds": 0.1673,
+  "revolutions": 7,
+  "at": 60.7
+ },
+ {
+  "name": "b2",
+  "rpm": 2866,
+  "seconds": 0.1675,
+  "revolutions": 8,
+  "at": 75.34
+ },
+ {
+  "name": "b3",
+  "rpm": 3556,
+  "seconds": 0.135,
+  "revolutions": 8,
+  "at": 54.58
+ },
+ {
+  "name": "b4",
+  "rpm": 4218,
+  "seconds": 0.1138,
+  "revolutions": 8,
+  "at": 40.3
+ },
+ {
+  "name": "b5",
+  "rpm": 4890,
+  "seconds": 0.0982,
+  "revolutions": 8,
+  "at": 47.14
+ },
+ {
+  "name": "b6",
+  "rpm": 5792,
+  "seconds": 0.0829,
+  "revolutions": 8,
+  "at": 43.06
+ },
+ {
+  "name": "b7",
+  "rpm": 6785,
+  "seconds": 0.0707,
+  "revolutions": 8,
+  "at": 7.06
+ }
+]

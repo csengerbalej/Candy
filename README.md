@@ -11,7 +11,16 @@ vaksötét, a harmadikban ketten vadásznak rád.
 
 A társad egy **másik eszközről**, ugyanazzal a linkkel lép be.
 
-## Indítás
+## Játék
+
+A kiépített játék a `docs/` mappában van, és a GitHub Pages szolgálja ki:
+**https://csengerbalej.github.io/Candy/**
+
+A kétfős mód CSAK a Claude-artifact változatban működik — a társ belépése a
+futtatókörnyezet szobájára épül, ami a GitHub Pages-en nincs. Ott a játék
+egyszemélyesként indul.
+
+## Indítás (fejlesztéshez)
 
 ```bash
 npm install
@@ -52,6 +61,7 @@ mi volt előtte, mi romlott el tőle, és mit mért a javítás.
 | `src/` | a játék (TypeScript, three.js) |
 | `tools/` | a mérések és az eszközsütő folyamat (Blender, gltf-transform) |
 | `public/` | a kisütött modellek, hangok, képek |
+| `docs/` | a kiépített játék, amit a GitHub Pages kiszolgál |
 
 A `raw/` (nyers letöltések, 937 MB) nincs verziókövetve — amit a játék
 használ, az sütve van a `public/` alatt.
