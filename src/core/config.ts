@@ -829,3 +829,79 @@ export const FIRST_PERSON = {
   /** A fordulás simítása. Nulla nem kell: a nyers bemenet remeg. */
   smoothing: 22,
 } as const;
+
+/**
+ * A HÁROM FEGYVER.
+ *
+ * Kő-papír-olló: mindegyik más TÁVOLSÁGON úr, és mindegyiknek más az ára.
+ * A számok egymáshoz képest vannak beállítva, nem külön-külön — ezért
+ * élnek egy táblában, nem három helyen.
+ *
+ *   sörétes      a sarkok fegyvere      · oda kell menni
+ *   mesterlövész a folyosóké            · állva kell maradni
+ *   rakétavető   a zárt tereké          · magadra hívja a lakót
+ */
+export const GUNS = {
+  shotgun: {
+    name: 'SÖRÉTES',
+    model: 'models/shotgun.json',
+    range: 9,
+    /** Hány szem megy ki egy lövésre, és mekkora kúpban. */
+    pellets: 6,
+    spread: 0.31,
+    radius: 0.9,
+    magazine: 2,
+    cooldown: 0.75,
+    reload: 2.6,
+    /** Ellökés: közelről a legnagyobb a játékban. */
+    knockback: 16,
+    stun: 1.0,
+    /** MINDENT elejtet, ami a kézben van. */
+    dropsAll: true,
+    noiseRadius: 44,
+    /** Mozgás közben is pontos: ez a közelharc fegyvere. */
+    needsStillness: 0,
+  },
+  sniper: {
+    name: 'MESTERLÖVÉSZ',
+    model: 'models/sniper.json',
+    /** Átlő a lakáson. */
+    range: 60,
+    pellets: 1,
+    spread: 0,
+    radius: 0.35,
+    magazine: 1,
+    cooldown: 1.2,
+    reload: 3.2,
+    /** Nem lök: HELYBEN TARTJA a másikat, és ez a távolról értékes. */
+    knockback: 0,
+    stun: 2.0,
+    dropsAll: false,
+    /** Hangos, és a nyomjelző csík meg is mutatja, honnan jött. */
+    noiseRadius: 52,
+    /** Ennyi ideig kell mozdulatlannak lenni, különben szétmegy a szórás. */
+    needsStillness: 0.35,
+  },
+  rocket: {
+    name: 'RAKÉTAVETŐ',
+    model: 'models/rocket.json',
+    range: 34,
+    pellets: 1,
+    spread: 0,
+    /** A robbanás sugara — ez talál, nem a lövedék. */
+    radius: 4.5,
+    magazine: 1,
+    cooldown: 1.6,
+    reload: 4.0,
+    knockback: 20,
+    stun: 1.4,
+    dropsAll: true,
+    /** Hangosabb a csínynél: a lakó IDE jön. */
+    noiseRadius: 90,
+    needsStillness: 0,
+    /** Ezen belül magadat is ellöki — ebből lesz a rakétaugrás. */
+    selfRadius: 5,
+  },
+} as const;
+
+export type GunId = keyof typeof GUNS;

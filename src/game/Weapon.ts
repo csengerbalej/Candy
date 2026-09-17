@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WEAPON } from '../core/config';
+import { WEAPON, GUNS, type GunId } from '../core/config';
 
 /**
  * NYÁLKAPUSKA — a kétfős mód távolsági zsákmányszerzése.
@@ -38,21 +38,49 @@ export interface Shot {
 }
 
 export class Weapon {
+  /**
+   * Melyik fegyver ez.
+   *
+   * Nem három osztály, hanem egy osztály három adatsorral: a lövés MENETE
+   * mindegyiknél ugyanaz (van-e lőszer, kész-e, mi van a vonalban), csak a
+   * számok mások. Három osztályból három helyen kellene javítani ugyanazt a
+   * hibát — és a harmadik mindig kimarad.
+   */
+  readonly gun: (typeof GUNS)[GunId];
+
+  constructor(kind: GunId = 'shotgun') {
+    this.gun = GUNS[kind];
+    this.kind = kind;
+    this.ammo = this.gun.magazine;
+    this.reserve = this.gun.magazine * 2;
+  }
+
+  readonly kind: GunId;
+
+  /** Mennyi ideje áll egy helyben a lövő. A mesterlövésznek ez számít. */
+  private still = 0;
+
   /** Hány lövés van a tárban. */
-  ammo = WEAPON.magazine;
+  ammo: number = WEAPON.magazine;
   /** Hány lövés van tartalékban, tárakon kívül. */
-  reserve = WEAPON.magazine;
+  reserve: number = WEAPON.magazine;
   /** Épp tölt-e, és mennyi van hátra. */
   reloading = 0;
 
   private cool = 0;
 
-  update(dt: number): void {
+  /**
+   * @param moving Mozog-e épp a lövő. A mesterlövész ettől lesz pontos vagy
+   * pontatlan — ez a fegyver ára: állni kell vele, és állni a legveszélyesebb
+   * dolog a házban.
+   */
+  update(dt: number, moving = false): void {
+    this.still = moving ? 0 : this.still + dt;
     this.cool = Math.max(0, this.cool - dt);
     if (this.reloading > 0) {
       this.reloading = Math.max(0, this.reloading - dt);
       if (this.reloading === 0) {
-        const want = WEAPON.magazine - this.ammo;
+        const want = this.gun.magazine - this.ammo;
         const take = Math.min(want, this.reserve);
         this.ammo += take;
         this.reserve -= take;
@@ -67,13 +95,18 @@ export class Weapon {
 
   /** Kézzel indított újratöltés. Üres tárral magától is elindul. */
   reload(): void {
-    if (this.reloading > 0 || this.ammo >= WEAPON.magazine || this.reserve <= 0) return;
-    this.reloading = WEAPON.reload;
+    if (this.reloading > 0 || this.ammo >= this.gun.magazine || this.reserve <= 0) return;
+    this.reloading = this.gun.reload;
+  }
+
+  /** Pontos-e most a fegyver. A HUD ebből rajzol célkeresztet. */
+  get steady(): boolean {
+    return this.still >= this.gun.needsStillness;
   }
 
   /** Lőszerdoboz felvétele. */
   pickUp(): void {
-    this.reserve += WEAPON.pack;
+    this.reserve += this.gun.magazine * 2;
   }
 
   /**
@@ -99,11 +132,20 @@ export class Weapon {
     if (!this.ready) return null;
 
     this.ammo--;
-    this.cool = WEAPON.cooldown;
+    this.cool = this.gun.cooldown;
     if (this.ammo === 0) this.reload();
 
+    const g = this.gun;
     const dir = new THREE.Vector3(Math.sin(heading), 0, Math.cos(heading));
-    const end = from.clone().addScaledVector(dir, WEAPON.range);
+    const end = from.clone().addScaledVector(dir, g.range);
+
+    // A SZÓRÁS a fegyver fajtájából jön, és a mesterlövésznél az ÁLLÁSBÓL is:
+    // futás közben kilőtt távoli lövés ne legyen ugyanaz, mint a kivárt.
+    const steadiness = g.needsStillness > 0 && !this.steady ? 4 : 1;
+    const cone = g.spread * steadiness;
+    // Sörétesnél a kúp szélessége a távolsággal nő — ettől lesz közel
+    // gyilkos és távol semmi.
+    const reach = (at: number): number => g.radius + at * cone;
 
     let best: Target | null = null;
     let bestT = Infinity;
@@ -111,12 +153,12 @@ export class Weapon {
       // Merőleges távolság a lövés vonalától, és hogy előttünk van-e.
       const rel = t.position.clone().sub(from);
       const along = rel.dot(dir);
-      if (along <= 0 || along > WEAPON.range) continue;
+      if (along <= 0 || along > g.range) continue;
       const side = rel.clone().addScaledVector(dir, -along);
       // Csak a vízszintes eltérés számít: a nyálka csóva, és a szörnyek
       // magassága úgyis eltér.
       const miss = Math.hypot(side.x, side.z);
-      if (miss > WEAPON.radius + t.radius) continue;
+      if (miss > reach(along) + t.radius) continue;
       if (along >= bestT) continue;
       // Fal takarja? Akkor ez a célpont nincs is itt.
       if (blocked(from, t.position)) continue;

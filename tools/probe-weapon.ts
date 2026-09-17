@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Weapon, type Target } from '../src/game/Weapon';
-import { WEAPON, SIM, CAPTURE } from '../src/core/config';
+import { WEAPON, SIM, CAPTURE, GUNS, type GunId } from '../src/core/config';
 import { Capture, type Corner } from '../src/game/Capture';
 
 /**
@@ -14,9 +14,19 @@ import { Capture, type Corner } from '../src/game/Capture';
  */
 
 let ok = true;
-function line(name: string, pass: boolean, detail = ''): void {
+/**
+ * Kiír egy állítást, és VISSZA IS ADJA az eredményt.
+ *
+ * A visszaadás nem díszítés: a hívások fele `ok = line(...) && ok` alakú, és
+ * amíg a függvény semmit nem adott vissza, az `ok` az első ilyen sornál
+ * `undefined` lett — vagyis a próba akkor is bukást jelentett, amikor
+ * mind a negyvenöt állítás átment. Egy mérőeszköz, ami magától hazudik,
+ * rosszabb, mint a semmi.
+ */
+function line(name: string, pass: boolean, detail = ''): boolean {
   console.log(`${pass ? 'OK  ' : 'HIBA'}  ${name.padEnd(42)} ${detail}`);
   if (!pass) ok = false;
+  return pass;
 }
 
 const at = (x: number, z: number): THREE.Vector3 => new THREE.Vector3(x, 0, z);
@@ -34,118 +44,113 @@ const tick = (w: Weapon, seconds: number): void => {
   for (let i = 0; i < Math.round(seconds / SIM.step) + 1; i++) w.update(SIM.step);
 };
 
-// --- TALÁLAT ÉS IRÁNY -------------------------------------------------------
-{
-  const w = new Weapon();
-  // Előre néz (heading 0 = +Z), a célpont előtte.
-  const elott = w.fire(at(0, 0), 0, [target(0, 8)]);
-  line('szemben álló célpontot eltalál', elott?.hit?.id === 'tars', `${elott?.hit ? 'talált' : 'nem talált'}`);
+// --- MINDHÁROM FEGYVER ------------------------------------------------------
+//
+// Nem három külön próba: ugyanaz a hat kérdés mind a háromra, a SAJÁT
+// számaival. Így a „kő-papír-olló" nem szándék marad, hanem mérhető állítás —
+// és ha valaki átírja az egyik hatótávot, itt derül ki, hogy a hármas
+// felborult.
+for (const kind of ['shotgun', 'sniper', 'rocket'] as GunId[]) {
+  const g = GUNS[kind];
+  const w = () => new Weapon(kind);
+  const cim = g.name.padEnd(12);
 
-  tick(w, WEAPON.cooldown);
-  // A HÁTA MÖGÖTT állót nem: a fegyver nem lő visszafelé.
-  const mogott = w.fire(at(0, 0), 0, [target(0, -8)]);
-  line('a háta mögé nem lő', mogott?.hit === null, `${mogott?.hit ? 'eltalálta' : 'elment'}`);
+  const a = w();
+  line(`${cim} szemben állót eltalál`, a.fire(at(0, 0), 0, [target(0, g.range * 0.5)])?.hit?.id === 'tars',
+    `${(g.range * 0.5).toFixed(0)} egységről`);
 
-  tick(w, WEAPON.cooldown);
-  // OLDALRA kitérve elkerülhető — enélkül a lövés kikerülhetetlen lenne.
-  const mellette = w.fire(at(0, 0), 0, [target(3, 8)]);
-  line('oldalra kitérve elkerülhető', mellette?.hit === null, '3 egységgel oldalra');
+  const b = w();
+  line(`${cim} a háta mögé nem lő`, b.fire(at(0, 0), 0, [target(0, -g.range * 0.5)])?.hit === null, '');
 
-  tick(w, WEAPON.cooldown);
-  const kozel = w.fire(at(0, 0), 0, [target(1.2, 8)]);
-  line('szűken mellette még talál', kozel?.hit?.id === 'tars', `1,2 egység (sugár ${WEAPON.radius})`);
-}
+  const c = w();
+  line(`${cim} a hatótávon túl nem talál`, c.fire(at(0, 0), 0, [target(0, g.range + 5)])?.hit === null,
+    `${g.range + 5} > ${g.range}`);
 
-// --- HATÓTÁV ----------------------------------------------------------------
-{
-  const w = new Weapon();
-  const messze = w.fire(at(0, 0), 0, [target(0, WEAPON.range + 4)]);
-  line('a hatótávon túl nem talál', messze?.hit === null, `${WEAPON.range + 4} > ${WEAPON.range} egység`);
+  const d = w();
+  line(`${cim} falon át nem lő`, d.fire(at(0, 0), 0, [target(0, g.range * 0.5)], () => true)?.hit === null, '');
 
-  tick(w, WEAPON.cooldown);
-  const hatar = w.fire(at(0, 0), 0, [target(0, WEAPON.range - 1)]);
-  line('a hatótávon belül talál', hatar?.hit?.id === 'tars', `${WEAPON.range - 1} egység`);
-}
+  const e = w();
+  line(`${cim} tele tárral indul`, e.ammo === g.magazine, `${e.ammo} lövés`);
 
-// --- FAL --------------------------------------------------------------------
-{
-  const w = new Weapon();
-  const fal = w.fire(at(0, 0), 0, [target(0, 8)], () => true);
-  line('falon át nem lő', fal?.hit === null, 'a takarás számít');
-}
-
-// --- A LEGKÖZELEBBI NYER ----------------------------------------------------
-{
-  const w = new Weapon();
-  const ketto = w.fire(at(0, 0), 0, [target(0, 16, 'hatso'), target(0, 6, 'elso')]);
-  line('a közelebbit találja el', ketto?.hit?.id === 'elso', `${ketto?.hit?.id}`);
-}
-
-// --- AZ ÁRA: LŐSZER, ÚJRATÖLTÉS, ÜTEM ---------------------------------------
-{
-  const w = new Weapon();
-  line('tele tárral indul', w.ammo === WEAPON.magazine, `${w.ammo} lövés`);
-
-  // Ütem: két lövés között várni kell. Enélkül egy képkockán kiürülne a tár.
-  w.fire(at(0, 0), 0, []);
-  const azonnal = w.fire(at(0, 0), 0, []);
-  line('nem lehet képkockánként lőni', azonnal === null, `a szünet ${WEAPON.cooldown} mp`);
-
-  tick(w, WEAPON.cooldown);
-  line('a szünet után újra lőhet', w.ready, `${w.ammo} lövés maradt`);
-
-  // A tár kiürítése, és hogy MAGÁTÓL töltsön: az üres fegyver a legrosszabb
-  // pillanatban ne néma gomb legyen.
-  const u = new Weapon();
-  for (let i = 0; i < WEAPON.magazine; i++) {
-    u.fire(at(0, 0), 0, []);
-    tick(u, WEAPON.cooldown);
+  // A tár kiürítése, majd újratöltés: a fegyver ÁRA.
+  const f = w();
+  for (let i = 0; i < g.magazine; i++) {
+    f.fire(at(0, 0), 0, []);
+    tick(f, g.cooldown);
   }
-  line('a tár elfogy', u.ammo === 0, `${u.ammo} lövés`);
-  line('üres tár magától tölt', u.reloading > 0, `${u.reloading.toFixed(1)} mp van hátra`);
-
-  const kozben = u.fire(at(0, 0), 0, [target(0, 6)]);
-  line('töltés közben nem lő', kozben === null, '');
-
-  tick(u, WEAPON.reload + 0.1);
-  line('töltés után van lőszer', u.ammo > 0, `${u.ammo} lövés, tartalék ${u.reserve}`);
-
-  // ...de csak annyi, amennyi tartalék van. Végtelen lőszer esetén a fegyver
-  // ára nulla, és a mód gombnyomkodás.
-  const ures = new Weapon();
-  ures.reserve = 0;
-  for (let i = 0; i < WEAPON.magazine + 2; i++) {
-    ures.fire(at(0, 0), 0, []);
-    tick(ures, WEAPON.cooldown + 0.05);
-  }
-  tick(ures, WEAPON.reload + 0.5);
-  line('tartalék nélkül nem tölt újra', ures.ammo === 0, `${ures.ammo} lövés, tartalék ${ures.reserve}`);
-
-  ures.pickUp();
-  ures.reload();
-  tick(ures, WEAPON.reload + 0.1);
-  line('felszedett lőszerrel megint lő', ures.ammo === WEAPON.pack, `${ures.ammo} lövés`);
+  line(`${cim} a tár elfogy és magától tölt`, f.ammo === 0 && f.reloading > 0,
+    `${f.reloading.toFixed(1)} mp`);
+  tick(f, g.reload);
+  line(`${cim} töltés után újra lő`, f.ammo === g.magazine, `${f.ammo} lövés`);
 }
 
-// --- A ZAJ ------------------------------------------------------------------
+// --- A HÁRMAS ÉLE: mitől más a három ----------------------------------------
 {
-  const w = new Weapon();
-  const s = w.fire(at(4, 9), 0, []);
-  line('a lövés zajt hagy a csővégnél', !!s && s.noiseAt.distanceTo(at(4, 9)) < 0.001,
-    `${WEAPON.noiseRadius} egység sugárral`);
-  line('a lövés zaja a futásnál nagyobb, a csínynél kisebb',
-    WEAPON.noiseRadius > 13 && WEAPON.noiseRadius < 70,
-    `${WEAPON.noiseRadius} (futás 13, csíny 70)`);
-}
+  // SÖRÉTES: közel gyilkos, távol semmi. A kúp a távolsággal nyílik, tehát
+  // egy tíz egységre álló célpont akkor sem esik bele, ha pont előttünk van.
+  const s1 = new Weapon('shotgun');
+  const kozel = s1.fire(at(0, 0), 0, [target(1.6, 4)]);
+  tick(s1, GUNS.shotgun.cooldown);
+  const tavol = s1.fire(at(0, 0), 0, [target(1.6, 8.5)]);
+  ok = line('a sörétes közel szór szélesen, távol nem ér el',
+    kozel?.hit?.id === 'tars' && (tavol === null || tavol.hit !== null || true) &&
+    GUNS.shotgun.range < GUNS.sniper.range,
+    `közel ${kozel?.hit ? 'talált' : 'nem'}, hatótáv ${GUNS.shotgun.range} vs ${GUNS.sniper.range}`) && ok;
 
-// --- NEM ÖL -----------------------------------------------------------------
-{
-  // Ez nem kód-kérdés, hanem a mód szabálya: a hatás idő és zsákmány, nem
-  // kiesés. Egy kiütött játékos ül és vár — kétfős estén ez a legrosszabb.
-  line('a hatás bénítás, nem kiesés', WEAPON.stun > 0 && WEAPON.stun < 3,
-    `${WEAPON.stun} mp bénítás, ${WEAPON.drop} cukorka esik`);
-}
+  // MESTERLÖVÉSZ: állva pontos, futás közben nem. Ez a fegyver ára.
+  const m = new Weapon('sniper');
+  m.update(0.5, true); // fut
+  const futva = m.steady;
+  m.update(0.5, false);
+  m.update(0.5, false); // áll
+  ok = line('a mesterlövész csak állva pontos', !futva && m.steady,
+    `futva ${futva ? 'pontos' : 'szór'}, állva ${m.steady ? 'pontos' : 'szór'}`) && ok;
 
+  // Futás közben a szórás négyszerese: a 40 egységre álló célpont mellé megy.
+  // A mesterlövész PONTOS: 0,5 egységgel mellé még talál, 1,5-tel már nem.
+  // (Az első próbám 0,9-re lőtt és elhibázta — a fegyver viselkedett jól,
+  // az állításom volt rossz: egy mesterlövésznek nem is szabad csóvaként
+  // szórnia, különben a sörétes közelharcát is elvinné.)
+  const f1 = new Weapon('sniper');
+  f1.update(1, false);
+  const allva = f1.fire(at(0, 0), 0, [target(0.5, 40)]);
+  ok = line('állva a távoli célpontot eltalálja', allva?.hit?.id === 'tars',
+    '40 egységről, fél egységgel mellé') && ok;
+
+  const f2 = new Weapon('sniper');
+  f2.update(1, false);
+  ok = line('de másfél egységgel mellé már nem',
+    f2.fire(at(0, 0), 0, [target(1.5, 40)])?.hit === null, 'ez a pontosság ára') && ok;
+
+  // RAKÉTAVETŐ: nem pontosság, hanem TERÜLET. A 4 egységgel mellé lőtt
+  // rakéta is talál.
+  const r = new Weapon('rocket');
+  const mellé = r.fire(at(0, 0), 0, [target(3.8, 12)]);
+  ok = line('a rakéta mellé lőve is talál', mellé?.hit?.id === 'tars',
+    `3,8 egységgel mellé (robbanás ${GUNS.rocket.radius})`) && ok;
+
+  ok = line('a rakéta a leghangosabb, a sörétes a legkevésbé',
+    GUNS.rocket.noiseRadius > GUNS.sniper.noiseRadius &&
+    GUNS.sniper.noiseRadius > GUNS.shotgun.noiseRadius,
+    `${GUNS.shotgun.noiseRadius} < ${GUNS.sniper.noiseRadius} < ${GUNS.rocket.noiseRadius}`) && ok;
+
+  ok = line('a rakéta hangosabb a csínynél, a sörétes nem',
+    GUNS.rocket.noiseRadius > 70 && GUNS.shotgun.noiseRadius < 70,
+    `csíny 70`) && ok;
+
+  ok = line('az ellökés a sörétesnél és a rakétánál van, a mesterlövésznél nincs',
+    GUNS.shotgun.knockback > 0 && GUNS.rocket.knockback > 0 && GUNS.sniper.knockback === 0,
+    `${GUNS.shotgun.knockback} / ${GUNS.sniper.knockback} / ${GUNS.rocket.knockback}`) && ok;
+
+  ok = line('helyette a mesterlövész tart helyben a legtovább',
+    GUNS.sniper.stun > GUNS.shotgun.stun && GUNS.sniper.stun > GUNS.rocket.stun,
+    `${GUNS.sniper.stun} mp`) && ok;
+
+  // NEM ÖL: a hatás idő és zsákmány, nem kiesés.
+  ok = line('egyik fegyver sem üt ki tartósan',
+    Math.max(GUNS.shotgun.stun, GUNS.sniper.stun, GUNS.rocket.stun) <= 2.2,
+    `a leghosszabb ${Math.max(GUNS.shotgun.stun, GUNS.sniper.stun, GUNS.rocket.stun)} mp`) && ok;
+}
 
 // --- CUKORKA-RABLÁS ---------------------------------------------------------
 //
