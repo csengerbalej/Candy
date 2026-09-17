@@ -181,7 +181,7 @@ export class Hud {
         hint('action', i, pad, 'csíny / cukorka') +
         // A kamera: egy eszközön egy ember nézi, tehát a sajátja. A nyilak
         // forgatják, a Q negyedfordulót lép, a T szöget vált.
-        (f.soloActive === i ? '<kbd>↑↓←→</kbd>kamera' : '');
+        (f.soloActive === i ? '<kbd>↑↓←→</kbd>vagy <kbd>húzás</kbd>kamera' : '');
 
       const st = f.game?.status[i];
       const prompt = this.prompts[i];

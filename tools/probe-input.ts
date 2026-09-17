@@ -433,6 +433,49 @@ let ok = true;
     `${written.length} karakter, nem nulla`) && ok;
 }
 
+
+/**
+ * KÖRÜLNÉZÉS EGÉRREL.
+ *
+ * A kamerát eddig csak a nyilak és a kontroller jobb karja forgatta. Aki
+ * egérrel ül le — és a legtöbben úgy ülnek le —, annak a kamera
+ * mozdíthatatlan volt: a nyilakhoz el kell venni a kezet a WASD mellől.
+ *
+ * Három dolgot mérünk, és mind a három olyan, ami csendben romlik el:
+ *   · a képen húzva fordul,
+ *   · a húzás vége UTÁN megáll (különben az utolsó mozdulat örökké pörögne),
+ *   · a képen KÍVÜL (egy menügombon) kattintva nem fordul.
+ */
+{
+  const man = new InputManager(2);
+  const canvas = { tagName: 'CANVAS' };
+  const button = { tagName: 'BUTTON' };
+  const down = (target: unknown) =>
+    listeners.get('mousedown')?.({ button: 0, target, clientX: 100, clientY: 100 } as never);
+  const move = (x: number, y: number) =>
+    listeners.get('mousemove')?.({ clientX: x, clientY: y } as never);
+  const up = () => listeners.get('mouseup')?.({} as never);
+
+  down(canvas);
+  move(160, 100); // 60 képpont jobbra, egy szempillantás alatt
+  const turning = man.look();
+  ok = line('egérhúzásra fordul a kamera', turning.x > 0.2, `x = ${turning.x.toFixed(2)}`) && ok;
+
+  down(canvas);
+  move(100, 160); // lefelé húzás = lefelé nézés
+  const tilting = man.look();
+  ok = line('lefelé húzva lefelé néz', tilting.y < -0.2, `y = ${tilting.y.toFixed(2)}`) && ok;
+
+  up();
+  ok = line('elengedve megáll', man.look().x === 0 && man.look().y === 0, 'x = 0, y = 0') && ok;
+
+  // Menügombon lenyomva: nem kamera. Enélkül egy „ÚJ JÁTÉK" kattintás
+  // félrerántaná a képet.
+  down(button);
+  move(300, 100);
+  ok = line('menügombon húzva nem fordul', man.look().x === 0, `x = ${man.look().x}`) && ok;
+}
+
 console.log('');
 console.log(ok ? 'MIND OK — az irányítás rendben' : 'VAN BUKÓ TESZT');
 process.exit(ok ? 0 : 1);

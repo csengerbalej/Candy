@@ -160,7 +160,10 @@ export class DriveHud {
       hint('brake', d, padSources[d], 'fék / tolatás') +
       hint('jump', d, padSources[d], 'ugrás') +
       hint('sprint', d, padSources[d], car.speed < 1 ? 'bőgetés' : 'kézifék') +
-      `<kbd>↑↓←→</kbd>körülnézés` +
+      // A kamera három eszközről mozog (nyilak, egérhúzás, kontroller jobb
+      // karja) — a magyarázó a leggyakoribb kettőt mondja, mert egy fel nem
+      // fedezett irányítás olyan, mintha nem lenne.
+      `<kbd>↑↓←→</kbd>vagy <kbd>húzás</kbd>körülnézés` +
       hint('action', d, padSources[d], 'duda') +
       // A nitró a tartály állásával együtt jelenik meg: egy gomb, aminek a
       // kijelzőjéből nem derül ki, van-e még benne, nem gomb, hanem találgatás.

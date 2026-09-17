@@ -43,6 +43,21 @@ export class TouchControls {
     moveX: 0, moveY: 0, jumpHeld: false, interactHeld: false, nitro: false, sprint: false,
   };
 
+  /**
+   * KÖRÜLNÉZÉS húzással: sebesség képpont/másodpercben, nem elmozdulás.
+   *
+   * Azért rátaként, mert a hívó (`scene.look(x, y, frameTime)`) a képkocka
+   * hosszával szoroz — ugyanúgy, ahogy a nyilaknál és a kontroller jobb
+   * karjánál. Így egy elhúzás telón, egérrel és padon is UGYANANNYIT fordít,
+   * és nem kell három külön érzékenységet hangolni.
+   *
+   * Ha az ujj MEGÁLL, de nem emelkedik fel, a forgásnak is meg kell állnia —
+   * ezért van időbélyeg: friss esemény nélkül a ráta nulla.
+   */
+  private lookX = 0;
+  private lookY = 0;
+  private lookAt = 0;
+
   /** Egyszer igaz, ha a szünet gombot nyomták. */
   private pausePressed = false;
   /** Egyszer igaz, ha a beszélgetés gombját nyomták. */
@@ -72,6 +87,7 @@ export class TouchControls {
       </div>`;
     parent.appendChild(this.root);
     this.pad = this.root.querySelector('.touch-pad') as HTMLDivElement;
+    this.wireLook();
     this.knob = this.root.querySelector('.touch-knob') as HTMLDivElement;
 
     // A BOT. A `touches` listát végigjárjuk, mert a hüvelykujj nem az egyetlen
@@ -145,6 +161,85 @@ export class TouchControls {
         e.preventDefault();
       }, { passive: false });
     }
+  }
+
+  /**
+   * A körülnézés a VÁSZONRA hallgat, nem egy saját rétegre.
+   *
+   * Először egy képernyő méretű réteget tettem a gombok alá — és az elnyelte
+   * az intro koppintását: a réteg minden más fölött volt, tehát a „koppints:
+   * tovább" sosem kapta meg. A vászon viszont MINDEN alatt van: ami rajta
+   * ér földet, arra tényleg nincs se gomb, se felirat, se menü.
+   *
+   * Ugyanaz a szűrés, mint az egérnél — így a két eszköz viselkedése nem
+   * csúszhat szét.
+   */
+  private wireLook(): void {
+    const onCanvas = (e: TouchEvent): boolean =>
+      (e.target as HTMLElement | null)?.tagName === 'CANVAS';
+    let id: number | null = null;
+    let lastX = 0;
+    let lastY = 0;
+    let lastT = 0;
+
+    window.addEventListener('touchstart', (e) => {
+      if (!onCanvas(e)) return;
+      const t = e.changedTouches[0];
+      id = t.identifier;
+      lastX = t.clientX;
+      lastY = t.clientY;
+      lastT = performance.now();
+      this.lookX = 0;
+      this.lookY = 0;
+      e.preventDefault();
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+      if (id === null) return;
+      for (const t of Array.from(e.touches)) {
+        if (t.identifier !== id) continue;
+        const now = performance.now();
+        // A mért időköz alsó korlátja 8 ms: egy 0 ms-os köz végtelen rátát
+        // adna, és a kamera egyetlen képkocka alatt körbefordulna.
+        const dt = Math.max(8, now - lastT) / 1000;
+        this.lookX = (t.clientX - lastX) / dt;
+        this.lookY = (t.clientY - lastY) / dt;
+        lastX = t.clientX;
+        lastY = t.clientY;
+        lastT = now;
+        this.lookAt = now;
+        e.preventDefault();
+        return;
+      }
+    }, { passive: false });
+
+    const stop = (e: TouchEvent) => {
+      for (const t of Array.from(e.changedTouches)) {
+        if (t.identifier !== id) continue;
+        id = null;
+        this.lookX = 0;
+        this.lookY = 0;
+      }
+    };
+    window.addEventListener('touchend', stop);
+    window.addEventListener('touchcancel', stop);
+  }
+
+  /**
+   * A körülnézés rátája, −1..1-re normálva.
+   *
+   * 900 képpont/mp a teljes kitérés: ennyi egy gyors, de nem rángatott
+   * hüvelykujj-húzás. Az ujj állva maradását külön kezeljük — friss esemény
+   * nélkül nulla, különben az utolsó mozdulat iránya örökké forgatna.
+   */
+  look(): { x: number; y: number } {
+    if (performance.now() - this.lookAt > 90) return { x: 0, y: 0 };
+    const k = 1 / 900;
+    return {
+      x: Math.max(-1, Math.min(1, this.lookX * k)),
+      // Lefelé húzás = lefelé nézés, ahogy a nyilaknál.
+      y: Math.max(-1, Math.min(1, -this.lookY * k)),
+    };
   }
 
   /** Igaz egyszer, szünet gomb után. */

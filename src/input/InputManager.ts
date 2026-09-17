@@ -141,6 +141,11 @@ export class InputManager {
     return slot;
   }
 
+  /** Az egérhúzás rátája képpont/mp-ben, és mikor volt friss. Lásd `look()`. */
+  private mouseX = 0;
+  private mouseY = 0;
+  private mouseAt = 0;
+
   private readonly held = new Set<string>();
   private readonly prevJump: boolean[];
   private readonly prevInteract: boolean[];
@@ -193,6 +198,45 @@ export class InputManager {
       if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
     });
     window.addEventListener('keyup', (e) => this.held.delete(e.code));
+
+    // KÖRÜLNÉZÉS EGÉRREL: húzás a képen.
+    //
+    // Eddig csak a nyilak és a kontroller jobb karja forgatott. Egérrel
+    // játszva a kamera mozdíthatatlan volt — a legtöbb ember pedig egérrel
+    // ül le, és a nyilakhoz el kell venni a kezét a WASD mellől.
+    //
+    // A ráta ugyanaz a mértékegység, mint az érintésnél (képpont/mp), tehát
+    // a két eszköz ugyanolyan gyorsan fordít, és nem kell külön hangolni.
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    let lastT = 0;
+    window.addEventListener('mousedown', (e) => {
+      // Csak a képen: egy menügombra kattintás nem kameramozgatás.
+      if (e.button !== 0 || (e.target as HTMLElement)?.tagName !== 'CANVAS') return;
+      dragging = true;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      lastT = performance.now();
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const now = performance.now();
+      const dt = Math.max(8, now - lastT) / 1000;
+      this.mouseX = (e.clientX - lastX) / dt;
+      this.mouseY = (e.clientY - lastY) / dt;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      lastT = now;
+      this.mouseAt = now;
+    });
+    const drop = () => {
+      dragging = false;
+      this.mouseX = 0;
+      this.mouseY = 0;
+    };
+    window.addEventListener('mouseup', drop);
+    window.addEventListener('mouseleave', drop);
     window.addEventListener('blur', () => this.held.clear());
   }
 
@@ -345,6 +389,24 @@ export class InputManager {
       if (rx) x = rx;
       if (ry) y = -ry;
     }
+
+    // EGÉR: húzás a képen. 900 képpont/mp a teljes kitérés — ugyanaz a
+    // skála, mint az érintésnél.
+    if (performance.now() - this.mouseAt <= 90) {
+      const k = 1 / 900;
+      const mx = Math.max(-1, Math.min(1, this.mouseX * k));
+      const my = Math.max(-1, Math.min(1, -this.mouseY * k));
+      if (mx) x = mx;
+      if (my) y = my;
+    }
+
+    // ÉRINTÉS: húzás ott, ahol nincs gomb.
+    const t = this.touch?.look();
+    if (t && (t.x || t.y)) {
+      x = t.x;
+      y = t.y;
+    }
+
     return { x, y };
   }
 
