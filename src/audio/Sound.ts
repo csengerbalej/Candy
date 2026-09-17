@@ -119,6 +119,64 @@ export class Sound {
     }
   }
 
+  /**
+   * GUMICSIKORGÁS — folyamatos, nem löketekben.
+   *
+   * A kocsinak eddig három hangja volt: motor, duda, koccanás. Drift közben
+   * néma maradt, pedig a csúszás az egyetlen olyan dolog a vezetésben, amit a
+   * játékos a HANGJÁRÓL szokott megítélni: a kanyar határát a fül méri, nem
+   * a szem.
+   *
+   * Zajforrás sávszűrővel, és a szűrő közepe a csúszással nyílik. Egyetlen,
+   * ÖRÖKKÉ FUTÓ forrás, aminek csak a hangereje mozog — mert újraindított
+   * zajlöketekből géppuska lenne, nem csikorgás.
+   */
+  skid(level: number, speed01: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || this.muted) return;
+
+    if (!this.skidGain) {
+      const seconds = 2;
+      const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * seconds), ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+
+      const band = ctx.createBiquadFilter();
+      band.type = 'bandpass';
+      band.frequency.value = 1400;
+      band.Q.value = 3.4;
+
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+
+      source.connect(band).connect(gain).connect(this.master);
+      source.start();
+      this.skidBand = band;
+      this.skidGain = gain;
+    }
+
+    const now = ctx.currentTime;
+    // Lassan csúszva halkabb: álló helyzetben pörgetve nem sikolt a gumi.
+    const loud = Math.min(1, level) * Math.min(1, speed01 * 2.2) * 0.3;
+    this.skidGain.gain.setTargetAtTime(loud, now, 0.05);
+    // A csúszás a hangszínt is viszi feljebb — ettől lesz „éle" a hangnak.
+    this.skidBand?.frequency.setTargetAtTime(1150 + level * 1250, now, 0.08);
+  }
+
+  private skidBand: BiquadFilterNode | null = null;
+  private skidGain: GainNode | null = null;
+
+  /** Elnémítja a csikorgást — jelenetváltáskor, szünetben. */
+  skidOff(): void {
+    if (this.skidGain && this.ctx) {
+      this.skidGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.03);
+    }
+  }
+
   /** Koccanás: rövid zajlöket, mélyre szűrve. Az erő a szűrőt is nyitja. */
   thud(strength: number): void {
     const ctx = this.ctx;

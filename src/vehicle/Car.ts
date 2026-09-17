@@ -40,6 +40,28 @@ export class Car {
   get airborne(): boolean {
     return this.height > CAR.groundEpsilon;
   }
+  /**
+   * Igaz, amíg FÉKEZEL — nem amíg lassulsz.
+   *
+   * A kettő nem ugyanaz, és a különbség pont az, amit a fékfénynek mutatnia
+   * kell: a légellenállástól is lassul a kocsi, de attól még senki nem gyújt
+   * féklámpát. Fékezés az, amikor a pedál a haladással SZEMBE dolgozik.
+   */
+  braking = false;
+
+  /** Igaz, amíg a kézifék be van húzva. A fékfény ettől is ég. */
+  handbraking = false;
+
+  /**
+   * Mennyire csúsznak a gumik: 0..1.
+   *
+   * Nem ugyanaz, mint a `driftAmount`. Az oldalra csúszást méri; ez azt, hogy
+   * a kerék és az aszfalt között VAN-E elcsúszás egyáltalán — oldalra
+   * csúszásból, kézifékből és blokkoló fékből egyaránt. A csikorgás és a
+   * fékcsík ebből az egy számból él, ezért nem tudnak szétcsúszni egymástól.
+   */
+  slip = 0;
+
   /** 0..1: mennyire csúszik oldalra. A HUD és a gumifüst ebből dolgozik. */
   get driftAmount(): number {
     return Math.min(1, Math.abs(this.lateral) / (CAR.driftThreshold * 2));
@@ -178,7 +200,62 @@ export class Car {
     this.art.clear();
     this.art.add(model);
     this.greybox.visible = false;
+    this.fitLamps(model);
   }
+
+  /**
+   * HÁTSÓ LÁMPÁK: fék, tolatás.
+   *
+   * Eddig csak fényszóró volt. A hátulja néma maradt — és kétfős módban ez
+   * nem díszhiány: a társad nem látja, mikor fékezel, tehát nem tud rád
+   * reagálni. Egy kocsi hátulja információ.
+   *
+   * A helyük a BETÖLTÖTT MODELL dobozából jön, nem a `CAR.length`-ből: a
+   * fizikai hossz és a karosszéria hossza nem ugyanaz, és egy beírt szám a
+   * következő modellcserénél a levegőben lógna. Mérve igazodik.
+   */
+  private fitLamps(model: THREE.Object3D): void {
+    const box = new THREE.Box3().setFromObject(model);
+    if (box.isEmpty()) return;
+    const back = box.min.z;
+    const halfWidth = Math.max(0.3, (box.max.x - box.min.x) * 0.5);
+    const lampY = THREE.MathUtils.clamp(box.min.y + (box.max.y - box.min.y) * 0.42, 0.25, 1.4);
+
+    for (const lamp of this.lamps) lamp.mesh.removeFromParent();
+    this.lamps.length = 0;
+
+    const add = (side: number, kind: 'brake' | 'reverse', colour: number) => {
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.26, 0.15),
+        new THREE.MeshBasicMaterial({
+          color: colour,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          // Additív, hogy VILÁGÍTSON, ne csak színes folt legyen a sötét
+          // karosszérián. Éjszaka ez a különbség lámpa és matrica között.
+          blending: THREE.AdditiveBlending,
+        })
+      );
+      // A hátsó lapra néz, kifelé.
+      mesh.rotation.y = Math.PI;
+      mesh.position.set(side * halfWidth * (kind === 'brake' ? 0.66 : 0.34), lampY, back - 0.02);
+      mesh.renderOrder = 3;
+      // A körvonalazó nem kaphatja el: egy fekete keret a lámpa köré pont azt
+      // veszi el, amitől fénynek látszik.
+      mesh.userData.cpNoOutline = true;
+      this.mesh.add(mesh);
+      this.lamps.push({ mesh, kind });
+    };
+
+    for (const side of [-1, 1]) {
+      add(side, 'brake', 0xff2b18);
+      add(side, 'reverse', 0xfff4e0);
+    }
+  }
+
+  /** A hátsó lámpák és a fajtájuk. Üres, amíg nincs betöltött modell. */
+  private readonly lamps: Array<{ mesh: THREE.Mesh; kind: 'brake' | 'reverse' }> = [];
 
   get forward(): THREE.Vector3 {
     return new THREE.Vector3(Math.sin(this.heading), 0, Math.cos(this.heading));
@@ -211,6 +288,22 @@ export class Car {
       1 - Math.exp(-8 * dt)
     );
     this.art.rotation.z = this.body.rotation.z;
+
+    // A lámpák a `syncMesh`-ben frissülnek, nem az `update`-ben: a társ
+    // kocsiján az `update` SOHA nem fut le (az állapotát a szoba hozza), és
+    // pont az ő fékfényére volna a legnagyobb szükség.
+    const braking = this.braking || this.handbraking;
+    const reversing = this.speed < -0.2;
+    for (const lamp of this.lamps) {
+      const on = lamp.kind === 'brake' ? braking : reversing;
+      const material = lamp.mesh.material as THREE.MeshBasicMaterial;
+      // Gyors felkapcsolás, lassabb lekapcsolás: a villódzó fékfény
+      // olvashatatlan, és a valódi izzó is így hal el.
+      const target = on ? 1 : 0;
+      const k = 1 - Math.exp(-(on ? 26 : 9) * dt);
+      material.opacity += (target - material.opacity) * k;
+      lamp.mesh.visible = material.opacity > 0.01;
+    }
   }
 
   update(dt: number, input: PlayerInput, colliders: THREE.Box3[]): void {
@@ -252,6 +345,9 @@ export class Car {
     // szigor, hanem az ugrás ÁRA: amíg repülsz, a sebességed adott, és ezért
     // számít, hogy honnan ugrasz neki.
     const throttle = this.airborne ? 0 : input.moveY;
+    // Fékezés: a pedál a haladással SZEMBE dolgozik, és tényleg mozgunk.
+    // A tolatás nem fékezés, és a guruló lassulás sem az.
+    this.braking = throttle < 0 && this.speed > 0.5;
     if (throttle > 0) this.speed += CAR.accel * throttle * dt;
     else if (throttle < 0) {
       // One pedal does both jobs: brake while rolling forward, reverse once stopped.
@@ -289,6 +385,7 @@ export class Car {
 
     // --- Kézifék ------------------------------------------------------------
     const handbrake = input.sprint && !this.airborne && Math.abs(this.speed) > 1;
+    this.handbraking = handbrake;
     if (handbrake) this.speed -= this.speed * CAR.handbrakeDrag * dt;
 
     this.speed -= this.speed * CAR.drag * dt;
@@ -332,6 +429,22 @@ export class Car {
     // hányszor fut le a szimuláció egy képkocka alatt.
     this.lateral *= Math.exp(-grip * dt);
     if (Math.abs(this.lateral) < 0.02) this.lateral = 0;
+
+    // --- Gumicsúszás --------------------------------------------------------
+    //
+    // Egyetlen szám, három forrásból: oldalcsúszás, behúzott kézifék, és a
+    // sebességhez képest erős fék. Azért egy szám, mert a hang és a fékcsík
+    // ugyanabból a tényből él — ha külön számolnám őket, előbb-utóbb
+    // csikorogna a gumi ott, ahol nem hagy nyomot, vagy fordítva.
+    //
+    // Levegőben nulla: a kerék nem ér az aszfalthoz.
+    const sideways = Math.min(1, Math.abs(this.lateral) / CAR.driftThreshold);
+    const hard = this.braking && Math.abs(this.speed) > CAR.maxSpeed * 0.45 ? 0.55 : 0;
+    const want = this.airborne ? 0 : Math.min(1, Math.max(sideways, handbrake ? 0.8 : 0, hard));
+    // Felfutni gyorsan kell (a csikorgás a pillanaté), elhalni lassabban —
+    // különben a hang kapcsolgatna a küszöb körül.
+    const rate = want > this.slip ? 14 : 5;
+    this.slip += (want - this.slip) * (1 - Math.exp(-rate * dt));
 
     // Kerbs. Tarmac is fast; pavements, gardens and the lawn you just mounted
     // are not. Without this the road is decorative — you can cut every corner
@@ -431,6 +544,22 @@ export class Car {
     const target = lean * 0.11;
     this.body.rotation.z = THREE.MathUtils.lerp(this.body.rotation.z, target, 1 - Math.exp(-8 * dt));
     this.art.rotation.z = this.body.rotation.z;
+
+    // A lámpák a `syncMesh`-ben frissülnek, nem az `update`-ben: a társ
+    // kocsiján az `update` SOHA nem fut le (az állapotát a szoba hozza), és
+    // pont az ő fékfényére volna a legnagyobb szükség.
+    const braking = this.braking || this.handbraking;
+    const reversing = this.speed < -0.2;
+    for (const lamp of this.lamps) {
+      const on = lamp.kind === 'brake' ? braking : reversing;
+      const material = lamp.mesh.material as THREE.MeshBasicMaterial;
+      // Gyors felkapcsolás, lassabb lekapcsolás: a villódzó fékfény
+      // olvashatatlan, és a valódi izzó is így hal el.
+      const target = on ? 1 : 0;
+      const k = 1 - Math.exp(-(on ? 26 : 9) * dt);
+      material.opacity += (target - material.opacity) * k;
+      lamp.mesh.visible = material.opacity > 0.01;
+    }
   }
 
   /**

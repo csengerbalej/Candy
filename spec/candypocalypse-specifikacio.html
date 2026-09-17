@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Candypocalypse specifikáció</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@500;700;800&family=Karla:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+  :root {
+    --ground: #0b0716;
+    --surface: #14102a;
+    --raised: #1c1638;
+    --line: #2e2552;
+    --line-soft: #241c44;
+    --text: #ece7f7;
+    --muted: #a095c2;
+    --dim: #7b6fa0;
+    --orange: #ff7a29;
+    --purple: #a96cff;
+    --mint: #6ef0c0;
+    --ice: #7ad7ff;
+    --display: 'Big Shoulders Display', 'Haettenschweiler', 'Arial Narrow', sans-serif;
+    --body: 'Karla', ui-sans-serif, system-ui, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  }
+
+  /* Ez a lap szándékosan EGY világban él: a játék éjszakai palettájában.
+     Nem téma-váltós dokumentum, ezért minden szín kimondva szerepel, és a
+     háttér sosem a befogadó lapé. */
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    display: grid;
+    grid-template-columns: 208px minmax(0, 1fr);
+    gap: 44px;
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 28px 120px;
+  }
+  @media (max-width: 860px) {
+    .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 20px 80px; }
+    .rail { position: static; border-right: 0; padding: 0 0 28px; margin-bottom: 8px; border-bottom: 1px solid var(--line-soft); }
+    .rail ol { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  }
+
+  /* --- fejléc ------------------------------------------------------- */
+  header {
+    grid-column: 1 / -1;
+    padding: 64px 0 34px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 44px;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .26em;
+    text-transform: uppercase;
+    color: var(--orange);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(52px, 11vw, 116px);
+    line-height: .86;
+    letter-spacing: -.01em;
+    margin: 0;
+    text-wrap: balance;
+    color: var(--text);
+  }
+  h1 em {
+    font-style: normal;
+    color: var(--orange);
+  }
+  .lede {
+    max-width: 62ch;
+    margin: 20px 0 0;
+    font-size: 17px;
+    color: var(--muted);
+  }
+  .lede b { color: var(--text); font-weight: 600; }
+
+  .stamp {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    margin-top: 26px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .08em;
+  }
+  .stamp span {
+    padding: 5px 10px;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    color: var(--muted);
+  }
+  .stamp span b { color: var(--text); font-weight: 600; }
+
+  /* --- tartalomjegyzék ---------------------------------------------- */
+  .rail {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    max-height: 100vh;
+    overflow-y: auto;
+    padding: 6px 0 40px;
+    border-right: 1px solid var(--line-soft);
+  }
+  .rail h2 {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin: 0 0 12px;
+    font-weight: 400;
+  }
+  .rail ol { list-style: none; margin: 0; padding: 0; }
+  .rail a {
+    display: block;
+    padding: 2px 0;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+  }
+  .rail a:hover, .rail a:focus-visible { color: var(--orange); }
+  .rail a i { font-style: normal; color: var(--dim); margin-right: 7px; }
+
+  /* --- szakaszok ----------------------------------------------------- */
+  main { min-width: 0; }
+  section { margin: 0 0 58px; scroll-margin-top: 20px; }
+  section > h2 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 30px;
+    line-height: 1.05;
+    letter-spacing: .01em;
+    text-transform: uppercase;
+    margin: 0 0 4px;
+    color: var(--text);
+    text-wrap: balance;
+  }
+  section > h2 i {
+    font-style: normal;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .1em;
+    color: var(--orange);
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 400;
+  }
+  section > p { max-width: 68ch; margin: 14px 0; }
+  section > p:first-of-type { margin-top: 16px; }
+  h3 {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ice);
+    margin: 28px 0 10px;
+  }
+  strong { color: var(--text); font-weight: 600; }
+  em.term { font-style: normal; font-family: var(--mono); font-size: .92em; color: var(--orange); }
+  code {
+    font-family: var(--mono);
+    font-size: .88em;
+    color: var(--mint);
+    background: rgba(110, 240, 192, .08);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+  a { color: var(--ice); }
+
+  ul.plain { margin: 12px 0; padding-left: 20px; max-width: 68ch; }
+  ul.plain li { margin: 6px 0; }
+  ul.plain li::marker { color: var(--orange); }
+
+  /* --- adattáblák ---------------------------------------------------- */
+  .tablewrap { overflow-x: auto; margin: 16px 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    min-width: 440px;
+  }
+  caption {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--dim);
+    padding-bottom: 8px;
+  }
+  th {
+    text-align: left;
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 10.5px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--dim);
+    border-bottom: 1px solid var(--line);
+    padding: 0 14px 7px 0;
+  }
+  td {
+    padding: 8px 14px 8px 0;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+  }
+  td.num, th.num {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--text);
+  }
+  td.key { font-family: var(--mono); color: var(--purple); white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+
+  /* --- kiemelt doboz -------------------------------------------------- */
+  .rule {
+    border-left: 2px solid var(--orange);
+    background: var(--surface);
+    padding: 16px 20px;
+    margin: 22px 0;
+    max-width: 68ch;
+  }
+  .rule p { margin: 0; }
+  .rule p + p { margin-top: 10px; }
+  .rule .tag {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--orange);
+    margin-bottom: 8px;
+  }
+  .rule.open { border-left-color: var(--ice); }
+  .rule.open .tag { color: var(--ice); }
+
+  /* --- állapotjelölő -------------------------------------------------- */
+  .state {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .state.kesz { color: var(--mint); background: rgba(110, 240, 192, .1); }
+  .state.nyitott { color: var(--orange); background: rgba(255, 122, 41, .12); }
+  .state.terv { color: var(--dim); background: rgba(160, 149, 194, .1); }
+
+  footer {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--line);
+    padding-top: 22px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .08em;
+    color: var(--dim);
+  }
+
+  :focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  html { scroll-behavior: smooth; }
+</style>
+
+
+<style>
+@media print {
+  @page { size: A4; margin: 16mm 14mm; }
+  html, body { background: #ffffff !important; color: #14101f !important; }
+  .wrap { display: block !important; max-width: none; padding: 0; }
+  .rail { display: none !important; }
+  header { padding-top: 0; border-color: #c9c3d8; }
+  h1 { color: #14101f !important; font-size: 54px; }
+  h1 em { color: #c2450a !important; }
+  .lede, .lede b { color: #37304a !important; }
+  .stamp span { color: #37304a !important; border-color: #c9c3d8; }
+  .stamp span b { color: #14101f !important; }
+  section { break-inside: avoid-page; margin-bottom: 26px; }
+  section > h2 { color: #14101f !important; font-size: 24px; }
+  section > h2 i { color: #c2450a !important; }
+  h3 { color: #1d5f7a !important; }
+  strong, td, th, p, li { color: #14101f !important; }
+  th, caption { color: #5b5473 !important; }
+  td.key, em.term { color: #6b3aa8 !important; }
+  code { color: #1a6b4c !important; background: #eef7f2 !important; }
+  table { break-inside: auto; }
+  tr { break-inside: avoid; }
+  td, th { border-color: #d8d3e4 !important; }
+  .rule { background: #f6f3fb !important; border-left-color: #c2450a !important; }
+  .rule .tag { color: #c2450a !important; }
+  .rule.open { border-left-color: #1d5f7a !important; }
+  .rule.open .tag { color: #1d5f7a !important; }
+  .state.kesz { color: #14764f !important; background: #e6f6ee !important; }
+  .state.nyitott { color: #a83c06 !important; background: #fdefe4 !important; }
+  .state.terv { color: #5b5473 !important; background: #f0eef5 !important; }
+  footer { color: #5b5473 !important; border-color: #c9c3d8; }
+  a { color: #1d5f7a !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Játékspecifikáció · v2 · 2026. szeptember 17.</p>
+    <h1>CANDY<em>POCALYPSE</em></h1>
+    <p class="lede">Kétfős halloween-kaland böngészőben. Valaki üveg alá zárta a várost, mint egy cukorkát — <b>egy éjszakátok van, három ház</b>. Kint vezettek, bent loptok. A társ egy másik eszközről, ugyanazzal a linkkel lép be.</p>
+    <div class="stamp">
+      <span>Motor: <b>three.js + TypeScript</b></span>
+      <span>Forráskód: <b>18 862 sor</b></span>
+      <span>Mérőállítás: <b>308</b></span>
+      <span>Célplatform: <b>böngésző, gép és telefon</b></span>
+    </div>
+  </header>
+
+  <nav class="rail" aria-label="Szakaszok">
+    <h2>Szakaszok</h2>
+    <ol>
+      <li><a href="#s1"><i>§1</i>Alapfelállás</a></li>
+      <li><a href="#s2"><i>§2</i>Hol fut</a></li>
+      <li><a href="#s3"><i>§3</i>Egy éjszaka íve</a></li>
+      <li><a href="#s4"><i>§4</i>Irányítás</a></li>
+      <li><a href="#s5"><i>§5</i>Kétfős mód</a></li>
+      <li><a href="#s6"><i>§6</i>A város</a></li>
+      <li><a href="#s7"><i>§7</i>Vezetés</a></li>
+      <li><a href="#s8"><i>§8</i>Kihívások</a></li>
+      <li><a href="#s9"><i>§9</i>Haragmérő</a></li>
+      <li><a href="#s10"><i>§10</i>Forgalom</a></li>
+      <li><a href="#s11"><i>§11</i>Szörnyecskék</a></li>
+      <li><a href="#s12"><i>§12</i>A házak</a></li>
+      <li><a href="#s13"><i>§13</i>A lakó</a></li>
+      <li><a href="#s14"><i>§14</i>A kutya</a></li>
+      <li><a href="#s15"><i>§15</i>Zaj</a></li>
+      <li><a href="#s16"><i>§16</i>Pontozás</a></li>
+      <li><a href="#s17"><i>§17</i>Kamera</a></li>
+      <li><a href="#s18"><i>§18</i>Hang</a></li>
+      <li><a href="#s19"><i>§19</i>Teljesítmény</a></li>
+      <li><a href="#s20"><i>§20</i>Hálózat</a></li>
+      <li><a href="#s21"><i>§21</i>Eszközlánc</a></li>
+      <li><a href="#s22"><i>§22</i>Mérési szabály</a></li>
+      <li><a href="#s23"><i>§23</i>Nyitott pontok</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <section id="s1">
+      <h2><i>§1</i>Alapfelállás</h2>
+      <p>Két szörny egy éjszakán át cukorkát gyűjt egy üvegbura alá zárt kisvárosban. A játék <strong>két félidő váltakozása</strong>: kint vezetés a következő házig, bent lopakodás a házban. Három ház egy futam.</p>
+      <p>A két játékosnak <strong>külön szerepe van</strong>, és a szerep nem választás kérdése: aki a kormánynál ül, az a sofőr, a másik a navigátor. A házban mindketten szörnyek, és mindkettőre szükség van a bejutáshoz és a kijutáshoz.</p>
+      <div class="rule">
+        <span class="tag">A játék alapszabálya</span>
+        <p>Minden büntetés <strong>idő vagy figyelem</strong>, sosem kudarcképernyő. Elkapnak: elveszítesz három cukorkát és 1,4 másodpercet. Elütsz egy szörnyecskét: mérges lesz a város. Nincs „game over" — az éjszaka véget ér, és megkapod, amit összeszedtél.</p>
+      </div>
+    </section>
+
+    <section id="s2">
+      <h2><i>§2</i>Hol fut</h2>
+      <div class="tablewrap">
+        <table>
+          <caption>Két kiadás, két hálózati megoldás</caption>
+          <thead>
+            <tr><th>Kiadás</th><th>Cím</th><th>Belépés</th><th>Kétfős mód</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>GitHub Pages</strong></td>
+              <td class="key">csengerbalej.github.io/Candy/</td>
+              <td>bárki, fiók nélkül</td>
+              <td>WebRTC, <code>#j=KÓD</code> link</td>
+            </tr>
+            <tr>
+              <td><strong>Claude artifact</strong></td>
+              <td class="key">claude.ai/artifact/T92X…</td>
+              <td>Claude-fiók kell</td>
+              <td>a futtatókörnyezet szobája</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>A két kiadás <strong>ugyanaz a kód</strong>. A különbség egyetlen csatornában van: az artifact a gazdakörnyezet szobáját kapja, a Pages nem — ott a két böngésző közvetlenül beszél egymással. A játék egyik esetben sem tud arról, melyiken fut.</p>
+    </section>
+
+    <section id="s3">
+      <h2><i>§3</i>Egy éjszaka íve</h2>
+      <ul class="plain">
+        <li><strong>Címképernyő</strong> — név, karakterválasztás (négy szörny), egyedül vagy kétfős.</li>
+        <li><strong>Intró</strong> — a befőttesüveg története, bármelyik gombbal vagy koppintással átugorható.</li>
+        <li><strong>Vezetés</strong> — a navigátor kijelöli a célházat, a sofőr odavisz. Közben egy <em class="term">kihívást</em> is le kell tenni, különben a parkoló nem nyílik ki.</li>
+        <li><strong>Parkolás</strong> — a sárga téglalapon mindkét autónak állnia kell (kétfős módban).</li>
+        <li><strong>Ház</strong> — három cukorka a kvóta, utána a kijárat 1,2 másodperc kitartott gombra nyílik.</li>
+        <li><strong>Eredmény</strong> — pontszám és személyes díjak, majd a következő ház.</li>
+      </ul>
+      <div class="tablewrap">
+        <table>
+          <caption>Futamszerkezet</caption>
+          <tbody>
+            <tr><td class="key">HOUSES_PER_RUN</td><td class="num">3</td><td>ház egy éjszaka alatt, mindig sorrendben</td></tr>
+            <tr><td class="key">HOUSE.candyQuota</td><td class="num">3</td><td>cukorka házanként</td></tr>
+            <tr><td class="key">HOUSE.grabTime</td><td class="num">2,6 s</td><td>ennyit kell kitartani egy tálnál</td></tr>
+            <tr><td class="key">HOUSE.exitHoldTime</td><td class="num">1,2 s</td><td>a kijáratnál</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="s4">
+      <h2><i>§4</i>Irányítás</h2>
+      <p>A játék <strong>négy beviteli eszközt</strong> ismer, és mind a négy egyenrangú: nincs „igazi" irányítás és nincs mankó. A kamera mindegyikről mozdítható — ez külön követelmény, mert a kamera nem a szörny bemenete, hanem a játékosé.</p>
+      <div class="tablewrap">
+        <table>
+          <caption>Bemeneti leképezés</caption>
+          <thead>
+            <tr><th>Művelet</th><th>Billentyűzet</th><th>Kontroller</th><th>Érintés</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>mozgás / kormány</td><td class="key">W A S D</td><td>bal kar, D-pad</td><td>képernyős bot</td></tr>
+            <tr><td>ugrás</td><td class="key">Space</td><td>A / gomb 0</td><td>UGRÁS</td></tr>
+            <tr><td>használat, cukorka, csíny</td><td class="key">E</td><td>X / gomb 2</td><td>E</td></tr>
+            <tr><td>futás, kézifék</td><td class="key">Shift</td><td>bal ravasz</td><td>bot kitérés</td></tr>
+            <tr><td>nitró</td><td class="key">F</td><td>RB / gomb 5</td><td>NITRÓ</td></tr>
+            <tr><td><strong>kamera</strong></td><td class="key">↑ ↓ ← →</td><td>jobb kar</td><td>húzás a képen</td></tr>
+            <tr><td>beszélgetés</td><td class="key">T, gyorsüzenet 1–4</td><td>—</td><td>CHAT</td></tr>
+            <tr><td>szünet</td><td class="key">Esc</td><td>Start / Select</td><td>II</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="rule">
+        <span class="tag">Miért közös mértékegység</span>
+        <p>Az egérhúzás és az ujjhúzás is <strong>képpont per másodperc</strong> rátát ad, 900 px/mp a teljes kitérés. Ezért egy ugyanakkora mozdulat telón és gépen ugyanannyit fordít, és nem kell három érzékenységet külön hangolni. Ha a mozdulat megáll, de az ujj nem emelkedik fel, a ráta 90 ms után nullázódik — enélkül az utolsó mozdulat iránya örökké forgatna.</p>
+      </div>
+      <p>Az érintéses körülnézés a <strong>vászonra</strong> hallgat, nem egy saját rétegre: a képernyő méretű réteg elnyelte volna az intró koppintását. A vászon minden más alatt van, tehát ami rajta ér földet, arra tényleg nincs se gomb, se felirat.</p>
+    </section>
+
+    <section id="s5">
+      <h2><i>§5</i>Kétfős mód</h2>
+      <p><strong>Egy eszköz = egy játékos.</strong> Ugyanannak a gépnek a két megnyitott lapja egy játékos, nem kettő — a készülékazonosító a böngésző tárolójában él, és ebből dől el.</p>
+      <div class="tablewrap">
+        <table>
+          <caption>Ki mit dönt el, üzenetváltás nélkül</caption>
+          <thead><tr><th>Kérdés</th><th>Válasz</th></tr></thead>
+          <tbody>
+            <tr><td>Ki a gazda?</td><td>a kisebb peer-azonosító. Minden gépen ugyanaz a sorrend.</td></tr>
+            <tr><td>Ki melyik szörny?</td><td>a gazda a 0., a másik az 1.</td></tr>
+            <tr><td>Ki szimulálja a világot?</td><td>a gazda. A vendég a saját autóját viszi, a többit kapja.</td></tr>
+            <tr><td>Mi történik, ha a gazda kilép?</td><td>a maradék legkisebb azonosító veszi át.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Amiben ketten kellenek</h3>
+      <ul class="plain">
+        <li><strong>Két autó.</strong> A saját kocsidat mindig te szimulálod; a társadét a kapott állapotból rajzoljuk. Egy autót egy gép számol.</li>
+        <li><strong>Parkolás.</strong> A ház parkolója csak akkor nyílik, ha <em class="term">mindkét</em> autó a sárga téglalapon áll.</li>
+        <li><strong>Kijárat.</strong> A házból is együtt kell kijutni.</li>
+        <li><strong>Az autók tömör testek.</strong> A társad kocsijának és az NPC-knek nekimehetsz; az NPC-k megállnak, ha eléjük állsz.</li>
+      </ul>
+      <p>A meghívás maga a link. A gazda gépe lefoglal egy négybetűs kódot, és a címsor végére írja (<code>#j=ABCD</code>); a kódra kattintva a teljes link vágólapra kerül. Aki elsőnek foglalja le a kódot, az lesz a gazda — aki másodiknak jön, annak a foglalás nem sikerül, és pont ebből tudja, hogy ő a vendég.</p>
+    </section>
+
+    <section id="s6">
+      <h2><i>§6</i>A város</h2>
+      <p>Szabályos rács, eljárásosan generálva — és éppen ettől lehet benne szabálykövető forgalom útkeresés nélkül. A generátor a rácsot ki is adja a játéknak.</p>
+      <div class="tablewrap">
+        <table>
+          <caption>Városi méretek</caption>
+          <tbody>
+            <tr><td>Beépített terület</td><td class="num">337 × 305 m</td><td>—</td></tr>
+            <tr><td>Telkek</td><td class="num">64</td><td>egy telek egy ház</td></tr>
+            <tr><td>Jelzőlámpás kereszteződés</td><td class="num">16</td><td>a 81 csomópontból</td></tr>
+            <tr><td>Sáv félszélesség</td><td class="num">5,50 m</td><td>a jobb oldali sáv közepe ettől jobbra</td></tr>
+            <tr><td>Autóval járható cellák</td><td class="num">111 665</td><td>mérve, nem becsülve</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>A várost <strong>üvegbura</strong> zárja le (a befőttesüveg), a beépített területen kívül pedig egy <strong>körpálya-autópálya</strong> fut, bekötő utakkal és felfestéssel. A szörnyecskék az autópályára nem mehetnek.</p>
+      <h3>Jelzőlámpák</h3>
+      <p>Zöld 6,5 s, sárga 1,6 s. A szabályszegés eldöntésekor <strong>az a lámpa vonatkozik rád, amelyikkel szemben állsz</strong> — nem a kereszteződés valamelyik tetszőleges masztja. A megállási sáv 6 egység a vonal előtt.</p>
+    </section>
+
+    <section id="s7">
+      <h2><i>§7</i>Vezetés</h2>
+      <div class="tablewrap">
+        <table>
+          <caption>Járműmodell (CAR)</caption>
+          <tbody>
+            <tr><td class="key">maxSpeed</td><td class="num">33,4 e/s</td><td>≈ 120 km/h a kijelzőn</td></tr>
+            <tr><td class="key">accel / brake</td><td class="num">19 / 34</td><td>a fék erősebb, mint a gáz</td></tr>
+            <tr><td class="key">grip / driftGrip</td><td class="num">7,5 / 1,9</td><td>kézifékre csúszik</td></tr>
+            <tr><td class="key">jumpSpeed</td><td class="num">7,4</td><td>az autó tud ugrani (1,24 egység magas)</td></tr>
+            <tr><td class="key">offRoadMaxSpeed</td><td class="num">9,5</td><td>füvön a sebesség harmadára esik</td></tr>
+            <tr><td class="key">bodyRadius / spineSpread</td><td class="num">1,02 / 1,32</td><td>három ütközőkör a hossztengelyen</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="rule">
+        <span class="tag">Ütközés: súrolás vagy frontális</span>
+        <p>Az ütközés válasza a <strong>haladás és a fal szöge</strong> szerint dől el. Egy sövény súrolása 60 km/h-val csak az abba az irányba mutató sebességet veszi el, és az orrot a fal mentén fordítja. Csak a tényleg szembemenet állít meg és lök vissza. Ez a különbség „a fal mellett csúszik" és „az autó fejjel megy a falnak, újra és újra" között.</p>
+      </div>
+      <h3>Nitró</h3>
+      <p>2,4 másodperc előrelökés, 9 másodperc alatt tölt újra, 1,28-szoros túlsebesség, indulásnál extra löket és enyhe kerékemelés. Legalább negyedtöltés kell az indításhoz — egy gomb, aminek a kijelzőjéből nem derül ki, van-e még benne, nem gomb, hanem találgatás, ezért a nitró a HUD-on nyolc osztásban látszik.</p>
+    </section>
+
+    <section id="s8">
+      <h2><i>§8</i>Kihívások</h2>
+      <p>Házanként egy, és <strong>kötelező</strong>: amíg nincs kész, a parkoló nem nyílik ki. A fajta a ház sorszámából jön, tehát kiszámítható, mi következik.</p>
+      <div class="tablewrap">
+        <table>
+          <caption>A három kihívásfajta</caption>
+          <thead><tr><th>Fajta</th><th class="num">Cél</th><th>Mit mér</th></tr></thead>
+          <tbody>
+            <tr><td><strong>GYŰJTÉS</strong></td><td class="num">3 cukorka</td><td>az utcán fekvő cukorkából; 22 darab van kint egyszerre</td></tr>
+            <tr><td><strong>IDŐFUTAM</strong></td><td class="num">3 kapu</td><td>az idő a kapuk <em class="term">távolságából</em> számol, nem beírt számból; a mérés a rajtkapun áthaladva indul</td></tr>
+            <tr><td><strong>TISZTA</strong></td><td class="num">420 m</td><td>ennyit kell megtenni egyetlen elütés nélkül; egy elütés nullázza</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>A kapukhoz vezető utat a térkép <strong>kék vonallal</strong> rajzolja ki. Az IDŐFUTAM azért nem fix harminc másodperc, mert a kapuk bárhol lehetnek: egy elrendezésnél sétagalopp, a másiknál teljesíthetetlen lenne.</p>
+    </section>
+
+    <section id="s9">
+      <h2><i>§9</i>Haragmérő</h2>
+      <p>A város hangulata egyetlen 0–100% skála, és a <strong>következménye látható</strong>: minél mérgesebb a város, annál nagyobb falkában jönnek a szörnyecskék.</p>
+      <div class="tablewrap">
+        <table>
+          <caption>Mi tölti, mi csillapítja</caption>
+          <tbody>
+            <tr><td>szörnyecske elütése</td><td class="num">+22%</td><td class="key">critterHit</td></tr>
+            <tr><td>piroson áthajtás</td><td class="num">+18%</td><td class="key">redLight</td></tr>
+            <tr><td>járdára hajtás</td><td class="num">+10% / 3 s</td><td class="key">pavement</td></tr>
+            <tr><td>nitró</td><td class="num">+8%</td><td class="key">nitro</td></tr>
+            <tr><td>duda</td><td class="num">+3% / s</td><td class="key">horn</td></tr>
+            <tr><td>gyorshajtás</td><td class="num">+1% / s</td><td class="key">speeding</td></tr>
+            <tr><td>tiszta vezetés</td><td class="num">−0,73% / s</td><td class="key">calm</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Nyugodt városban ötös falka jön, dühösben negyvenes. Egy elütés 22%-ról fél perc tiszta vezetés után nullára csillapodik.</p>
+    </section>
+
+    <section id="s10">
+      <h2><i>§10</i>Forgalom</h2>
+      <p>Tizenkét NPC autó jár az utcákon. Nem útkereső intelligencia mozgatja őket, hanem a rács: egy autó mindig egy <strong>sávban</strong> van, és a döntése egyetlen helyen születik, a kereszteződésben.</p>
+      <ul class="plain">
+        <li>a jobb oldali sávban megy,</li>
+        <li>a pirosnál megáll a vonal előtt — <em class="term">csak a lámpás</em> kereszteződésekben, mert a maradék 65 csomóponton menni kell, nem állni,</li>
+        <li>nem megy neki az előtte állónak, és <strong>a játékos kocsijának sem</strong>,</li>
+        <li>a város szélén megfordul, nem tűnik el: egy felbukkanó autó a visszapillantóban rosszabb, mint egy megforduló.</li>
+      </ul>
+      <p>Előzés nincs, és ez szándékos: egy sorban álló autó a piros lámpánál azt a jelentést adja a városnak, hogy <strong>itt szabályok vannak</strong> — amit aztán te megszeghetsz.</p>
+    </section>
+
+    <section id="s11">
+      <h2><i>§11</i>Szörnyecskék és utcai cukorka</h2>
+      <div class="tablewrap">
+        <table>
+          <caption>Utcai élet</caption>
+          <tbody>
+            <tr><td class="key">STREET.critterCount</td><td class="num">48</td><td>szörnyecske a városban</td></tr>
+            <tr><td class="key">StreetCandy.LIVE</td><td class="num">22</td><td>cukorka fekszik kint egyszerre</td></tr>
+            <tr><td class="key">critterDashRange</td><td class="num">28 e</td><td>ennyiről ugranak az autó elé</td></tr>
+            <tr><td class="key">nearMissGap</td><td class="num">1,5 e</td><td>ennél közelebb: „majdnem elütöttük"</td></tr>
+            <tr><td class="key">SCORE.candyPerCritter</td><td class="num">+3</td><td>a felszedett utcai cukorka értéke</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>A kiugrás nem véletlenszerű zaj: <strong>akkor jön, amikor az autó közel van</strong>, és akkor sem elkerülhetetlen. A felszedett cukorka nem tűnik el, hanem máshol bukkan fel — enélkül egy sarkon körözve végtelen cukorka járna.</p>
+    </section>
+
+    <section id="s12">
+      <h2><i>§12</i>A házak</h2>
+      <p>Három belső, mindegyik <strong>mást kér</strong>, és a sorrend fix: az első tanít, a második elvesz, a harmadik kettőt küld rád.</p>
+      <div class="tablewrap">
+        <table>
+          <caption>A három ház</caption>
+          <thead><tr><th class="num">#</th><th>Ház</th><th>Amit kér</th><th>Ellenfél</th></tr></thead>
+          <tbody>
+            <tr><td class="num">1</td><td><strong>Lakás</strong></td><td>tájékozódás, tálak, csínyek</td><td>lakó</td></tr>
+            <tr><td class="num">2</td><td><strong>Folyosós</strong></td><td>vaksötét — a látás maga az erőforrás</td><td>lakó</td></tr>
+            <tr><td class="num">3</td><td><strong>Gyűrűs</strong></td><td>két üldöző kikerülése</td><td>lakó + kutya</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Minden háznál <strong>minimapa</strong> van a jobb alsó sarokban. A falak ütközőteste házanként mérve készül (a falmagasság a modellből jön, nem beírt számból), mert a három ház léptéke eltér — a harmadik ház 8 egységes falai alatt a 12,6 egységes dupla ugrás átvinne a szomszéd szobába.</p>
+      <div class="rule open">
+        <span class="tag">Nyitott kérés</span>
+        <p>A 2. házban <strong>a fáklya az egyetlen fényforrás</strong>, és jelenleg a lakóé — a játékosnak nincs saját világítása. A kérés egy <em class="term">eszköz, amivel picit lehet világítani</em>: rövid hatótáv, korlátos használat, és zajként is számítson. Lásd §23.</p>
+      </div>
+    </section>
+
+    <section id="s13">
+      <h2><i>§13</i>A lakó</h2>
+      <div class="tablewrap">
+        <table>
+          <caption>HOMEOWNER</caption>
+          <tbody>
+            <tr><td class="key">walkSpeed / chaseSpeed</td><td class="num">4,4 / 7,6</td><td>gyorsabb nálad, ha meglát</td></tr>
+            <tr><td class="key">viewRange</td><td class="num">23 e</td><td>a fáklyakúp 62%-áig rajzolva</td></tr>
+            <tr><td class="key">viewHalfAngle</td><td class="num">±29°</td><td>kúp, nem gömb</td></tr>
+            <tr><td class="key">peripheralRadius</td><td class="num">6 e</td><td>ezen belül háttal is észrevesz</td></tr>
+            <tr><td class="key">loseSightTime</td><td class="num">2,2 s</td><td>ennyi ideig keres, miután eltűntél</td></tr>
+            <tr><td class="key">maxInvestigateTime</td><td class="num">13 s</td><td>utána visszatér a járőrútra</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>A lakó <strong>útkereséssel</strong> jár (BFS a ház navigációs rácsán, sugaranként gyorsítótárazva), és a járőrpontjai a saját testméretéhez vannak igazítva, nem a játékoséhoz. Mérve: járőrözés közben 60 másodperc alatt 214–221 egységet tesz meg — korábban nullát, mert a pontjai a falban voltak.</p>
+      <p>Ha 1,5 másodpercig nem jut előrébb, <strong>hátralép</strong> 2,6 másodpercre. Ez oldja meg a sarokba szorítást: fal és üldöző közé szorulva eddig nem lehetett kimozdulni.</p>
+    </section>
+
+    <section id="s14">
+      <h2><i>§14</i>A kutya</h2>
+      <p>A kutya <strong>nem harap</strong>. Zajra ébred, követi a szagnyomot, és ha megtalál, <em class="term">ugat</em> — az ugatás maga is zajesemény 95 egység sugárral, tehát odahívja a gazdáját. Ettől lesz a harmadik ház kétszereplős vadászat, nem két külön üldöző.</p>
+      <div class="tablewrap">
+        <table>
+          <caption>DOG</caption>
+          <tbody>
+            <tr><td class="key">height</td><td class="num">az ember fele</td><td>a kérés szerint</td></tr>
+            <tr><td class="key">chaseSpeed</td><td class="num">9,8</td><td>a leggyorsabb szereplő a házban</td></tr>
+            <tr><td class="key">hearing</td><td class="num">2,4×</td><td>ennyivel messzebbről hall, mint a lakó</td></tr>
+            <tr><td class="key">napTime</td><td class="num">6 s</td><td>ennyi csend után visszaalszik</td></tr>
+            <tr><td class="key">barkCooldown</td><td class="num">7 s</td><td>két ugatás között</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Állapotai: <em class="term">alszik → kószál → felfigyel → vadászik → szagol → visszatér</em>. A szagnyomot 16 képkockánként hagyja el, és 4 másodpercig él.</p>
+    </section>
+
+    <section id="s15">
+      <h2><i>§15</i>Zaj</h2>
+      <p>A lopakodás valutája. Minden zajesemény egy <strong>hely és egy sugár</strong>, 0,35 másodperc élettartammal — nem hangerő, hanem ok.</p>
+      <div class="tablewrap">
+        <table>
+          <caption>NOISE</caption>
+          <tbody>
+            <tr><td>futás</td><td class="num">13 e</td><td class="key">sprintRadius</td></tr>
+            <tr><td>érkezés ugrás után</td><td class="num">17 e</td><td class="key">landRadius</td></tr>
+            <tr><td>elsütött csíny</td><td class="num">70 e</td><td class="key">prankRadius</td></tr>
+            <tr><td>kutyaugatás</td><td class="num">95 e</td><td class="key">DOG.barkRadius</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>A karakter is szorzó: a vérfarkas 1,2-szer, a vámpír 0,65-ször, a szellem 0,45-ször hangos. A csíny ezért <strong>csali</strong>: a legnagyobb zaj a játékban, és te választod meg, hol szólal meg.</p>
+    </section>
+
+    <section id="s16">
+      <h2><i>§16</i>Pontozás és díjak</h2>
+      <div class="tablewrap">
+        <table>
+          <caption>SCORE</caption>
+          <tbody>
+            <tr><td>célba érés</td><td class="num">+120</td></tr>
+            <tr><td>majdnem elütés</td><td class="num">+8</td></tr>
+            <tr><td>utcai cukorka</td><td class="num">+3</td></tr>
+            <tr><td>koccanás</td><td class="num">−6</td></tr>
+            <tr><td>szörnyecske elütése</td><td class="num">−25</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="rule">
+        <span class="tag">A díjak szabálya</span>
+        <p><strong>Minden díj pozitív.</strong> A „legtöbb bajt okozó" ebben a játékban bók. Senki ne úgy fejezzen be egy közös éjszakát, hogy megmondták neki: ő volt a rossz játékos — az eredménytábla dolga az, hogy mindenkinek a saját éjszakájáról adjon egy történetet.</p>
+        <p>Cukorkakirály · A legnagyobb káosz · Legtöbb bajt okozó · Árnyékok · Majdnem elütöttük · A szörnyek barátja · Bocsánat, kis haver · Legjobb sofőr · Legjobb navigátor.</p>
+      </div>
+    </section>
+
+    <section id="s17">
+      <h2><i>§17</i>Kamera és osztott képernyő</h2>
+      <p>A két játékos külön eszközön ül, de a kamera logikája közös maradt: a kép <strong>összecsúszik</strong>, ha közel vagytok egymáshoz, és szétválik, ha eltávolodtok.</p>
+      <div class="tablewrap">
+        <table>
+          <caption>SPLIT / CAMERA</caption>
+          <tbody>
+            <tr><td class="key">mergeDistance</td><td class="num">7 e</td><td>ennél közelebb: egy kép</td></tr>
+            <tr><td class="key">splitDistance</td><td class="num">14 e</td><td>ennél messzebb: két kép</td></tr>
+            <tr><td class="key">maxDistance</td><td class="num">34 e</td><td>efölött a HUD figyelmeztet</td></tr>
+            <tr><td class="key">CAMERA.fov</td><td class="num">50° / 60°</td><td>kint / házban</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Vezetés közben a kamera <strong>sebességgel hátrál és süllyed</strong> (11 → 16 egység távolság), és 25% sebesség fölött magától visszaáll az autó mögé — állva viszont ott marad, ahová fordítottad.</p>
+    </section>
+
+    <section id="s18">
+      <h2><i>§18</i>Hang</h2>
+      <p>A motorhang <strong>nyolcsávos fordulatlétra</strong>: mintahurkok 2100-tól 6785 fordulatig, keresztfade-del, alatta egy oktávval mélyebb réteg és fordulatszám-korlátozó. A vörös 6500-nál van; a létra tetején a hang már nem vált magasabbra, mert az autó sem gyorsul tovább.</p>
+      <p>A hangfájlok WAV és MP3 formátumban mennek, mert a kiadási környezet az <code>audio/mp4</code> típust nem szolgálja ki.</p>
+    </section>
+
+    <section id="s19">
+      <h2><i>§19</i>Teljesítmény</h2>
+      <div class="rule">
+        <span class="tag">A leglassabb hiba, amit találtam</span>
+        <p>A szimuláció <strong>lassított felvételben</strong> ment, és ezt semmi nem jelezte. A képkockánként futtatható lépések száma 6 volt, ami 0,1 másodpercet fed le: egy 250 ms-os képkockán a játék a valós idő 40%-át számolta. Az autó emiatt 43 km/h-nál nem ment gyorsabban. A határ ma <strong>15 lépés</strong> — annyi, hogy a 250 ms-os képkockát is lefedje, de a behozás még ne fagyassza be a képet.</p>
+      </div>
+      <ul class="plain">
+        <li><strong>Fix lépés:</strong> 1/60 s. A szimuláció sosem fut változó időlépéssel.</li>
+        <li><strong>Felbontás-hiszterézis:</strong> 22 ms fölött lefelé, 13 ms alatt felfelé, 3 másodperc várakozással — hogy ne pumpáljon.</li>
+        <li><strong>Képkocka/mp kijelző:</strong> Esc → Beállítások, hogy a panasz mérhető legyen, ne érzés.</li>
+      </ul>
+    </section>
+
+    <section id="s20">
+      <h2><i>§20</i>Hálózat</h2>
+      <p>Egy <em class="term">RoomTransport</em> interfész, három megvalósítás: a gazdakörnyezet szobája, a WebRTC-s közvetlen kapcsolat, és egy hurok-átvitel a fejetlen mérésekhez. A játék egyikről sem tud.</p>
+      <div class="tablewrap">
+        <table>
+          <caption>Két csatorna, két szerep</caption>
+          <thead><tr><th>Karma</th><th>Mit visz</th><th>Elveszhet?</th></tr></thead>
+          <tbody>
+            <tr><td><strong>jelenlét</strong></td><td>a saját állapotod, abszolút értékkel, ~30×/mp: hol az autó, merre néz</td><td>nem — a következő felülírja</td></tr>
+            <tr><td><strong>esemény</strong></td><td>ami MEGTÖRTÉNIK: felvett cukorka, elsütött csíny, üzenet</td><td>igen</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Ebből következik a legfontosabb hálózati szabály: <strong>semmilyen számlálót nem szabad eseményekből összerakni.</strong> Aki a világot szimulálja, a teljes állapotot is kiteszi jelenlétbe — az esemény csak siettet.</p>
+    </section>
+
+    <section id="s21">
+      <h2><i>§21</i>Eszközlánc</h2>
+      <div class="tablewrap">
+        <table>
+          <caption>Mitől lesz a nyers modellből játék</caption>
+          <tbody>
+            <tr><td class="key">tools/make-map.py</td><td>Blender: a város geometriája, út, járda, zebra, lámpák, körpálya</td></tr>
+            <tr><td class="key">tools/village-nav.py</td><td>sugárkövetéses navigációs rács, telkek, házak</td></tr>
+            <tr><td class="key">tools/bake-village.sh</td><td>gltf-transform: hegesztés, egyszerűsítés, textúra webp-re</td></tr>
+            <tr><td class="key">tools/pack-models.mjs</td><td>GLB → base64 JSON, mert a kiadó a <code>model/gltf-binary</code> típust nem adja ki</td></tr>
+            <tr><td class="key">tools/engine-ladder.mjs</td><td>a nyolcsávos fordulatlétra elkészítése</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="s22">
+      <h2><i>§22</i>Mérési szabály</h2>
+      <div class="rule">
+        <span class="tag">A projekt egyetlen munkamódszere</span>
+        <p><strong>Minden panaszt méréssel kell diagnosztizálni, és minden javítás kap egy próbaállítást.</strong> Nem azért, mert a tesztelés erény, hanem mert ezen a játékon a hibák túlnyomó része <em>néma</em> volt: a lakó nulla egységet tett meg, a járda útnak számított, a motor sosem érte el a vöröset, a szimuláció lassított felvételben ment. Egyik sem adott hibaüzenetet.</p>
+        <p>Ebből következik a második szabály is: <strong>ha egy próba olyat követel, amit a játékos sosem kért, akkor a próba a hibás</strong> — nem a kód.</p>
+      </div>
+      <p>Jelenleg <strong>308 állítás</strong> fut a <code>npm run probe:all</code> parancsra, kilenc próbafájlban: kamera, vezetés, irányítás, mesterséges intelligencia, város, falu, első ház, hálózat, fiók nélküli szoba.</p>
+    </section>
+
+    <section id="s23">
+      <h2><i>§23</i>Nyitott pontok</h2>
+      <div class="tablewrap">
+        <table>
+          <caption>Ami még hátravan</caption>
+          <thead><tr><th>Tétel</th><th>Állapot</th><th>Amit tudunk</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Fényforrás a 2. házba</strong></td>
+              <td><span class="state nyitott">nyitott</span></td>
+              <td>Kérés: eszköz, amivel picit lehet világítani. Tervezési kérdés a hatótáv, a korlát és hogy zajnak számít-e.</td>
+            </tr>
+            <tr>
+              <td><strong>T-póz</strong></td>
+              <td><span class="state nyitott">vizsgálat</span></td>
+              <td>A házban mind a négy figura csontja mozog, állva is. A városi szörnyecskében nincs csont, de a modell karja eleve lent van (rendereléssel ellenőrizve). A jelenség helye még nincs beazonosítva — képernyőkép kell róla.</td>
+            </tr>
+            <tr>
+              <td><strong>Ácsorgó animáció</strong></td>
+              <td><span class="state terv">gyanú</span></td>
+              <td>A közös klipkészletben nincs <em class="term">idle</em>: Walking, Running, run_fast, Regular_Jump, pickup. A lakónak van (Idle_5), a szörnyeknek nincs.</td>
+            </tr>
+            <tr>
+              <td><strong>NPC autó kerekei</strong></td>
+              <td><span class="state nyitott">eszköz</span></td>
+              <td>A modellben a kerék nem külön rész, ezért nem forog. Újragenerálás kell „külön részként modellezett kerekekkel".</td>
+            </tr>
+            <tr>
+              <td><strong>Kutyaól modell</strong></td>
+              <td><span class="state terv">terv</span></td>
+              <td>Jelenleg geometriából épül (<code>src/world/Kennel.ts</code>).</td>
+            </tr>
+            <tr>
+              <td><strong>Több belső</strong></td>
+              <td><span class="state terv">terv</span></td>
+              <td>A 64 telek ugyanazt a három belsőt ismétli.</td>
+            </tr>
+            <tr>
+              <td><strong>Fiók nélküli kétfős mód</strong></td>
+              <td><span class="state kesz">kész</span></td>
+              <td>Élesben mérve: gazda és vendég párosodik a publikus címen.</td>
+            </tr>
+            <tr>
+              <td><strong>Telefonos irányítás</strong></td>
+              <td><span class="state kesz">kész</span></td>
+              <td>Bot, gombok, húzásos kamera; a HUD 375×812-n és 812×375-ön átfedés nélkül.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    CANDYPOCALYPSE · specifikáció v2 · a számok a forráskódból és élő mérésekből származnak, nem emlékezetből
+  </footer>
+</div>
+
+</body>
+</html>

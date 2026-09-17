@@ -11,6 +11,7 @@ import { CritterTraffic } from '../ai/CritterTraffic';
 import { StreetCandy } from '../world/StreetCandy';
 import { TrafficLights } from '../world/TrafficLights';
 import { Checkpoints } from '../world/Checkpoints';
+import { SkidMarks } from '../vehicle/SkidMarks';
 import { CarTraffic } from '../ai/CarTraffic';
 import { Challenge } from '../game/Challenge';
 import { Anger } from '../game/Anger';
@@ -117,6 +118,10 @@ export class DriveScene implements GameScene {
   private readonly spider: ShelfSpider;
   private readonly shelf: Shelf;
   private readonly engine: Engine | null;
+  /** A talajon maradó gumicsík. Egyetlen háló, gyűrűpufferrel. */
+  private readonly skids = new SkidMarks();
+  /** Kötött hivatkozás, hogy ne szülessen új függvény képkockánként. */
+  private readonly groundAt = (x: number, z: number): number => this.world.groundAt(x, z);
   private readonly windowGlow: Array<{ light: THREE.PointLight; phase: number; base: number }> = [];
   private parkingFor = -1;
   private glowClock = 0;
@@ -405,6 +410,7 @@ export class DriveScene implements GameScene {
     // A motor. A vezetés alatt végig szól — ez az egyetlen folyamatos hang a
     // szakaszban, és pont ezért nincs alatta zene: a kettő egymást fedné.
     this.engine = sound.startEngine();
+    this.scene.add(this.skids.mesh);
 
     this.hud = new DriveHud(parent);
     this.map = new NavigatorMap(parent);
@@ -745,6 +751,15 @@ export class DriveScene implements GameScene {
       Math.max(0, driver.moveY, revving),
       step
     );
+    // GUMI: a csikorgás és a nyom UGYANABBÓL a `slip` számból él, tehát nem
+    // tudnak szétcsúszni — nem lehet hang nyom nélkül, se nyom hang nélkül.
+    sound.skid(this.car.slip, Math.abs(this.car.speed) / CAR.maxSpeed);
+    // A talajszintet a VILÁG mondja meg, pontonként: az út teteje nem a
+    // kocsi magassága (lásd SkidMarks).
+    this.skids.update(step, this.car, this.groundAt);
+    // A társ kocsija is nyomot hagy: a drift az ő teljesítménye, és kétfős
+    // módban pont az a jó, ha látod, mit csinált.
+    if (this.partner) this.skids.update(step, this.partner, this.groundAt);
     this.traffic.update(step, this.car, elapsed);
     this.game.driverIndex = this.session.driverIndex;
 
@@ -853,6 +868,8 @@ export class DriveScene implements GameScene {
     // A motor a szakasszal együtt áll le. Egy ottfelejtett oszcillátor a
     // házban is szólna — és mivel folyamatos, azonnal észrevehető lenne.
     this.engine?.stop();
+    sound.skidOff();
+    this.skids.dispose();
     this.disposed = true;
     this.commit();
     this.hud.dispose();

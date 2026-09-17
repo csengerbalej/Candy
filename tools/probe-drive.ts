@@ -13,6 +13,7 @@ import { stepBudget } from '../src/core/Loop';
 import { Engine } from '../src/audio/Sound';
 import { Anger } from '../src/game/Anger';
 import { StreetCandy } from '../src/world/StreetCandy';
+import { SkidMarks } from '../src/vehicle/SkidMarks';
 
 /**
  * Headless probe for the driving feel constants. Run: npm run probe:drive
@@ -1570,6 +1571,94 @@ if (!ok) process.exitCode = 1;
       Math.abs(solid.speed) < Math.abs(through.speed),
       `${Math.abs(solid.speed).toFixed(1)} vs ${Math.abs(through.speed).toFixed(1)} egység/mp`
     ) && ok;
+}
+
+
+/**
+ * A KOCSI VISSZAJELZÉSE: fékfény, gumicsúszás, fékcsík.
+ *
+ * Mind a három ugyanabból a két állapotból él (`braking`, `slip`), és pont
+ * ezért mérhető: nem a hangot és nem a pixeleket nézzük, hanem azt, hogy a
+ * kocsi MIKOR mondja magáról, hogy fékez és csúszik. Ha ez jó, a lámpa, a
+ * csikorgás és a nyom együtt mozog; ha nem, mind a három külön hazudik.
+ */
+{
+  const c = new Car(0);
+
+  // 1. Guruló lassulás NEM fékezés. A légellenállás is lassít, de attól még
+  //    senki nem gyújt féklámpát — ez a hiba adná a legidegesítőbb villogást.
+  run(1.5, input(0, 1), c);
+  run(0.5, input(0, 0), c);
+  ok = line('gurulva nem ég a fékfény', !c.braking, `sebesseg ${c.speed.toFixed(1)}`) && ok;
+
+  // 2. Fékezve igen.
+  c.update(SIM.step, input(0, -1), []);
+  ok = line('fékre ég a fékfény', c.braking, `sebesseg ${c.speed.toFixed(1)}`) && ok;
+
+  // 3. Tolatás nem fékezés — különben tolatás közben végig égne.
+  const r = new Car(0);
+  run(2, input(0, -1), r);
+  ok = line('tolatva nem ég a fékfény', !r.braking && r.speed < 0,
+    `sebesseg ${r.speed.toFixed(1)}`) && ok;
+
+  // 4. Egyenesen gurulva nincs gumicsúszás...
+  const s1 = new Car(0);
+  run(2, input(0, 1), s1);
+  ok = line('egyenesben nem csúszik a gumi', s1.slip < 0.15, `slip ${s1.slip.toFixed(2)}`) && ok;
+
+  // 5. ...kézifékes kanyarban viszont van. Ez az, amiből a csikorgás és a
+  //    fékcsík is lesz.
+  const s2 = new Car(0);
+  run(2, input(0, 1), s2);
+  const drift: PlayerInput = { ...input(1, 1), sprint: true };
+  run(0.8, drift, s2);
+  ok = line('kézifékes kanyarban csúszik', s2.slip > 0.6, `slip ${s2.slip.toFixed(2)}`) && ok;
+
+  // 6. Levegőben nincs csúszás: a kerék nem ér az aszfalthoz.
+  const s3 = new Car(0);
+  run(2, input(0, 1), s3);
+  const jump: PlayerInput = { ...drift, jump: true, jumpHeld: true };
+  s3.update(SIM.step, jump, []);
+  run(0.2, { ...drift, jumpHeld: true }, s3);
+  ok = line('levegőben nem csikorog', !s3.airborne || s3.slip < 0.4,
+    `${s3.airborne ? 'levegoben' : 'foldon'}, slip ${s3.slip.toFixed(2)}`) && ok;
+
+  // 7. A FÉKCSÍK csak csúszáskor kerül le, és a szalag elszakad, ha kiengedsz.
+  //    Enélkül a következő drift egy hosszú egyenessel kötődne az előzőhöz.
+  const marks = new SkidMarks();
+  const still = { position: new THREE.Vector3(), heading: 0, slip: 0, airborne: false };
+  for (let i = 0; i < 30; i++) {
+    still.position.z += 0.3;
+    marks.update(SIM.step, still);
+  }
+  const anyMark = (m: SkidMarks): number =>
+    ((m as unknown as { ages: Float32Array }).ages as Float32Array)
+      .reduce((n, a) => n + (Number.isFinite(a) ? 1 : 0), 0);
+  ok = line('tapadva nem marad nyom', anyMark(marks) === 0, `${anyMark(marks)} lenyomat`) && ok;
+
+  const sliding = { position: new THREE.Vector3(), heading: 0, slip: 0.8, airborne: false };
+  // A TALAJSZINT nem a kocsi magassága. Mérve: a kocsi nullán áll, az aszfalt
+  // teteje 0,353-nál van, a nyom pedig harminc centivel az út alatt készült —
+  // létezett, öregedett, és soha senki nem láthatta. Ez a próba pont ezt köti
+  // le: a nyomnak a MEGADOTT talaj fölött kell lennie.
+  const ASZFALT = 0.353;
+  for (let i = 0; i < 30; i++) {
+    sliding.position.z += 0.3;
+    marks.update(SIM.step, sliding, () => ASZFALT);
+  }
+  ok = line('csúszva marad nyom', anyMark(marks) > 10, `${anyMark(marks)} lenyomat`) && ok;
+
+  const ys = (marks as unknown as { positions: Float32Array }).positions
+    .filter((_, i) => i % 3 === 1);
+  const above = [...ys].filter((y) => y > ASZFALT);
+  ok = line('a nyom az aszfalt FÖLÖTT van',
+    above.length > 0 && Math.min(...above) > ASZFALT,
+    `legalacsonyabb ${Math.min(...above).toFixed(3)} (az út ${ASZFALT})`) && ok;
+
+  // 8. A nyom ELHALVÁNYUL: egy örökre ottmaradó fekete csík tíz perc múlva
+  //    az egész várost befestené.
+  for (let t = 0; t < 12; t += SIM.step) marks.update(SIM.step, still);
+  ok = line('a nyom elhalványul', anyMark(marks) === 0, `${anyMark(marks)} lenyomat 12 mp után`) && ok;
 }
 
 console.log(ok ? 'MIND OK — a vezetés hangolása stabil' : 'VAN BUKÓ TESZT');
