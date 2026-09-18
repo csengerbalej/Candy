@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import { Weapon, type Target } from '../src/game/Weapon';
 import { WEAPON, SIM, CAPTURE, GUNS, PICKUP, MOVE, DELIVERY, FIRST_PERSON, type GunId } from '../src/core/config';
@@ -636,6 +637,41 @@ for (const kind of ['shotgun', 'sniper', 'rocket'] as GunId[]) {
   line('lejárva eltűnik', g.loose.length === 0, '');
   line('az élettartam rövid, de elérhető',
     CAPTURE.looseLife >= 5 && CAPTURE.looseLife <= 12, `${CAPTURE.looseLife} mp`);
+}
+
+// --- A FELVETT HANGOK ---------------------------------------------------
+//
+// A hangot magát egy fejetlen próba nem hallja. Amit MEG TUD nézni, az a
+// két dolog, ami miatt eddig néma maradt volna: hogy a fájl ott van-e és
+// tényleg WAV-e (az Ogg a Safariban némán elszáll), és hogy a játék
+// hívja-e ott, ahol a játékos várja. A kettő együtt az, ami elromolhat.
+{
+  const audio = 'public/audio';
+  for (const [name, hol] of [
+    ['reload-start', 'töltés indul'],
+    ['reload-done', 'töltés kész / fegyverfelvétel'],
+    ['hit', 'találat és elütés'],
+    ['empty', 'üres tár'],
+  ] as const) {
+    const file = `${audio}/${name}.wav`;
+    const bytes = existsSync(file) ? readFileSync(file) : null;
+    ok = line(`${hol}: ${name}.wav megvan`, bytes !== null && bytes.length > 500,
+      bytes ? `${bytes.length} bájt` : 'HIÁNYZIK') && ok;
+    ok = line(`${name}.wav tényleg WAV`,
+      bytes !== null && bytes.subarray(0, 4).toString() === 'RIFF' &&
+      bytes.subarray(8, 12).toString() === 'WAVE',
+      bytes ? bytes.subarray(0, 4).toString() : '—') && ok;
+  }
+
+  const haz = readFileSync('src/scenes/HouseScene.ts', 'utf8');
+  const drive = readFileSync('src/game/DriveGame.ts', 'utf8');
+  ok = line('a töltés két hangot ad (indul + kész)',
+    haz.includes("sound.clip(loading ? 'reload-start' : 'reload-done'"), '') && ok;
+  ok = line('a fegyver felvétele töltéshangot ad',
+    /got[\s\S]{0,400}sound\.clip\('reload-done'/.test(haz), '') && ok;
+  ok = line('a találat hangot ad', haz.includes("sound.clip('hit'"), '') && ok;
+  ok = line('az üres tár kattan', haz.includes("sound.clip('empty'"), '') && ok;
+  ok = line('az elütésnek is hangja van', drive.includes("sound.clip('hit'"), '') && ok;
 }
 
 console.log('');

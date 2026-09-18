@@ -244,6 +244,58 @@ export class Sound {
     osc.stop(now + shape.len);
   }
 
+  /**
+   * FELVETT HANGOK: fegyverfelvétel, töltés, találat, üres tár.
+   *
+   * A motorhang és a lövés szintetizált marad — azoknak folyamatosan
+   * változniuk kell a fordulattal és a fegyverrel, és egy felvétel ezt nem
+   * tudja. A kattanások viszont MINDIG ugyanazok, és ott egy valódi felvétel
+   * összehasonlíthatatlanul jobb: egy fémes csattanást nem lehet két
+   * szinusszal utánozni.
+   *
+   * Forrás: Kenney.nl (CC0 — szabadon használható, forrásmegjelölés sem
+   * kötelező). Ogg helyett WAV, mert a Safari az Ogg Vorbist nem játssza
+   * megbízhatóan, és a játék iPhone-on is fut.
+   */
+  private readonly clips = new Map<string, AudioBuffer>();
+  private clipsWanted = false;
+
+  /** Betölti a mintákat. Egyszer, az első használatkor. */
+  private loadClips(): void {
+    if (this.clipsWanted || !this.ctx) return;
+    this.clipsWanted = true;
+    for (const name of ['reload-start', 'reload-done', 'hit', 'empty']) {
+      void fetch(`audio/${name}.wav`)
+        .then((r) => r.arrayBuffer())
+        .then((bytes) => this.ctx!.decodeAudioData(bytes))
+        .then((buffer) => this.clips.set(name, buffer))
+        .catch(() => {
+          // Egy hiányzó minta nem némíthatja el a játékot: a hívás
+          // egyszerűen nem szól, minden más megy tovább.
+        });
+    }
+  }
+
+  /**
+   * Lejátszik egy felvett hangot.
+   *
+   * @param gain Hangerő. A minták nyersen hangosak — a lövéshez képest kell
+   * beállítani őket, nem magukban.
+   */
+  clip(name: 'reload-start' | 'reload-done' | 'hit' | 'empty', gain = 0.7): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || this.muted) return;
+    this.loadClips();
+    const buffer = this.clips.get(name);
+    if (!buffer) return;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const volume = ctx.createGain();
+    volume.gain.value = gain;
+    source.connect(volume).connect(this.master);
+    source.start();
+  }
+
   /** Újratöltés: két kattanás. A második azt mondja, hogy KÉSZ. */
   reloadClick(second = false): void {
     const ctx = this.ctx;

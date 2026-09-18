@@ -1169,7 +1169,10 @@ export class HouseScene implements GameScene {
     if (this.held) {
       const loading = this.held.reloading > 0;
       if (loading !== this.wasReloading) {
-        sound.reloadClick(!loading);
+        // Töltés INDUL: fémes csattanás (a tár helyére kerül).
+        // Töltés KÉSZ: a zár csattanása — ebből tudod, hogy megint lőhetsz,
+        // anélkül hogy a számlálóra néznél.
+        sound.clip(loading ? 'reload-start' : 'reload-done', 0.75);
         this.wasReloading = loading;
       }
     }
@@ -1205,7 +1208,10 @@ export class HouseScene implements GameScene {
         this.game.banner = got.swapped
           ? `${GUNS[got.kind].name} — a régi a földön`
           : `${GUNS[got.kind].name} · +${got.ammo} lőszer`;
-        sound.pickup();
+        // A FELVÉTEL HANGJA egy töltés: a fegyver a kézbe kerül és
+        // felhúzódik. Egy cukorka-csilingelés itt azt mondaná, hogy jutalom
+        // — pedig eszköz.
+        sound.clip('reload-done', 0.8);
       }
     }
 
@@ -1217,6 +1223,10 @@ export class HouseScene implements GameScene {
         this.targets(),
         (a, b) => this.world.sightBlocked(a, b)
       );
+      // ÜRES TÁR: a lövés elmarad, és eddig ilyenkor SEMMI nem történt — a
+      // gomb néma volt, amiből nem derült ki, hogy a fegyver üres-e vagy a
+      // gomb rossz. Egy száraz kattanás megmondja.
+      if (!shot && this.held.ammo <= 0) sound.clip('empty', 0.5);
       if (shot) {
         this.heldView.fired();
         // A CSÍK a csővégtől a becsapódásig. A színe mondja meg, hogy
@@ -1312,7 +1322,9 @@ export class HouseScene implements GameScene {
     if (force > 0) {
       body.launch(push.clone().normalize(), force * Math.max(0.35, strength) * 1.6);
     }
-    sound.thud(0.7);
+    // A TALÁLAT hangja felvétel, nem szintetizált puffanás: egy testet érő
+    // ütést két szinusszal nem lehet utánozni.
+    sound.clip('hit', 0.9);
     this.game.banner = who === this.localIndex ? 'ELTALÁLTAK!' : 'TALÁLAT';
   }
 

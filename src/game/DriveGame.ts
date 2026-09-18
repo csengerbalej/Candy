@@ -360,6 +360,10 @@ export class DriveGame {
     const hits = this.traffic.hits - this.lastHits;
     if (hits > 0) {
       this.stats.crittersHit += hits;
+      // ELÜTÉS HANGJA: ugyanaz a tompa ütés, mint a házban a találaté. Egy
+      // közös hang két helyzetre azt tanítja meg, hogy ez FÁJT — a
+      // pontlevonást ki lehet nézni a képernyőről, ezt nem.
+      sound.clip('hit', 0.85);
       this.challenge?.hitCritter();
       this.stats.score += SCORE.critterHit * hits;
       // A zsák kiborul. Ez az, ami tényleg fáj — egy pontlevonás a képernyő
