@@ -265,6 +265,31 @@ console.log('');
     'hamis ijesztések, amiktől a valódi is működik') && ok;
 }
 
+// --- A MUMUS ----------------------------------------------------------------
+//
+// Ez az egyetlen szörny, amit a JÁTÉKOS hoz magára: odamész, mert azt
+// hiszed, a társad az. Épp ezért kell mérni, hogy tisztességes maradjon —
+// ha gyorsabb volna nálad, vagy az első alkalommal is bántana, nem félelem
+// volna, hanem büntetés.
+{
+  line('lassabb a futásodnál', HAUNT.mumusSpeed < 1,
+    `a sétád ${(HAUNT.mumusSpeed * 100).toFixed(0)}%-a — futva mindig lerázod`);
+  line('...de sétálva alig', HAUNT.mumusSpeed > 0.8, `${HAUNT.mumusSpeed}×`);
+  line('messziről bukkan fel', HAUNT.mumusNear >= 12,
+    `${HAUNT.mumusNear}-${HAUNT.mumusFar} méterre`);
+  line('ritka', HAUNT.mumusFirst >= 60 && HAUNT.mumusEvery >= 60,
+    `az első ${HAUNT.mumusFirst} mp után, aztán ${HAUNT.mumusEvery}-enként`);
+  line('nem vár rád örökké', HAUNT.mumusStay <= 20, `${HAUNT.mumusStay} mp után eltűnik`);
+
+  const haz = readFileSync('src/scenes/HouseScene.ts', 'utf8');
+  ok = line('csak akkor mozdul, ha nem nézel rá', haz.includes('this.mumus.update(step, testem.position, rajta)'),
+    'szemben állva meg sem moccan') && ok;
+  ok = line('az első felbukkanás nem bánt', readFileSync('src/world/Mumus.ts', 'utf8').includes('this.count > 1'),
+    'a feladata nem az elkapás, hanem hogy megtudd: létezik') && ok;
+  ok = line('nincs hangja', !haz.includes("this.mumus.appear(hol, testem.position);\n          sound"),
+    'a többi szörnyet hallod — ez csak ott van') && ok;
+}
+
 // --- A KIJUTÁS ÉS A KÜSZÖB --------------------------------------------------
 //
 // Ez a mód motorja, és egyetlen szabályon áll: a kijárat MINDIG NYITVA van.

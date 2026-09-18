@@ -26,6 +26,7 @@ import { HauntBrief } from '../ui/HauntBrief';
 import { Torch } from '../world/Torch';
 import { Batteries } from '../world/Batteries';
 import { Glimpse } from '../world/Glimpse';
+import { Mumus } from '../world/Mumus';
 import { Masonry } from '../world/Masonry';
 import { HAUNT, HOUSE, NOISE } from '../core/config';
 import { makeRandom } from '../core/seed';
@@ -123,6 +124,9 @@ export class HouseScene implements GameScene {
   private torch: Torch | null = null;
   private batteries: Batteries | null = null;
   private glimpse: Glimpse | null = null;
+  private mumus: Mumus | null = null;
+  /** Mikor bukkanjon fel legközelebb. */
+  private kovetkezoMumus: number = HAUNT.mumusFirst;
   private masonry: Masonry | null = null;
   /** Mikor szaladjon át a következő alak. */
   private kovetkezoAlak = 18;
@@ -554,6 +558,14 @@ export class HouseScene implements GameScene {
       this.scene.add(this.torch.group);
       this.glimpse = new Glimpse();
       this.scene.add(this.glimpse.group);
+
+      // A MUMUS a TÁRSAD alakját viseli — egyedül a tiédet. Ugyanaz a
+      // karaktermodell, amit a választóképernyőn láttál: ettől hiszed el
+      // egy pillanatra, hogy tényleg ő az.
+      this.mumus = new Mumus();
+      this.scene.add(this.mumus.group);
+      const kie = this.partnered ? 1 - this.localIndex : this.localIndex;
+      void this.mumus.load(CHARACTERS[session.selection.characters[kie]].model);
 
       // ELEMEK: nyolc darab, szétszórva a házban, a saroktól távol. Nyolc
       // darab plusz háromszázhatvan másodpercnyi fény — több, mint a telep
@@ -2257,6 +2269,53 @@ export class HouseScene implements GameScene {
       this.game.banner = kozeliAjto.open ? 'E — becsukod' : 'E — kinyitod';
     }
 
+    // === A MUMUS ===========================================================
+    //
+    // Csak akkor mozdul, amikor NEM NÉZEL RÁ — szembefordulva áll, mint egy
+    // fénykép. Ezért soha nem látod mozogni, csak azt, hogy közelebb van.
+    if (this.mumus) {
+      const rajta = (() => {
+        if (!this.mumus?.active) return false;
+        const fele = this.mumus.position.clone().sub(testem.position);
+        const szog = Math.abs(
+          ((Math.atan2(fele.x, fele.z) - nezesIrany + Math.PI) % (Math.PI * 2)) - Math.PI
+        );
+        // Bele kell nézned, nem elég a szemed sarkából: a kúp szűkebb, mint
+        // a képernyő, különben soha nem mozdulna.
+        return szog < 0.5 && !this.world.sightBlocked(testem.position, this.mumus.position);
+      })();
+
+      const mi = this.mumus.update(step, testem.position, rajta);
+      if (mi === 'elkapott') {
+        // LEDOBJA AZ ALAKOT. Ez a mód egyetlen ijesztése, amit te idéztél
+        // elő: odamentél, mert azt hitted, a társad az.
+        this.jumpscare?.fire(this.lurkerFaces[0] ?? '');
+        sound.clip('hit', 1);
+        haunt.caught(me, testem.position);
+        this.game.banner = 'NEM Ő VOLT';
+      } else if (mi === 'eltunt' && !this.mumus.dangerous) {
+        this.game.banner = 'OTT VOLT VALAKI…';
+      }
+
+      // FELBUKKANÁS. Csak akkor, ha nem bújsz, és van hova: a pontnak
+      // járhatónak kell lennie, különben a falban állna.
+      if (!this.mumus.active && !haunt.hidden && this.hangClock > this.kovetkezoMumus) {
+        const tav = HAUNT.mumusNear + this.sors() * (HAUNT.mumusFar - HAUNT.mumusNear);
+        const szog = nezesIrany + (this.sors() - 0.5) * 1.2;
+        const hol = new THREE.Vector3(
+          testem.position.x + Math.sin(szog) * tav,
+          0,
+          testem.position.z + Math.cos(szog) * tav
+        );
+        if (this.world.walkable(hol.x, hol.z, 0.6)) {
+          this.kovetkezoMumus = this.hangClock + HAUNT.mumusEvery;
+          this.mumus.appear(hol, testem.position);
+          // Semmi hang. A mumus attól mumus, hogy NEM JELZI magát — a
+          // többi szörnyet hallod, ez csak ott van.
+        }
+      }
+    }
+
     // === CUKORKA ÉS KIJUTÁS ================================================
     //
     // A cukorka RÁÁLLÁSRA jön, nem gombra: a sötétben már az is elég munka,
@@ -2597,6 +2656,7 @@ export class HouseScene implements GameScene {
     sound.stopLoops();
     this.jumpscare?.dispose();
     this.glimpse?.dispose();
+    this.mumus?.dispose();
     this.hauntBrief?.dispose();
     this.hauntHud?.dispose();
     this.torch?.dispose();

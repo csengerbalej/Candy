@@ -1250,6 +1250,36 @@ export const HAUNT = {
   quota: 8,
   /** Ennyi ideig kell az ajtóban állni. A kijutás se legyen véletlen. */
   exitHold: 1.4,
+  /**
+   * A MUMUS: a társad alakjában.
+   *
+   * A többi szörny a testedet fenyegeti; ez a BIZALMAT — azt az egyetlen
+   * dolgot, amin egy kétszemélyes mód áll. Egyedül játszva a TIÉDET veszi
+   * fel: ugyanaz a kód, és egy sokkal régebbi félelem.
+   *
+   * Három szabály tartja tisztességesen ijesztőnek:
+   *
+   *   AZ ELSŐ ALKALOM ÁRTATLAN. Csak áll a folyosó végén, és eltűnik. A
+   *   feladata nem az elkapás, hanem hogy MEGTUDD: létezik. Onnantól
+   *   minden valódi találkozás is ijesztő.
+   *
+   *   CSAK AKKOR MOZDUL, AMIKOR NEM NÉZEL RÁ. Szembefordulva áll. Ettől
+   *   lesz a megfordulás maga a feszültség.
+   *
+   *   LASSABB NÁLAD. Ha rájössz és futni kezdesz, mindig megmenekülsz — a
+   *   halál így a te tévedésed, nem a szerencséé.
+   */
+  mumusFirst: 75,
+  mumusEvery: 90,
+  /** Ilyen messze bukkan fel. Közelről kiderülne, hogy nem a társad. */
+  mumusNear: 16,
+  mumusFar: 26,
+  /** Ennyi idő után magától eltűnik, ha nem mész oda. */
+  mumusStay: 14,
+  /** Ennyire kell megközelítened, hogy ledobja az alakot. */
+  mumusReach: 2.6,
+  /** A sebessége a te SÉTÁDHOZ mérve. Egy alatt: futva mindig lerázod. */
+  mumusSpeed: 0.92,
   hideReach: 2.2,
   /** Belépés és kilépés ideje. Nem azonnali: a döntésnek súlya van. */
   hideTime: 0.8,

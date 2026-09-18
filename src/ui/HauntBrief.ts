@@ -50,6 +50,13 @@ export class HauntBrief {
           ${HAUNT.burn} másodpercig, és szétfoszlik. Ha félúton elkapod a
           tekinteted, már ébren van — és ő a leggyorsabb.</span>
         </div>
+        <div class="szorny">
+          <b>A MUMUS</b>
+          <span class="jel">a társad alakjában · nincs lámpája</span>
+          <span class="ellen">Csak akkor mozdul, amikor NEM nézel rá — szemben
+          állva meg sem moccan. NE MENJ ODA. Ha nálad a lámpa, a társad
+          fénnyel jön; ez sötétben. Lassabb nálad: futva mindig lerázod.</span>
+        </div>
       </div>
       <div class="eszkoz">
         <div><b>A LÁMPA</b> — az <b>F</b> kapcsolja. Egy van kettőtökre, és
