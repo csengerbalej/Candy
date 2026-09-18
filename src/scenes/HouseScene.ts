@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { setStageLens, stage, tiltStage, turnStage } from '../camera/Stage';
-import { FIRST_PERSON, CAMERA, PLAYER_COUNT, PALETTE, HOMEOWNER, DOG, GUNS, MOVE, CAPTURE } from '../core/config';
+import { FIRST_PERSON, CAMERA, PLAYER_COUNT, PALETTE, HOMEOWNER, DOG, GUNS, MOVE, CAPTURE, DELIVERY } from '../core/config';
 // The first house is a real flat now, not the greybox kitchen. Both offer the
 // same surface to this scene, so the swap is one import and one await.
 import { VillageHouse } from '../world/VillageHouse';
@@ -9,10 +9,12 @@ import { SplitScreenDirector } from '../camera/SplitScreenDirector';
 import { Armoury } from '../game/Armoury';
 import { Capture } from '../game/Capture';
 import { Corners } from '../world/Corners';
+import { LooseCandy } from '../world/LooseCandy';
 import { FogoHud } from '../ui/FogoHud';
 import { Rival } from '../ai/Rival';
 import { PickupsView } from '../world/PickupsView';
 import { HeldWeapon } from '../render/HeldWeapon';
+import { Tracer } from '../render/Tracer';
 import { Weapon, type Target } from '../game/Weapon';
 
 import { Homeowner } from '../ai/Homeowner';
@@ -80,6 +82,12 @@ export class HouseScene implements GameScene {
   private rival: Rival | null = null;
   /** Az AI teste. A második játékos helyén ül, ha nincs valódi társ. */
   private rivalBody: PlayerController | null = null;
+
+  /** Álló bemenet az AI testéhez: a gombokat az esze adja, nem a billentyűzet. */
+  private static readonly IDLE = {
+    moveX: 0, moveY: 0, jump: false, jumpHeld: false, sprint: false,
+    interact: false, interactHeld: false, pause: false, usingGamepad: false, nitro: false,
+  } as const;
 
   /** A fogó mód kijelzője. Kooperatívban nem születik meg. */
   private fogoHud: FogoHud | null = null;
@@ -204,16 +212,47 @@ export class HouseScene implements GameScene {
     // A FEGYVEREK a járőrpontokra és a cukorkák helyére kerülnek: ezek a
     // pontok már bizonyítottan járhatók és a szobák közepén vannak — egy
     // fegyver a fal tövében fele annyit ér, mert nem látszik.
+    // A FELKÍNÁLT PONTOK. A járőrpontok építésből járhatók; a cukorkahelyek
+    // viszont TÁLAKON állnak, tehát bútorban — egy oda tett sarokból a
+    // fizika azonnal kilökte a játékost (mérve 15,6 egységgel arrébb került
+    // az induláskor). A sarkokhoz ezért csak a járható pontok jöhetnek
+    // szóba; a fegyverek maradhatnak a tálak mellett is, azokat nem kell
+    // megállni rajtuk.
+    // Csak az a pont lehet sarok, ahol a TEST IS ELFÉR.
+    //
+    // A rács járhatósága a padlóról szól, az ütközők a bútorokról — és a
+    // kettő nem ugyanaz. Az első változatban a sarok egy asztal ütközőjében
+    // állt: a rács szerint rendben volt, a fizika mégis 15,6 egységgel
+    // arrébb lökte a játékost. Ezért a szűrés most azt kérdezi, amit a
+    // játék is: ha ide állok, itt maradok-e.
+    // A SARKOK CSAK JÁRŐRPONTOK LEHETNEK.
+    //
+    // A járőrpontokat a ház generátora a TESTHEZ igazítva adja ki — a lakó
+    // végigsétál rajtuk, tehát bizonyítottan el lehet rajtuk állni. A
+    // cukorkahelyek ellenben tálakon vannak, vagyis bútorban: az első
+    // változatban egy ilyen lett sarok, és a fizika 15,6 egységgel arrébb
+    // lökte a játékost az induláskor.
+    const walkable = this.world.patrolWaypoints;
     const spots = [
       ...this.world.patrolWaypoints,
       ...this.world.candySpots.map((c) => c.position),
     ];
-    if (spots.length) {
-      this.armoury = new Armoury(spots);
+    // A FEGYVEREK VÉLETLEN HELYEKRE kerülnek, és SOHA nem a gyűjtősarkokba:
+    // egy sarokban termő fegyvert az kapna ingyen, aki épp hazaért.
+    const avoid = this.corners ? this.corners.list.map((c) => c.position) : [];
+    const random: THREE.Vector3[] = [];
+    for (let i = 0; i < 40; i++) {
+      const p = this.world.randomStanding(Math.random, MOVE.radius, avoid, CAPTURE.bankRadius * 3);
+      if (p) random.push(p);
+    }
+
+    if (random.length >= 4 || spots.length) {
+      this.armoury = new Armoury(random.length >= 4 ? random : spots);
       this.scene.add(this.pickups.group);
       void this.pickups.load();
     }
     this.scene.add(this.heldView.group);
+    this.scene.add(this.tracer.mesh);
 
     // BELSŐ NÉZET ALAPBÓL. A ház a lopakodás és a keresés helye, és mindkettő
     // arról szól, MIT LÁTSZ: felülről a fáklyakúp egy rajz a padlón, a
@@ -270,12 +309,36 @@ export class HouseScene implements GameScene {
     // FOGÓ MÓD. A sarkok a legtávolabbi két pontra kerülnek: két egymás
     // melletti sarokkal a cipelés elvész — felveszed, két lépés, letetted.
     if (session.fogo && spots.length) {
-      this.corners = new Corners(spots);
+      this.corners = new Corners(walkable.length >= 2 ? walkable : spots);
       this.scene.add(this.corners.group);
       this.capture = new Capture(this.corners.list);
       this.fogoHud = new FogoHud(document.body);
+      this.looseView = new LooseCandy();
+      this.scene.add(this.looseView.group);
+      void this.looseView.load();
       this.game.capture = this.capture;
       this.game.localSlot = this.localIndex;
+
+      // A KEZDŐHELY A SAJÁT SARKOD.
+      //
+      // Az ajtóból indulva az első út mindig ugyanaz volt: be a házba, ki a
+      // sarokhoz, és csak utána kezdődött a játék. A sarokból indulva az
+      // első döntésed már az, hogy MERRE INDULSZ cukorkáért — és a hazaút
+      // hossza is rögtön kiderül.
+      for (const corner of this.corners.list) {
+        // A NAVIGÁCIÓS RÁCS ÉS AZ ÜTKÖZŐK NEM UGYANAZT MONDJÁK.
+        //
+        // A sarok a rács szerint járható volt, mégis 15,6 egységgel arrébb
+        // került a játékos az induláskor: a pont egy bútor ütközőjén belül
+        // esett, és a fizika kitolta. A rács a PADLÓRÓL szól, az ütközők a
+        // TÁRGYAKRÓL — a kettő nem ugyanaz, és itt derül ki.
+        //
+        // A `nearestStanding` pont ezt oldja meg: a legközelebbi olyan
+        // helyet adja, ahol a TEST is elfér. A sarok jelölője marad, ahol
+        // van; a lerakás sugara (2,4) bőven elnyeli a különbséget.
+        this.players[corner.player].position.copy(corner.position);
+        this.players[corner.player].mesh.position.copy(corner.position);
+      }
       // A KIJUTÁS pillanatában a sarok tartalma a kocsiba kerül. A könyvelés
       // a munkameneté, nem a jeleneté: a rakománynak túl kell élnie az ajtót.
       this.game.onEscape = () => {
@@ -444,6 +507,70 @@ export class HouseScene implements GameScene {
   setCameraPitch(degrees: number): void {
     this.syncWallHeight();
     this.game.banner = `KAMERA ${degrees}°`;
+  }
+
+  /**
+   * A KIÜRÍTETT TÁLAK újratöltése, fogó módban.
+   *
+   * A házban három tál van, a kvóta öt — az utolsó tál után nem volt honnan
+   * cukorkát szerezni, és a kör megnyerhetetlenné vált. Nem nehéz volt,
+   * hanem lehetetlen.
+   *
+   * Kooperatívban ez a szabály KI VAN KAPCSOLVA: ott a kvóta a felemelt
+   * tálak száma, és egy újratelő tál visszazárná a már kinyílt ajtót.
+   */
+  private refillBowls(step: number): void {
+    if (!this.capture) return;
+    for (const spot of this.world.candySpots) {
+      if (!spot.taken) continue;
+      const timer = (this.refill.get(spot) ?? 0) + step;
+      if (timer < DELIVERY.bowlRefill) {
+        this.refill.set(spot, timer);
+        continue;
+      }
+      this.refill.delete(spot);
+      spot.taken = false;
+      spot.mesh.visible = true;
+    }
+  }
+
+  private readonly refill = new Map<object, number>();
+  /** A földön heverő cukorka kirajzolása. */
+  private looseView: LooseCandy | null = null;
+  /** Megtörtént-e már a sarokba állítás. Lásd az első képkockás ismétlést. */
+  private spawnPlaced = false;
+  /** A lövések nyomjelző csíkja. Minden lövés látható, a sajátom és az AI-é is. */
+  private readonly tracer = new Tracer();
+
+  /**
+   * ÚJRAÉLEDÉS a saját sarokban (R gomb).
+   *
+   * Amitől ez nem ingyen menekülés: minden cukorka, ami a kezedben van, ITT
+   * MARAD a földön — pontosan úgy, mintha lelőttek volna. A sarokba szorított
+   * játékosnak így van kiútja, de az ellenfél nem jár rosszul: megkapja azt,
+   * amiért végigkergetett.
+   *
+   * A rövid bénulás az érkezés után azt akadályozza meg, hogy az újraéledés
+   * GYORSABB legyen, mint a gyaloglás — különben a sarokba szorítás helyett
+   * az R gomb lenne a leggyorsabb közlekedés.
+   */
+  private respawn(): void {
+    if (!this.capture || !this.corners) return;
+    const me = this.localIndex as 0 | 1;
+    const corner = this.corners.list.find((c) => c.player === me);
+    if (!corner) return;
+    const body = this.players[me];
+    const dropped = this.capture.carried[me];
+    if (dropped > 0) {
+      // Ugyanaz a hívás, mint a találatnál: a szabály egy helyen él.
+      this.capture.hit(me, body.position, body.position.clone().add(new THREE.Vector3(0, 0, 1)));
+    }
+    body.position.copy(corner.position);
+    body.mesh.position.copy(corner.position);
+    body.velocity.set(0, 0, 0);
+    body.stun = DELIVERY.respawnStun;
+    sound.thud(0.4);
+    this.game.banner = dropped > 0 ? `ÚJRAÉLEDÉS — ${dropped} cukorka ottmaradt` : 'ÚJRAÉLEDÉS';
   }
 
   /**
@@ -691,7 +818,48 @@ export class HouseScene implements GameScene {
       this.collidersFor[this.localIndex]
     );
 
+    // A SARKOKBA ÁLLÍTÁS AZ ELSŐ KÉPKOCKÁN MEGISMÉTLŐDIK.
+    //
+    // A jelenet felépítésekor is megtörténik, de mérve mégsem oda kerültek a
+    // testek: valami a betöltés és az első kép között elmozdította őket
+    // (15,6 egységgel). Nem kerestem tovább, hogy MI — az első képkockán
+    // újra odatenni olcsóbb és biztosabb, mint kitalálni, melyik késleltetett
+    // betöltő nyúlt hozzá. A szabály így akkor is áll, ha a sorrend
+    // megváltozik.
+    if (this.capture && this.corners && !this.spawnPlaced) {
+      this.spawnPlaced = true;
+      for (const corner of this.corners.list) {
+        this.players[corner.player].position.copy(corner.position);
+        this.players[corner.player].mesh.position.copy(corner.position);
+        this.players[corner.player].velocity.set(0, 0, 0);
+      }
+      this.rival?.position.copy(
+        this.corners.list.find((c) => c.player === this.rival!.index)?.position ??
+          this.players[this.rival.index].position
+      );
+    }
+
     this.capture?.update(step);
+    this.refillBowls(step);
+
+    // A FÖLDÖN HEVERŐ CUKORKA FELSZEDÉSE.
+    //
+    // A szabály eddig is megvolt, de CSAK AZ AI hívta: a játékos ráállt a
+    // földre esett darabra, és nem történt semmi. Egy zsákmány, amit nem
+    // lehet felvenni, nem zsákmány — és a lövésnek sem marad következménye.
+    if (this.capture) {
+      const got = this.capture.pickUpLoose(
+        this.localIndex as 0 | 1,
+        this.players[this.localIndex].position
+      );
+      if (got > 0) {
+        sound.pickup();
+        this.game.banner = `FELSZEDTED — ${this.capture.carried[this.localIndex as 0 | 1]} a kezedben`;
+      }
+    }
+
+    // ÚJRAÉLEDÉS: a sarokba szorítva is legyen kiút, de legyen ára.
+    if (this.capture && this.input.consumeRespawn()) this.respawn();
 
     // AZ AI ELLENFÉL. A gondolkodás az övé, a TEST a közös szabályozó: a
     // helyét átmásoljuk, hogy a lakó, a kutya és a falak ugyanúgy hassanak rá,
@@ -704,13 +872,49 @@ export class HouseScene implements GameScene {
         radius: MOVE.radius,
       };
       const fired = this.rival.update(step, this.capture!, enemy);
-      this.rivalBody.position.copy(this.rival.position);
-      this.rivalBody.mesh.position.copy(this.rival.position);
+
+      // KI VEZET KIT: alaphelyzetben az AI mozgatja a testét, DE amíg
+      // ellökték, fordítva — a FIZIKA viszi, és az AI onnan veszi át a
+      // helyét.
+      //
+      // Enélkül a lövésnek nem volt látható következménye: a test elrepült,
+      // és a következő képkockán az AI visszarántotta oda, ahol a
+      // gondolkodása szerint állnia kellett. A cukorka kiesett, csak épp
+      // senki nem látta, hogy bármi történt.
+      // A TEST FIZIKÁJÁT futtatni kell, különben a lökés csak egy sebesség
+      // marad, amit soha senki nem integrál: a szám ott áll a testben, és a
+      // szörny meg sem mozdul. (Pontosan ez történt: „arrébb se repült".)
+      this.rivalBody.update(step, HouseScene.IDLE, this.collidersFor[this.rival.index]);
+
+      const knocked = this.capture!.knocked[this.rival.index] > 0 || this.rivalBody.stun > 0;
+      if (knocked) {
+        this.rival.position.copy(this.rivalBody.position);
+      } else {
+        // A TEST ARRA NÉZZEN, AMERRE MEGY. Enélkül a szörny oldalazva
+        // csúszkált: a helye változott, az iránya nem — és ettől lett az
+        // egész mozgás „gyökér".
+        const step2 = this.rival.position.clone().sub(this.rivalBody.position);
+        step2.y = 0;
+        if (step2.lengthSq() > 1e-4) {
+          const want = Math.atan2(step2.x, step2.z);
+          const mesh = this.rivalBody.mesh;
+          let delta = want - mesh.rotation.y;
+          while (delta > Math.PI) delta -= Math.PI * 2;
+          while (delta < -Math.PI) delta += Math.PI * 2;
+          // Simítva fordul, nem pattan: egy képkocka alatti fordulás
+          // ugyanolyan zavaró, mint a csúszás.
+          mesh.rotation.y += delta * Math.min(1, step * 10);
+        }
+        this.rivalBody.position.copy(this.rival.position);
+        this.rivalBody.mesh.position.copy(this.rival.position);
+      }
       if (fired?.shot) {
         this.noise.emit(fired.shot.noiseAt, this.rival.weapon!.gun.noiseRadius, 'lövés');
         // Az ELLENFÉL lövése is szól: ebből tudod meg, hogy fegyvere van, és
         // hogy nagyjából merről. Egy néma ellenség nem ellenfél, hanem csapda.
         sound.gun(this.rival.weapon!.kind);
+        // Az ELLENFÉL lövése is hagy nyomot: ebből látod, honnan lőttek rád.
+        this.tracer.add(fired.shot.from, fired.shot.to, !!fired.shot.hit);
         if (fired.shot.hit) {
           this.takeHit(
             this.localIndex as 0 | 1,
@@ -781,6 +985,9 @@ export class HouseScene implements GameScene {
       );
       if (shot) {
         this.heldView.fired();
+        // A CSÍK a csővégtől a becsapódásig. A színe mondja meg, hogy
+        // találtál-e — ez gyorsabb, mint bármilyen felirat.
+        this.tracer.add(shot.from, shot.to, !!shot.hit);
         // A TALÁLAT KÖVETKEZMÉNYE: ellökés és minden cukorka a földre. Eddig
         // a lövés elsült és zajt csapott, de a célpontnak nem történt semmi —
         // egy fegyver, aminek nincs hatása, csak egy hangeffekt.
@@ -877,6 +1084,10 @@ export class HouseScene implements GameScene {
 
   render(frameTime: number, width: number, height: number): void {
     this.corners?.update(frameTime);
+    this.tracer.update(frameTime);
+    if (this.capture) {
+      this.looseView?.update(frameTime, this.capture, this.localIndex as 0 | 1);
+    }
     if (this.capture && this.fogoHud) {
       const me = this.localIndex as 0 | 1;
       const them = (1 - me) as 0 | 1;
@@ -1007,6 +1218,8 @@ export class HouseScene implements GameScene {
     this.crosshair.remove();
     this.fogoHud?.dispose();
     this.pickups.dispose();
+    this.looseView?.dispose();
+    this.tracer.dispose();
     this.heldView.dispose();
     this.input.lookLock = false;
     if (document.pointerLockElement) document.exitPointerLock();

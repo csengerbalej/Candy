@@ -171,7 +171,11 @@ export class Hud {
       // a fele a képernyő alatt volt. Alsó éllel rögzítve a magassága már
       // nem számít, akárhány sorra tördel.
       legend.style.top = 'auto';
-      legend.style.bottom = `${height - (cssTop + vp.h) + 14}px`;
+      // A PONTSÁV FÖLÉ. A sáv a kép alján, középen fut (255–625 képpont
+      // között mérve), a magyarázó pedig balról indul és 673-ig ér — rövid
+      // ablakban egymásra kerültek. Negyvenhat képpont ráhagyás elég, hogy a
+      // két sor egymás alatt maradjon.
+      legend.style.bottom = `${height - (cssTop + vp.h) + 46}px`;
       // ...és nem lóghat ki oldalra sem: a panel az övé, nem a képernyő.
       legend.style.maxWidth = `${Math.max(120, vp.w - 28)}px`;
       legend.innerHTML =
@@ -187,7 +191,16 @@ export class Hud {
       const prompt = this.prompts[i];
       prompt.style.opacity = String(st?.prompt && visible ? opacity : 0);
       prompt.style.left = `${vp.x + vp.w / 2}px`;
-      prompt.style.top = `${cssTop + vp.h - 84}px`;
+      // ALULRÓL mérve, a magyarázó FÖLÉ. Felülről számolva rövid ablakban
+      // rácsúszott a billentyűsorra — a kettő különböző éltől mért, és
+      // alacsony képernyőn összeértek.
+      prompt.style.top = 'auto';
+      // A MAGYARÁZÓ FÖLÉ: az alul 46 képponttal kezdődik és 16 magas, tehát
+      // 96 az első szabad sor. Rövid ablakban mérve 62-nél még egymásra
+      // futottak.
+      // A FELUGRÓ ÜZENET a sáv fölé: a sáv 96-nál van és ~30 magas.
+      // Egymásra rakva a két szöveg olvashatatlan — mérve pont ez történt.
+      prompt.style.bottom = `${height - (cssTop + vp.h) + 140}px`;
       // The prompt names the key, so a player never has to guess which button
       // "nyomd meg" means on their own device.
       (prompt.querySelector('.text') as HTMLElement).innerHTML = st?.prompt

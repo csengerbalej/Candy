@@ -15,6 +15,7 @@ import { Anger } from '../src/game/Anger';
 import { StreetCandy } from '../src/world/StreetCandy';
 import { SkidMarks } from '../src/vehicle/SkidMarks';
 import { RivalDriver } from '../src/ai/RivalDriver';
+import { MotorwayTraffic } from '../src/ai/MotorwayTraffic';
 
 /**
  * Headless probe for the driving feel constants. Run: npm run probe:drive
@@ -1711,6 +1712,56 @@ if (!ok) process.exitCode = 1;
     b.update(SIM.step, inp, fal);
   }
   ok = line('falnak szorulva tolat', tolatott, 'nem marad ott gázt adva') && ok;
+}
+
+
+/**
+ * A SZTRÁDA FORGALMA.
+ *
+ * A körpálya eddig üres volt: egy autópálya, amin senki nem jár, díszlet —
+ * és pont az a része a térképnek, ahol a sebességnek értelme lenne. Amit
+ * mérni kell: a körön MARADNAK-e (nem spiráloznak ki), tényleg kétszázzal
+ * megy-e a gyors, és tényleg lassabb-e a többi.
+ */
+{
+  const palya = { inner: 300, outer: 330, middle: 315 };
+  const t = new MotorwayTraffic(palya, 9, () => 0.5);
+
+  const sugar = (p: THREE.Vector3): number => Math.hypot(p.x, p.z);
+  const elso = t.cars.map((c) => sugar(c.position));
+  for (let s = 0; s < 60; s += SIM.step) t.update(SIM.step);
+  const utan = t.cars.map((c) => sugar(c.position));
+
+  const csuszas = Math.max(...utan.map((r, i) => Math.abs(r - elso[i])));
+  ok = line('a sztrádán a kör mentén maradnak', csuszas < 0.01,
+    `a legnagyobb sugárváltozás ${csuszas.toFixed(4)} egység egy perc alatt`) && ok;
+
+  const gyors = t.cars.filter((c) => c.fast);
+  const lassu = t.cars.filter((c) => !c.fast);
+  ok = line('a gyors autó kétszázzal megy',
+    Math.round(gyors[0].speed * 3.6) >= 195 && Math.round(gyors[0].speed * 3.6) <= 205,
+    `${Math.round(gyors[0].speed * 3.6)} km/h`) && ok;
+  ok = line('a többi lassabb', lassu.every((c) => c.speed < gyors[0].speed),
+    `${Math.round(lassu[0].speed * 3.6)} km/h`) && ok;
+  ok = line('a gyors a ritkább', gyors.length < lassu.length,
+    `${gyors.length} gyors, ${lassu.length} lassú`) && ok;
+
+  // A KÉT SÁV ellentétes irányban megy: enélkül a körpálya egyirányú
+  // utca lenne, és félidőben senkivel nem találkoznál szemben.
+  const irany = new Set(
+    t.cars.map((c, i) => {
+      const elott = c.position.clone();
+      t.update(0.1);
+      return Math.sign(Math.atan2(t.cars[i].position.x, t.cars[i].position.z) - Math.atan2(elott.x, elott.z));
+    })
+  );
+  ok = line('a két sáv szembe megy', irany.size > 1, `${[...irany].join(', ')}`) && ok;
+
+  // Kétszázzal egy kör: a 315-ös sugarú pályán ~35 másodperc. Ez nem
+  // önkényes szám — abból jön, hogy a körpálya kerülete 1979 egység.
+  const korIdo = (2 * Math.PI * palya.middle) / STREET.motorwayFast;
+  ok = line('egy kör kétszázzal fél perc körül', korIdo > 25 && korIdo < 45,
+    `${korIdo.toFixed(0)} másodperc`) && ok;
 }
 
 console.log(ok ? 'MIND OK — a vezetés hangolása stabil' : 'VAN BUKÓ TESZT');

@@ -192,6 +192,26 @@ export class Rival {
     const target = wanted.reduce((a, b) =>
       a.distanceTo(this.position) <= b.distanceTo(this.position) ? a : b
     );
+
+    // KITART A CÉLJA MELLETT.
+    //
+    // A döntés fél másodpercenként újraszületik, és két hasonlóan közeli
+    // cukorka között ilyenkor OSZCILLÁL: elindul az egyik felé, a következő
+    // döntésnél a másik lesz egy hajszállal közelebb, megfordul, és így
+    // tovább — kívülről ez „össze-vissza mozgás", pedig minden egyes döntés
+    // helyes volt. Váltani csak akkor vált, ha az új cél ÉRDEMBEN közelebb
+    // van (negyedével), vagy ha a régi eltűnt.
+    const current = this.path.length ? this.path[this.path.length - 1] : null;
+    const stillThere = current && wanted.some((w) => w.distanceTo(current) < 1.5);
+    if (stillThere && current) {
+      const now = current.distanceTo(this.position);
+      const next = target.distanceTo(this.position);
+      if (next > now * 0.75) {
+        this.state = 'GYUJT';
+        return;
+      }
+    }
+
     this.state = 'GYUJT';
     this.path = this.world.route(this.position, target, MOVE.radius);
   }

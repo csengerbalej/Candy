@@ -161,6 +161,22 @@ export class InputManager {
     return this.scopeHeld || this.held.has('ShiftRight') || !!this.touch?.state.scope;
   }
 
+  /**
+   * ÚJRAÉLEDÉS (R).
+   *
+   * Nem kényelmi gomb: a sarokba szorított játékosnak kell egy KIÚT, ami nem
+   * az „ülj és várj". Az ára viszont valódi — ami a kezedben van, ottmarad a
+   * földön az ellenfélnek.
+   */
+  private respawnPressed = false;
+
+  /** Igaz egyszer, ha az újraéledést kérték. */
+  consumeRespawn(): boolean {
+    const hit = this.respawnPressed;
+    this.respawnPressed = false;
+    return hit;
+  }
+
   /** Igaz egyszer, ha lőttek. */
   consumeFire(): boolean {
     if (this.touch?.consumeFire()) this.firePressed = true;
@@ -255,6 +271,7 @@ export class InputManager {
       // elsőt — és ettől a teljes billentyűzet elnémult a mérésekben, úgy,
       // hogy a játékban működött.
       if (e.code === 'ControlLeft') this.firePressed = true;
+      if (e.code === 'KeyR') this.respawnPressed = true;
       const quick = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(e.code);
       if (quick >= 0) this.quickSlot = quick;
       this.held.add(e.code);

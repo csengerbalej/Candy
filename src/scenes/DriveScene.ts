@@ -14,6 +14,7 @@ import { Checkpoints } from '../world/Checkpoints';
 import { SkidMarks } from '../vehicle/SkidMarks';
 import { Base } from '../world/Base';
 import { RivalDriver } from '../ai/RivalDriver';
+import { MotorwayTraffic } from '../ai/MotorwayTraffic';
 import { FogoHud } from '../ui/FogoHud';
 import { Delivery } from '../game/Delivery';
 import { CarTraffic } from '../ai/CarTraffic';
@@ -221,6 +222,8 @@ export class DriveScene implements GameScene {
   private sky: THREE.Object3D | null = null;
   private readonly challenge: Challenge;
   private readonly cars: CarTraffic | null;
+  /** A körpálya forgalma. `null`, ha a térképen nincs sztráda. */
+  private readonly motorway: MotorwayTraffic | null;
   private readonly checkpoints: Checkpoints | null;
   private readonly lastCarAt = new THREE.Vector3();
   /**
@@ -321,6 +324,26 @@ export class DriveScene implements GameScene {
     const grid = world.streetGrid;
     this.cars = grid ? new CarTraffic(grid, STREET.npcCarCount, world.lightSpots) : null;
     if (this.cars) this.scene.add(this.cars.group);
+
+    // A SZTRÁDA FORGALMA. A városon kívüli körpálya eddig üres volt: egy
+    // autópálya, amin senki nem jár, díszlet — és pont az a része a
+    // térképnek, ahol a sebességnek végre értelme lenne.
+    const ring = world.motorway;
+    this.motorway = ring ? new MotorwayTraffic(ring, STREET.motorwayCount) : null;
+    if (this.motorway) {
+      this.scene.add(this.motorway.group);
+      void Promise.all([
+        models.instance('models/bmw.json', { length: CAR.length }),
+        models.instance('models/rusty.json', { length: CAR.length }),
+      ])
+        .then(([fast, slow]) => {
+          if (this.disposed || !this.motorway) return;
+          toonify(fast, { floor: 0.4, tint: 0x7ad7ff });
+          toonify(slow, { floor: 0.42, tint: PALETTE.p1 });
+          this.motorway.setArt((isFast) => (isFast ? fast : slow).clone(true));
+        })
+        .catch(() => {});
+    }
 
     // A jelzőlámpák. Nem csak szabály: ez a kilenc váltakozó fény az első
     // dolog a városban, ami MAGÁTÓL mozog.
@@ -831,6 +854,7 @@ export class DriveScene implements GameScene {
 
     this.lights.update(step, this.car.position, this.car.heading);
     this.cars?.update(step, this.lights, this.carPositions());
+    this.motorway?.update(step);
     if (this.lights.justRan) {
       this.game.say('PIROSON MENTÉL ÁT');
       this.anger.ranRedLight();

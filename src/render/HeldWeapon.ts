@@ -54,6 +54,12 @@ export class HeldWeapon {
     // dobná el, amit a markolathoz igazítottunk a sütéskor.
     const clone = scene.clone(true);
     clone.scale.setScalar(HAND_SCALE);
+    // MEGFORDÍTVA. A modellek orra a +Z felé néz (így süti a normalizáló, és
+    // a világban heverő fegyvernél ez a helyes), a kamera viszont a saját
+    // −Z-je felé néz. A kamera forgatását átvéve a fegyver ezért HÁTRAFELÉ
+    // állt: a tusa előre, a cső a játékos felé. Egy fél fordulat a
+    // különbség — és pont ez az a fajta, amit csak a képen lehet észrevenni.
+    clone.rotation.y = Math.PI;
     this.art?.removeFromParent();
     this.art = clone;
     this.group.clear();
@@ -117,6 +123,9 @@ export class HeldWeapon {
       const material = this.flash.material as THREE.MeshBasicMaterial;
       material.opacity = this.flashLeft > 0 ? 0.9 : 0;
       this.flash.visible = this.flashLeft > 0;
+      // A torkolattűz a CSŐVÉGEN: a modell meg van fordítva, tehát a
+      // csővég a modell saját −Z-je felé van — de a csoport is fordul,
+      // úgyhogy a világban előre. Egy helyen kell eltalálni, és ez az.
       this.flash.position.set(0, 0, -length);
       this.flash.scale.setScalar(0.8 + Math.random() * 0.5);
     }

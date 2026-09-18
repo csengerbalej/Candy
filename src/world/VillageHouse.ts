@@ -568,6 +568,35 @@ export class VillageHouse implements HouseWorld {
    * senki nem kérdezte meg tőle, van-e ott fal — a játékos a saját
    * ütközésvizsgálatát kapta, a lakó semmit.
    */
+  /**
+   * Véletlen pont, ahol a test ELFÉR.
+   *
+   * A fegyverek és a cukorka eddig néhány rögzített helyre kerültek (a
+   * járőrpontokra és a tálakhoz), tehát minden kör ugyanott kezdődött: a
+   * játékos két menet után fejből tudta, hova kell futni. Véletlen helyekkel
+   * a keresés is része a játéknak.
+   *
+   * @param avoid Pontok, amiktől távol kell maradni — a gyűjtősarkok. Egy
+   * sarokban termő fegyver azt jelentené, hogy aki hazaér, ingyen kap
+   * egyet; a sarokban termő cukorka pedig már eleve be volna hordva.
+   */
+  randomStanding(
+    random: () => number,
+    radius: number,
+    avoid: readonly THREE.Vector3[] = [],
+    avoidRadius = 8
+  ): THREE.Vector3 | null {
+    for (let tries = 0; tries < 60; tries++) {
+      const i = Math.floor(random() * this.nav.n);
+      const j = Math.floor(random() * this.nav.n);
+      if (!this.inside(i, j) || !this.clearFor(i, j, radius)) continue;
+      const at = new THREE.Vector3(this.worldX(i), 0, this.worldZ(j));
+      if (avoid.some((a) => a.distanceTo(at) < avoidRadius)) continue;
+      return at;
+    }
+    return null;
+  }
+
   walkable(x: number, z: number, radius: number): boolean {
     const i = this.col(x);
     const j = this.row(z);

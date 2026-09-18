@@ -99,6 +99,20 @@ export class VillageWorld implements DriveWorld {
     return r > ring.inner - 0.02 && r < ring.outer + 0.02;
   }
 
+  /**
+   * A KÖRPÁLYA sugarai világegységben, vagy `null`.
+   *
+   * A sztrádán közlekedő forgalomnak kell: ott nincs rács és nincs
+   * kereszteződés, egyetlen kör van — és a kör KÖZEPE a sáv, nem a széle.
+   */
+  get motorway(): { inner: number; outer: number; middle: number } | null {
+    const ring = this.nav.ring;
+    if (!ring) return null;
+    const inner = ring.inner * VILLAGE_SCALE;
+    const outer = ring.outer * VILLAGE_SCALE;
+    return { inner, outer, middle: (inner + outer) / 2 };
+  }
+
   /** Az utcarács, ahogy a térkép megadta. `null`, ha régi falutérkép. */
   get streetGrid(): { pitchX: number; pitchZ: number; count: number; street: number; builtX: number; builtZ: number } | null {
     return this.nav.grid ?? null;

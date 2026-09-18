@@ -26,6 +26,14 @@ LENGTH = float(argv[2]) if len(argv) > 2 else 1.2
 # Hol van a markolat a hossz mentén, hátulról mérve. 0,25 = a fegyver hátsó
 # negyedében, ahol egy kéz tényleg fogja.
 GRIP = float(argv[3]) if len(argv) > 3 else 0.25
+# Megfordítja a modellt a hossztengelye mentén.
+#
+# A forgatás a leghosszabb tengelyt a helyére viszi, de azt nem tudja, hogy a
+# modell melyik VÉGE az orra — az autóknál mérve kiderült, hogy hátrafelé
+# néztek. Ez egy nézés kérdése, nem számításé, ezért kapcsoló.
+FLIP = len(argv) > 4 and argv[4] == 'flip'
+# 'auto': a modell dönti el, melyik vége az orr.
+AUTO = len(argv) > 4 and argv[4] == 'auto'
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=src)
@@ -64,6 +72,38 @@ for v in obj.data.vertices:
     elif axis == 2:    # Z a hossz -> Y-ba
         v.co = Vector((x, z, -y))
 obj.data.update()
+
+if AUTO:
+    # A CSŐVÉG A VÉKONYABB VÉG.
+    #
+    # A forgatás a leghosszabb tengelyt a helyére viszi, de azt nem tudja,
+    # melyik VÉGE az orr — a három fegyver közül a sörétes véletlenül jól
+    # állt, a mesterlövész viszont visszafelé nézett a kézben. Ezt nem
+    # fegyverenként tippelem meg: a cső vékony, a tus és a markolat vastag,
+    # tehát a két vég keresztmetszetének összevetése MEGMONDJA, melyik az orr.
+    ys = [v.co.y for v in obj.data.vertices]
+    lo_y, hi_y = min(ys), max(ys)
+    span = hi_y - lo_y
+    def vastagsag(a, b):
+        band = [v.co for v in obj.data.vertices if a <= v.co.y <= b]
+        if not band:
+            return 0.0
+        return (max(p.x for p in band) - min(p.x for p in band)) + (
+            max(p.z for p in band) - min(p.z for p in band)
+        )
+    elso = vastagsag(hi_y - span * 0.18, hi_y)
+    hatso = vastagsag(lo_y, lo_y + span * 0.18)
+    print(f'VEGEK  elol {elso:.3f} | hatul {hatso:.3f}')
+    if elso > hatso:
+        print('FORDITAS: a vastagabb vég volt elöl')
+        for v in obj.data.vertices:
+            v.co = Vector((-v.co.x, -v.co.y, v.co.z))
+        obj.data.update()
+
+if FLIP:
+    for v in obj.data.vertices:
+        v.co = Vector((-v.co.x, -v.co.y, v.co.z))
+    obj.data.update()
 
 # Hossz a kértre.
 lo, hi, dim = size(obj)

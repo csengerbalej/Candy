@@ -622,6 +622,22 @@ for (const kind of ['shotgun', 'sniper', 'rocket'] as GunId[]) {
     `${soret.magas.toFixed(1)} egység magasra`) && ok;
 }
 
+
+// --- A FÖLDÖN FEKVŐ CUKORKA ELFOGY -------------------------------------------
+//
+// Enélkül a kiszórt zsákmány örökre ott maradt, és a padló egy biztonságos
+// raktár lett: senkinek nem kellett sietnie. A lejárat teszi versennyé.
+{
+  const g = new Capture([{ player: 0, position: at(0, 0) }, { player: 1, position: at(30, 0) }]);
+  g.loose.push({ position: at(5, 0), droppedBy: null, age: 0 });
+  for (let t = 0; t < CAPTURE.looseLife * 0.5; t += SIM.step) g.update(SIM.step);
+  line('félidőben még ott van', g.loose.length === 1, `${CAPTURE.looseLife} mp az élete`);
+  for (let t = 0; t < CAPTURE.looseLife; t += SIM.step) g.update(SIM.step);
+  line('lejárva eltűnik', g.loose.length === 0, '');
+  line('az élettartam rövid, de elérhető',
+    CAPTURE.looseLife >= 5 && CAPTURE.looseLife <= 12, `${CAPTURE.looseLife} mp`);
+}
+
 console.log('');
 console.log(ok ? 'MIND OK — a fegyverek, a rablás és a felszedés szabályai állnak' : 'VAN BUKÓ TESZT');
 process.exit(ok ? 0 : 1);

@@ -686,6 +686,16 @@ export const STREET = {
    * pálya; egy tele város akadálypálya — a kettő között van a város.
    */
   npcCarCount: 12,
+  /**
+   * A SZTRÁDA forgalma: hány autó jár a körpályán, és milyen gyorsan.
+   *
+   * 200 km/h = 55,6 egység/mp (a kijelző 3,6-del szoroz). A lassabbak 130-cal
+   * mennek: a különbség az, amitől a gyors autó ESEMÉNY, amikor elhúz
+   * melletted. Ha mind egyformán menne, egyik sem volna gyors.
+   */
+  motorwayCount: 9,
+  motorwayFast: 55.6,
+  motorwaySlow: 36,
   critterSpeed: 1.9,
   /**
    * Ennyire kell megközelíteni, hogy a várakozó szörnyecske kiugorjon.
@@ -803,6 +813,14 @@ export const CAPTURE = {
   spread: 1.3,
   /** Ennyi ideig nem szedheti fel ugyanaz, aki elejtette — különben azonnal visszakapja. */
   graceOwn: 1.1,
+  /**
+   * Ennyi ideig hever a földön egy elejtett cukorka, aztán ELTŰNIK.
+   *
+   * Enélkül a kiszórt cukorka örökre ott maradt, és a padló egy idő után egy
+   * biztonságos raktár lett: senkinek nem kellett sietnie érte. Nyolc
+   * másodperc annyi, hogy a közelebbi fél oda tudjon érni, de futni kell.
+   */
+  looseLife: 8,
   /** Ennyi cukorka kell a kör megnyeréséhez. */
   win: 5,
 } as const;
@@ -1023,6 +1041,19 @@ export const RIVAL = {
 export const DELIVERY = {
   /** Ennyi cukorkát kell a sarokba vinni, hogy a ház teljesítve legyen. */
   quota: 5,
+  /**
+   * Ennyi idő múlva telik meg újra egy kiürített tál — CSAK fogó módban.
+   *
+   * Mérve derült ki, hogy kell: a házban három tál van, a kvóta viszont öt.
+   * Az utolsó tál után nem volt honnan cukorkát szerezni, és a kör
+   * megnyerhetetlenné vált — nem nehéz lett, hanem lehetetlen.
+   *
+   * Kooperatívban NEM töltődik újra: ott a kvóta maga a felemelt tálak
+   * száma, és egy újratelő tál visszazárná a már kinyílt ajtót.
+   */
+  bowlRefill: 14,
+  /** Az újraéledés ára: ennyi ideig nem mozdulsz, miután visszakerültél. */
+  respawnStun: 1.1,
   /** A bázis sugara: ezen belül lehet lerakni. */
   radius: 9,
   /** A lerakás ideje. Nem azonnali: a hazaérkezés is pillanat legyen, ne érintés. */

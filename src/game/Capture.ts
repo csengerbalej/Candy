@@ -59,7 +59,12 @@ export class Capture {
     for (const i of [0, 1] as const) {
       this.knocked[i] = Math.max(0, this.knocked[i] - dt);
     }
-    for (const piece of this.loose) piece.age += dt;
+    // A FÖLDÖN FEKVŐ CUKORKA ELFOGY. A kiszórt zsákmány így nem raktár,
+    // hanem lehetőség: aki közelebb van, oda tud érni, de futnia kell.
+    for (let i = this.loose.length - 1; i >= 0; i--) {
+      this.loose[i].age += dt;
+      if (this.loose[i].age > CAPTURE.looseLife) this.loose.splice(i, 1);
+    }
   }
 
   /** A tálból felszedett cukorka a KÉZBE kerül, nem a pontszámba. */

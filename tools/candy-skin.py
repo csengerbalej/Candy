@@ -43,10 +43,14 @@ main, accent, glow = rgb(MAIN), rgb(ACCENT), rgb(GLOW)
 px = [0.0] * (SIZE * SIZE * 4)
 for y in range(SIZE):
     for x in range(SIZE):
-        band = ((x + y) // BAND) % 5
+        band = ((x + y) // BAND) % 8
+        # NYOLC sávból EGY az ékszín és EGY a kiemelés: a maradék hat a
+        # főszín. Autónál ez a helyes arány — egy nagy, egyszínű karosszéria
+        # néhány csíkkal. Öt sávból kettő ékszín (a korábbi arány) a
+        # széttöredezett UV-n terepmintát adott, nem járművet.
         if band == 0:
             c = accent
-        elif band == 3:
+        elif band == 4:
             c = glow
         else:
             c = main

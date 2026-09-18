@@ -170,7 +170,10 @@
       .hud-prompt kbd { --accent: inherit; font-size: 10px; }
 
       .hud-banner {
-        position: absolute; left: 50%; bottom: 52px; transform: translateX(-50%);
+        /* A BILLENTYŰ-MAGYARÁZÓ FÖLÉ. A magyarázó alul 46 képponttal kezdődik
+           és tördelve két sor is lehet; 52 képpont nem volt elég fölé, és
+           880×620-on mérve egymásra futottak. */
+        position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%);
         padding: 7px 18px; border-radius: 3px;
         background: rgba(10, 6, 22, .8); backdrop-filter: blur(6px);
         border-left: 3px solid #ff7a29;
@@ -577,7 +580,11 @@
       .chat-field::placeholder { color: rgba(255,255,255,.35); }
       @media (prefers-reduced-motion: reduce) { .chat-log p { animation: none; } }
 .net-badge {
-        position: fixed; top: 12px; right: 14px; z-index: 60; pointer-events: none;
+        /* BALRA, a névtábla alá. Jobb felül a MINIMAPA van — 880 képpont
+           széles ablakban mérve a kettő egymásra futott, és a térkép a
+           fontosabb: azt nézed menekülés közben, a szobajelzőt nem. */
+        position: fixed; top: 46px; left: 14px; right: auto;
+        max-width: min(420px, 52vw); z-index: 60; pointer-events: none;
         display: flex; align-items: center; gap: 8px;
         padding: 7px 12px 7px 10px; border-radius: 999px;
         background: rgba(11,7,22,.72); border: 1px solid rgba(255,255,255,.12);
@@ -774,15 +781,20 @@
       /* A ház alján szabad a hely; a VÁROSBAN viszont ott fut a pontsáv, a
          billentyű-magyarázó és a sebességmérő — mérve mind a három ütközött
          vele. Kint ezért FELÜLRE megy, a névtábla alá. */
-      .fogo { position: fixed; inset: auto 0 12px 0; display: flex; justify-content: space-between;
-        align-items: flex-end; padding: 0 18px; pointer-events: none; z-index: 28;
-        font-family: ui-monospace, Menlo, monospace; }
-      .fogo[data-where="varos"] { inset: 52px 0 auto 0; align-items: flex-start; }
+      /* A FOGÓ KIJELZŐJE A BAL OLDALI OSZLOPBAN.
+         Előbb a képernyő aljára tettem, aztán a felső sávba — mindkettőnél
+         ütközött valamivel (pontsáv, magyarázó, névtábla, szobajelző,
+         minimapa), méghozzá csak KESKENYEBB ablakban, ahol a blokkok
+         összeérnek. A bal oszlop az egyetlen sáv, amit semmi más nem
+         használ: a névtábla alatt kezdődik, és a magyarázó fölött véget ér. */
+      .fogo { position: fixed; left: 16px; top: 132px; bottom: auto; right: auto;
+        display: grid; gap: 10px; justify-items: start; pointer-events: none;
+        z-index: 28; font-family: ui-monospace, Menlo, monospace; }
+      .fogo-me, .fogo-them { grid-auto-flow: column; }
       /* A HÁZBAN is felülre megy: a kép alján a pontsáv és a
          billentyű-magyarázó fut (mérve mindkettővel ütközött), a térkép pedig
          a jobb felső sarkot foglalja — marad a bal felső és a középső sáv. */
-      .fogo[data-where="haz"] { inset: 52px 0 auto 0; align-items: flex-start; }
-      .fogo[data-where="haz"] .fogo-them { margin-right: 168px; }
+
       .fogo-me, .fogo-them { display: grid; grid-auto-flow: column; align-items: baseline; gap: 6px 10px; }
       .fogo b { font-size: 22px; color: #ffd9a8; letter-spacing: .02em; }
       .fogo span { font-size: 10px; letter-spacing: .12em; color: rgba(255,255,255,.55); }
