@@ -53,7 +53,7 @@ import { studioEnvironment, applyEnvironment } from '../render/Environment';
  * the players are dimmer than the furniture.
  */
 const CHARACTER_KEY = 60;
-import { CharacterRig, HOMEOWNER_CLIPS, type Rig } from '../render/CharacterRig';
+import { CharacterRig, HOMEOWNER_CLIPS, LURKER_CLIPS, type Rig } from '../render/CharacterRig';
 import { ProceduralRig } from '../render/ProceduralRig';
 import { CHARACTERS } from '../game/Characters';
 import type { InputManager } from '../input/InputManager';
@@ -104,7 +104,7 @@ export class HouseScene implements GameScene {
    * lámpa tehát egyszerre a helyes és a végzetes válasz, attól függően,
    * hogy mi áll ott a sötétben.
    */
-  private readonly lurkerKind: Array<'arnyek' | 'leso' | 'koveto'> = [];
+  private readonly lurkerKind: Array<'vak' | 'leso' | 'koveto'> = [];
   /** Mennyi ideje éri a fény (árnyék), vagy mióta nyugodt (leső). */
   private readonly lurkerTimer: number[] = [];
   /** Amíg fut, elijesztve van és nem jön vissza. */
@@ -519,7 +519,15 @@ export class HouseScene implements GameScene {
       // kell — lát, hall, járőrözik, üldöz, elveszíti a nyomot. Egy külön
       // „szörny-intelligencia" ugyanezt írná le még egyszer, és a hibái is
       // külön hibák lennének. Ami más, az a HANGOLÁS és a KINÉZET.
-      const arcok = ['werewolf', 'zombie', 'vampire'] as const;
+      // A HÁROM SZÖRNY. Mindegyiknek saját modellje van, és mindegyik
+      // pontosan arra a szabályra készült, amit megtestesít: a vaknak
+      // óriási füle van és nincs szeme, a követő átázott kabátban jön, a
+      // lesőnek pókszemei vannak — azok verik vissza a lámpád fényét.
+      const fajok = [
+        { kind: 'vak' as const, model: 'models/lurker-vak.json', arc: 'werewolf' as const },
+        { kind: 'koveto' as const, model: 'models/lurker-koveto.json', arc: 'zombie' as const },
+        { kind: 'leso' as const, model: 'models/lurker-leso.json', arc: 'vampire' as const },
+      ];
       for (let i = 0; i < HAUNT.monsters; i++) {
         // Mindegyik MÁS pontról indul és más sorrendben járja a házat:
         // különben hárman ugyanazt a kört rónák egymás mögött.
@@ -528,21 +536,45 @@ export class HouseScene implements GameScene {
           const j = Math.floor(this.sors() * (k + 1));
           [utvonal[k], utvonal[j]] = [utvonal[j], utvonal[k]];
         }
+        const faj = fajok[i % fajok.length];
         const start = utvonal[0] ?? this.world.homeownerSpawn;
         const szorny = new Homeowner(start.clone(), utvonal, this.world.occluders);
         szorny.sightBlocked = (from, to) => this.world.sightBlocked(from, to);
         szorny.walkable = (x, z, radius) => this.world.walkable(x, z, radius);
         szorny.rescue = (from, toward, radius) => this.world.nearestStanding(from, toward, radius);
         szorny.findRoute = (from, to, radius) => this.world.route(from, to, radius);
+
+        // A HÁROM TULAJDONSÁG. Nem három nehézségi fok — három KÉRDÉS,
+        // amire másképp kell válaszolni.
+        if (faj.kind === 'vak') {
+          // A VAK NEM LÁT. Nem „rosszul lát": a látása egyszerűen nem
+          // létezik, mert minden útjába kerülőt falnak hisz. Ami marad, az
+          // a hallása — és ettől lesz a csend maga a védelem.
+          szorny.sightBlocked = () => true;
+          szorny.speedScale = 0.85;
+        } else if (faj.kind === 'koveto') {
+          // A KÖVETŐ LASSÚ, ÉS NEM ADJA FEL. A kettő együtt a jelleme: ha
+          // gyors volna, esélytelen lenne ellene; ha feladná, elég volna
+          // befordulni egy sarkon. Így viszont futni kell — és a futás
+          // zaj, amit a másik kettő meghall.
+          szorny.speedScale = 0.62;
+          szorny.relentless = true;
+        } else {
+          // A LESŐ ÁLL. Amíg rá nem világítasz, nem is létezik: nem
+          // járőrözik, nem hall, nem néz. Amikor viszont felébred, ő a
+          // leggyorsabb a házban.
+          szorny.speedScale = 1.35;
+          szorny.state = 'IDLE';
+        }
         this.lurkers.push(szorny);
         // Egy mindegyikből: három szörny, három ellenszer. Ha kettő volna
         // ugyanolyan, az egyik tudás feleslegessé válna.
-        this.lurkerKind.push((['arnyek', 'leso', 'koveto'] as const)[i % 3]);
+        this.lurkerKind.push(faj.kind);
         this.lurkerTimer.push(0);
         this.lurkerFled.push(0);
-        this.lurkerFaces.push(CHARACTERS[arcok[i % arcok.length]].portrait);
+        this.lurkerFaces.push(CHARACTERS[faj.arc].portrait);
         this.scene.add(szorny.group);
-        void this.dressLurker(szorny, CHARACTERS[arcok[i % arcok.length]].model, this.lurkerKind[i]);
+        void this.dressLurker(szorny, faj.model, faj.kind);
       }
 
       // A LAKÓ nincs a házban: itt nem egy dühös felnőtt a tét. A csoportját
@@ -968,7 +1000,7 @@ export class HouseScene implements GameScene {
   private async dressLurker(
     who: Homeowner,
     model: string,
-    fajta: 'arnyek' | 'leso' | 'koveto'
+    fajta: 'vak' | 'leso' | 'koveto'
   ): Promise<void> {
     try {
       // EMBERMÉRETŰ SZÖRNY: két méter. A lakó 6,4 egység magas, mert ő egy
@@ -976,6 +1008,11 @@ export class HouseScene implements GameScene {
       // elindul feléd a sötétben, az akkora, mint te. Egy kicsit magasabb:
       // annyival, amennyitől rossz ránézni.
       const art = await models.instance(model, { height: 2.1 });
+      if (this.disposed) return;
+      // A MOZGÁS. A modell magával hozza a járásciklusát — ugyanaz a rig,
+      // mint a lakóé, csak egyetlen klippel: ezek a lények nem ácsorognak
+      // és nem tétováznak, csak jönnek.
+      const clips = await models.ownClips(model);
       if (this.disposed) return;
       art.traverse((o) => {
         o.userData.cpNoOutline = true;
@@ -1002,31 +1039,21 @@ export class HouseScene implements GameScene {
       // Ez az egész mód legfontosabb fél másodperce, és szándékosan egy
       // pillanatnyi döntés: ugyanaz a mozdulat menti meg vagy öli meg a
       // kört, attól függően, mit látsz.
-      if (fajta === 'arnyek') {
-        who.group.visible = true;
-        art.traverse((o) => {
-          const mesh = o as THREE.Mesh;
-          if (!mesh.isMesh) return;
-          // Az árnyék TÉNYLEG árnyék: nem veri vissza a fényt, csak
-          // kitakarja azt, ami mögötte van.
-          mesh.material = new THREE.MeshBasicMaterial({ color: 0x07050b });
-        });
-      }
-      for (const oldal of fajta === 'arnyek' ? [] : [-1, 1]) {
+      for (const oldal of fajta === 'vak' ? [] : [-1, 1]) {
         const szem = new THREE.Mesh(
           new THREE.SphereGeometry(0.075, 8, 8),
-          new THREE.MeshBasicMaterial({ color: fajta === 'leso' ? 0xfff0b0 : 0xff3a2a })
+          // A LESŐ SZEME VILÁGOS ÉS FÉNYLŐ — ez az a jel, amiből tudod,
+          // hogy nem szabad ráfognod a lámpát. A követőé tompa vörös:
+          // rajta úgysem segít semmi.
+          new THREE.MeshBasicMaterial({ color: fajta === 'leso' ? 0xfff0b0 : 0x8a1a12 })
         );
         szem.userData.cpNoOutline = true;
         szem.position.set(oldal * 0.14, 1.75, 0.25);
         art.add(szem);
       }
-      who.group.add(art);
-      // A tokot elrejtjük: a modell VAN ott, nem a helykitöltő.
-      for (const child of who.group.children) {
-        const mesh = child as THREE.Mesh;
-        if (mesh.isMesh) mesh.visible = false;
-      }
+      // A `setArt` maga teszi be a csoportba, és el is takarítja a tokot —
+      // ugyanaz az út, amin a lakó modellje is érkezik.
+      who.setArt(art, new CharacterRig(art, clips, LURKER_CLIPS));
     } catch (e) {
       // Modell nélkül a tok marad — sötét kapszula a sötétben. Nem szép,
       // de attól még ott van, és attól még elkap.
@@ -1690,11 +1717,22 @@ export class HouseScene implements GameScene {
       const elteres = Math.abs(((irany - lampasnal.mesh.rotation.y + Math.PI) % (Math.PI * 2)) - Math.PI);
       const fenyben = eg && tav < HAUNT.beamRange && elteres < HAUNT.beam;
 
-      if (this.lurkerKind[i] === 'arnyek') {
-        // AZ ÁRNYÉKOT A FÉNY ELÉGETI. De amíg ráfogod, ÁLLSZ — és a telep
-        // hatszoros ütemben fogy. A győzelem itt nem ingyenes: fényt
-        // égetsz el érte, és közben nem mozdulsz.
+      if (this.lurkerKind[i] === 'leso') {
+        // A LESŐ: EGY MOZDULAT, KÉT KÖVETKEZMÉNY.
+        //
+        // A lámpa felébreszti ÉS égeti. Ha kitartod a fényt két
+        // másodpercig, szétfoszlik. Ha félúton elkapod a tekinteted, akkor
+        // viszont már ébren van — és ő a leggyorsabb a házban.
+        //
+        // Ez a mód legjobb döntése, mert nem tudás kérdése, hanem IDEGÉ:
+        // pontosan tudod, mit kell tenned, és mégis nehéz megcsinálni,
+        // mert közben feléd jön.
         if (fenyben) {
+          if (szorny.state === 'IDLE') {
+            szorny.state = 'CHASE';
+            this.game.banner = 'FELÉBRESZTETTED';
+            sound.clip('empty', 0.6);
+          }
           this.lurkerTimer[i] += step;
           eget = true;
           this.game.banner = `ÉGETED… ${Math.round((this.lurkerTimer[i] / HAUNT.burn) * 100)}%`;
@@ -1702,33 +1740,38 @@ export class HouseScene implements GameScene {
             this.lurkerTimer[i] = 0;
             this.lurkerFled[i] = HAUNT.flee;
             szorny.group.visible = false;
-            this.game.banner = 'AZ ÁRNYÉK SZÉTFOSZLOTT';
+            szorny.state = 'IDLE';
+            this.game.banner = 'SZÉTFOSZLOTT';
             sound.clip('reload-start', 0.5);
             continue;
           }
         } else {
-          // Levetted róla: az égés nem őrződik meg. Szakaszokban nem megy.
+          // Levetted róla: az égés nem őrződik meg. Szakaszokban nem megy
+          // — vagy kitartod, vagy nem kezded el.
           this.lurkerTimer[i] = Math.max(0, this.lurkerTimer[i] - step * 2);
         }
-      } else if (this.lurkerKind[i] === 'leso') {
-        // A LESŐT A FÉNY ÉBRESZTI FEL — ugyanaz a mozdulat, ellentétes
-        // következménnyel. Az ellenszere a sötét: kapcsold le a lámpát és
-        // állj meg, és négy másodperc múlva visszaáll a helyére.
-        if (fenyben) {
-          this.lurkerTimer[i] = 0;
-        } else if (!eg && lampasnal.moving === false) {
+      } else if (this.lurkerKind[i] === 'vak') {
+        // A VAK a csendtől veszíti el a nyomot. Nem lát, tehát nincs mit
+        // megszakítani — állj meg, és néhány másodperc múlva továbbmegy.
+        if (!lampasnal.moving && szorny.state !== 'PATROL') {
           this.lurkerTimer[i] += step;
-          if (this.lurkerTimer[i] >= HAUNT.calm && szorny.state !== 'PATROL') {
+          if (this.lurkerTimer[i] >= HAUNT.calm) {
             szorny.state = 'PATROL';
             this.lurkerTimer[i] = 0;
-            this.game.banner = 'ELVESZTETTE A NYOMOT';
+            this.game.banner = 'ELVESZTETTE A HANGOD';
           }
+        } else {
+          this.lurkerTimer[i] = 0;
         }
       }
       // A KÖVETŐNEK nincs fényellenszere: azt csak elveszíteni lehet. A
       // ház a fegyver ellene — sarkok, kerülők, a folyosórács.
 
       szorny.group.visible = true;
+      // A LESŐ ÁLL, amíg alszik: nem járőrözik és nem is hall. Ezért nem
+      // is lépteti a szabályait — egy alvó leső a szoba bútora, amíg rá
+      // nem világítasz.
+      if (this.lurkerKind[i] === 'leso' && szorny.state === 'IDLE') continue;
       szorny.update(step, talpon, this.noise);
     }
 

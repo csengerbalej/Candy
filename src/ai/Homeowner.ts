@@ -81,6 +81,24 @@ export class Homeowner {
    * helye a betöltésig üres lenne, a játékos pont abban a pár másodpercben
    * tanulná meg, hogy oda be lehet menni.
    */
+  /**
+   * SEBESSÉGSZORZÓ — a szereplő jellemének a fele.
+   *
+   * A lakó egy dühös felnőtt: egy sebesség elég neki. A kísértetház
+   * szörnyeinél viszont pont a tempó a jellem: a Követő attól félelmetes,
+   * hogy LASSÚ és mégsem lehet lerázni, a Leső attól, hogy amikor
+   * felébred, HIRTELEN gyors. Ugyanaz a mozgás, két szorzóval.
+   */
+  speedScale = 1;
+
+  /**
+   * NEM ADJA FEL: az üldözés nem jár le magától.
+   *
+   * A Követő egyetlen tulajdonsága. Enélkül ugyanaz volna, mint a többi —
+   * egy kis kerülő, és elveszíti a nyomot.
+   */
+  relentless = false;
+
   setArt(art: THREE.Object3D, rig: Rig): void {
     this.group.remove(this.blockout);
     this.blockout.geometry.dispose();
@@ -303,7 +321,7 @@ export class Homeowner {
         // csinál semmit, amiért kitaláltuk.
         if (away.lengthSq() < 1e-4) away.set(-Math.sin(this.facing), 0, -Math.cos(this.facing));
         away.normalize();
-        this.step(away, HOMEOWNER.walkSpeed * dt);
+        this.step(away, HOMEOWNER.walkSpeed * this.speedScale * dt);
       }
       this.applyTransform(dt);
       return;
@@ -351,7 +369,7 @@ export class Homeowner {
         if (this.suspicion >= 1) return this.enter('ALERT', HOMEOWNER.alertTime);
         if (this.suspicion > 0.35) return this.enter('SUSPICIOUS', 0.8);
         const wp = this.waypoints[this.waypointIndex];
-        if (this.walkToward(wp, HOMEOWNER.walkSpeed, dt)) {
+        if (this.walkToward(wp, HOMEOWNER.walkSpeed * this.speedScale, dt)) {
           this.waypointIndex = (this.waypointIndex + 1) % this.waypoints.length;
           this.enter('IDLE', HOMEOWNER.idleTime);
         }
@@ -368,7 +386,7 @@ export class Homeowner {
       case 'INVESTIGATE':
         if (this.suspicion >= 1) return this.enter('ALERT', HOMEOWNER.alertTime);
         if (!this.lastStimulus) return this.enter('RETURN');
-        if (this.walkToward(this.lastStimulus, HOMEOWNER.walkSpeed * 1.15, dt) || this.stateTimer <= 0) {
+        if (this.walkToward(this.lastStimulus, HOMEOWNER.walkSpeed * 1.15 * this.speedScale, dt) || this.stateTimer <= 0) {
           this.enter('SEARCH', HOMEOWNER.searchTime);
         }
         break;
@@ -380,8 +398,11 @@ export class Homeowner {
 
       case 'CHASE':
         if (!this.lastStimulus) return this.enter('SEARCH', HOMEOWNER.searchTime);
-        this.walkToward(this.lastStimulus, HOMEOWNER.chaseSpeed, dt);
-        if (this.sightLostTimer <= 0) this.enter('SEARCH', HOMEOWNER.searchTime);
+        this.walkToward(this.lastStimulus, HOMEOWNER.chaseSpeed * this.speedScale, dt);
+        // A KÖVETŐ nem veszíti el a nyomot attól, hogy befordulsz egy
+        // sarkon. Tudja, hova mentél, és odamegy. Lerázni csak úgy lehet,
+        // hogy odébb kerülsz, mire odaér — ehhez kell a ház.
+        if (this.sightLostTimer <= 0 && !this.relentless) this.enter('SEARCH', HOMEOWNER.searchTime);
         break;
 
       case 'SEARCH':

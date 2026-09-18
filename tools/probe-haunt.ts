@@ -152,6 +152,39 @@ console.log('');
     `${((HAUNT.beam * 180) / Math.PI).toFixed(0)}° fél szög`);
 }
 
+// --- A HÁROM TULAJDONSÁG --------------------------------------------------
+//
+// Nem három nehézségi fok, hanem három kérdés. A próba a SZABÁLYOKAT nézi,
+// nem a viselkedést: azt, hogy a három beállítás tényleg különbözik-e, és
+// hogy a különbség a helyes irányba mutat.
+{
+  const { Homeowner } = await import('../src/ai/Homeowner');
+  const ures: THREE.Mesh[] = [];
+  const vak = new Homeowner(at(0, 0), [at(5, 0), at(10, 0)], ures);
+  vak.sightBlocked = () => true;
+  vak.speedScale = 0.85;
+  const koveto = new Homeowner(at(0, 0), [at(5, 0), at(10, 0)], ures);
+  koveto.speedScale = 0.62;
+  koveto.relentless = true;
+  const leso = new Homeowner(at(0, 0), [at(5, 0), at(10, 0)], ures);
+  leso.speedScale = 1.35;
+  leso.state = 'IDLE';
+
+  line('a vak tényleg nem lát', vak.sightBlocked(at(0, 0), at(1, 0)),
+    'minden útja takarásban van');
+  line('a követő a leglassabb', koveto.speedScale < vak.speedScale && koveto.speedScale < leso.speedScale,
+    `${koveto.speedScale} · vak ${vak.speedScale} · leső ${leso.speedScale}`);
+  line('...de ő az egyetlen, aki nem adja fel',
+    koveto.relentless && !vak.relentless && !leso.relentless);
+  line('a leső felébredve a leggyorsabb', leso.speedScale > 1.2, `${leso.speedScale}×`);
+  line('...és alapból ÁLL, nem járőrözik', leso.state === 'IDLE');
+  // A LASSÚSÁG HATÁRA: a követő nem lehet olyan lassú, hogy sétálva le
+  // lehessen hagyni — akkor nem fenyegetés, hanem díszlet. A játékos
+  // kísértetházban 0,42-es szorzót kap.
+  line('a követőt sétálva nem lehet lehagyni', koveto.speedScale > HAUNT.speed,
+    `${koveto.speedScale} vs a te ${HAUNT.speed}-öd`);
+}
+
 console.log('');
 console.log(ok ? 'MIND OK — a kísértetház szabályai állnak' : 'VAN BUKÓ TESZT');
 process.exit(ok ? 0 : 1);

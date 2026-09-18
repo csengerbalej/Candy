@@ -36,6 +36,24 @@ const CLIP_FOR: ClipMap = {
  * sosem alszik, csak vár, és ezt látni is kell rajta. A `sneak` a settenkedő
  * guggolás — a gyanakvó állapotoké.
  */
+/**
+ * A KÍSÉRTETHÁZ SZÖRNYEI.
+ *
+ * Egyetlen klipjük van, a járás — és ez nem hiányosság, hanem elég.
+ *
+ * Egy szörny, ami ácsorog, tétovázik és elgondolkodik, EMBER. Ezek nem
+ * emberek: ugyanazzal a ritmussal jönnek feléd, akkor is, ha épp megálltak.
+ * A futás ugyanaz a ciklus gyorsabban — a rig `rate`-je intézi —, és pont
+ * ettől lesz rossz nézni: nem vált testtartást, csak GYORSUL.
+ */
+export const LURKER_CLIPS: ClipMap = {
+  idle: 'Walking',
+  walk: 'Walking',
+  run: 'Walking',
+  sneak: 'Walking',
+  grab: 'Walking',
+};
+
 export const HOMEOWNER_CLIPS: ClipMap = {
   idle: 'Idle_5',
   walk: 'Walking',
