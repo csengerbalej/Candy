@@ -19,6 +19,7 @@ export class HauntBrief {
   private readonly el: HTMLDivElement;
 
   constructor(parent: HTMLElement) {
+    const erintes = document.body.dataset.touch === '1';
     this.el = document.createElement('div');
     this.el.className = 'haunt-brief';
     this.el.innerHTML = `
@@ -72,8 +73,15 @@ export class HauntBrief {
         van melléd guggolni (${HAUNT.revive} mp, végig nyomva). Ha mindketten
         lent vagytok, vége — és a cukorka is odavan.</div>
       </div>
-      <p class="tovabb">bármelyik gomb · a H bármikor visszahozza</p>`;
+      <p class="tovabb">${erintes ? 'koppints ide' : 'bármelyik gomb'} · a H bármikor visszahozza</p>`;
     parent.appendChild(this.el);
+    // ÉRINTŐN NINCS BILLENTYŰ. Az eligazítást eddig csak mozgás vagy
+    // gombnyomás tüntette el — telefonon viszont a lap TAKARJA a
+    // botkormányt, tehát mozdulni sem lehetett: a kör ott ragadt. A
+    // koppintás maga a továbblépés.
+    // KOPPINTÁS, nem lenyomás: a görgetés is lenyomással kezdődik, és egy
+    // lap, ami olvasás közben csukódik be, rosszabb, mint amelyik ragad.
+    this.el.addEventListener('click', () => this.toggle(false));
   }
 
   /** Látszik-e. A jelenet ebből tudja, hogy szünetel a kör. */

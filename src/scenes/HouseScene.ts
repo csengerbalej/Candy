@@ -550,6 +550,9 @@ export class HouseScene implements GameScene {
         this.world.candyHeight = CANDY_HEIGHT_HUMAN;
         this.world.placeCandy(this.world.candySpots.map((c) => c.position));
       }
+      // A TŰZ ÉS A TÁVCSŐ GOMB nem kell ide: ebben a módban nincs fegyver.
+      // Az érintőgombokat a CSS veszi ki, ebből a jelzésből.
+      document.body.dataset.mode = 'haunt';
       this.haunt = new Haunt();
       this.jumpscare = new Jumpscare(document.body);
       this.hauntHud = new HauntHud(document.body);
@@ -2674,6 +2677,7 @@ export class HouseScene implements GameScene {
     this.disposed = true;
     sound.stopMusic();
     sound.stopLoops();
+    delete document.body.dataset.mode;
     this.jumpscare?.dispose();
     this.glimpse?.dispose();
     this.mumus?.dispose();

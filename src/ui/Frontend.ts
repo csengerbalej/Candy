@@ -59,6 +59,12 @@ export type FrontendPhase = Phase;
 const MENU_MARK: Record<string, string> = {
   solo: '🎃',
   new: '👻',
+  // A három újabb mód sokáig egy szürke pontot kapott, mert a táblázat nem
+  // nőtt velük. Egy menüsor ikon nélkül a többi mellett nem szerénynek
+  // látszik, hanem befejezetlennek.
+  fogo: '🍬',
+  fogo2: '⚔️',
+  kisertet: '🕯️',
   continue: '🌙',
   settings: '⚙',
 };

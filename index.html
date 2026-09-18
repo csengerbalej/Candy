@@ -585,6 +585,17 @@
   position: fixed; inset: 0; z-index: 900;
   display: grid; align-content: center; justify-items: center; gap: 18px;
   padding: 6vh 6vw;
+  /* GÖRGETHETŐ, ÉS NEM LÓG KI.
+
+     Mérve telefonon: a lap 375 képpont széles, a TARTALMA 767 — a szöveg
+     fele a képernyőn kívül volt, és a tetejét sem lehetett elolvasni,
+     mert a rács középre igazít, a felesleg pedig egyszerűen lelóg.
+
+     Két javítás: a lap görgethető, és az oszlopok nem lehetnek szélesebbek
+     a képernyőnél. A `min()` pont ezt mondja ki: „tizenöt rem, de
+     legfeljebb amennyi van". */
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background:
     radial-gradient(40rem 26rem at 50% 42%, #1a1226 0%, #07050b 72%),
     #07050b;
@@ -598,9 +609,11 @@
 }
 .haunt-brief .mit { margin: 0; max-width: 46rem; color: #a897bd; }
 .haunt-brief .sorok {
-  display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr));
   max-width: 62rem; width: 100%; text-align: left;
 }
+.haunt-brief > *, .haunt-brief .szorny { min-width: 0; max-width: 100%; }
 .haunt-brief .szorny {
   border: 1px solid #2c2140; border-radius: 4px; padding: 12px 13px;
   background: #0e0a16; display: grid; gap: 5px;
@@ -697,6 +710,11 @@
       /* --- Character & role select ------------------------------------ */
       .select {
         position: fixed; inset: 0; z-index: 30; overflow: auto;
+        /* `safe center`, nem `center`: fekvő telefonon a menü 553 képpont
+           magas egy 375-ösben, és a középre igazítás ilyenkor a TETEJÉT vágja
+           le — mérve a cím −89-nél kezdődött, a görgetés meg nem ér fel oda.
+           A `safe` kulcsszó pont ennyit tesz: amíg befér, középen van; amint
+           nem, a tetejétől indul, és onnan végig lehet görgetni. */
         display: flex; flex-direction: column; align-items: center; justify-content: center;
         gap: 18px; padding: 30px 24px; text-align: center;
         background: radial-gradient(120% 90% at 50% 0%, #1a1030 0%, #0b0716 70%);
@@ -799,6 +817,34 @@
 
       body[data-touch][data-playing] .net-badge { display: none; }
 
+      /* ÉRINTŐN A KIJELZŐK EGYMÁSRA CSÚSZTAK. Három mérhető átfedés:
+
+         · az állapotsáv (PATROL…) belefutott a jobb felső térképbe,
+         · a kísértetház kijelzője a bal hüvelykujj botkormánya alá került,
+         · és a TŰZ / TÁVCSŐ gomb ott volt a kísértetházban is, ahol
+           egyáltalán nincs fegyver.
+
+         Mindhárom ugyanabból jön: a HUD asztali képernyőre készült, ahol
+         van hely a sarkokban. Érintőn a sarkok a hüvelykujjaké. */
+      body[data-touch] .haunt-hud { bottom: 210px; }
+      body[data-mode="haunt"] .touch-fire { display: none; }
+
+      /* A KÓD-JELVÉNY SZŰK KÉPERNYŐN ALULRA MEGY.
+
+         Fent balról indul, és mérve telefonon RÁFEKÜDT a címre és a
+         karakterkártyákra: ott minden a teljes szélességet használja, egy
+         lebegő doboz tehát szükségképpen takar valamit. Lent középen a
+         menüben csak egy halvány súgósor van alatta, játék közben pedig
+         elrejtjük — a szobakód a meghíváshoz kell, nem menekülés közben. */
+      @media (max-width: 700px) {
+        .net-badge {
+          top: auto; bottom: 8px; left: 50%; right: auto;
+          transform: translateX(-50%);
+          max-width: 94vw;
+        }
+        body[data-playing] .net-badge { display: none; }
+      }
+
       /* A sebességmérő helyét a HUD kódja írja be inline stílusként (a
          navigátor panelhez igazítva), ezért itt CSAK `!important` tudja
          felülírni. Telón ez indokolt: a gépre szabott hely pont a nitró gomb
@@ -814,7 +860,11 @@
       /* A pontsáv FELÜLRE megy: alul a bal hüvelykujj és a botja ül rajta,
          és egy szám, amit a kezed takar, nem szám. */
       body[data-touch] .hud-watch {
-        left: 8px; right: 8px; width: auto; max-width: none; transform: none;
+        /* JOBBRÓL HELYET HAGYUNK A TÉRKÉPNEK. Mérve telefonon: a sáv jobb
+           széle 367-nél volt, a kistérkép bal széle 231-nél — egymáson ültek.
+           A térkép mérete a képernyővel nő: fekvő iPaden (1024×768) 143
+           képpont széles, ott 165 kellett. 178 mindegyiknél elég. */
+        left: 8px; right: 178px; width: auto; max-width: none; transform: none;
         top: 46px; bottom: auto;
         font-size: 10px; gap: 8px; flex-wrap: wrap; justify-content: center;
       }
@@ -837,12 +887,26 @@
          és a helyére egy igaz mondat kerül. */
       body[data-touch] .kb { display: none; }
       @media (max-height: 560px) {
+        /* A KÖZÉPRE IGAZÍTÁS ITT LEVÁGJA A TETEJÉT. Mérve fekvő telefonon a
+           menü 553 képpont magas egy 375-ösben: középre téve a cím −89-nél
+           kezdődik, és oda a görgetés sem ér fel (a túlfolyó tartalom a
+           kezdet FELÉ nem görgethető). Felülről indítva végig elérhető. */
+        .select, .select[data-phase="menu"] { justify-content: flex-start; }
         .kb { display: none; }
         .title-inner { padding: 14px 20px; gap: 7px; }
         .title-inner .tagline { display: none; }
         .logo { font-size: clamp(22px, 5vw, 38px); }
         .menu-item { padding: 8px 12px; }
       }
+      /* FEKVŐ TELEFONON A GOMBOK A TÉRKÉP ALÁ KERÜLNEK.
+         Mérve 812×375-ön: a gombsáv 15-től 225-ig ért, a kistérkép 14-től
+         144-ig — ugyanabban a jobb felső sarokban, egymáson. Álló képernyőn
+         ez nem látszik, mert ott bőven van függőleges hely; fekvőn nincs.
+         A gombok mennek lejjebb, mert a térkép ahhoz tartozik, amit mutat. */
+      @media (max-height: 560px) {
+        body[data-touch] .touch-keys { bottom: 12px; }
+      }
+
       body[data-touch] .title-inner .foot::after {
         content: 'koppints a kártyára'; display: block; margin-top: 4px; opacity: .8;
       }
