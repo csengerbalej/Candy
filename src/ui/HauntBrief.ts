@@ -51,8 +51,12 @@ export class HauntBrief {
         <div><b>A LÁMPA</b> — az <b>F</b> kapcsolja. Egy van kettőtökre, és
         fogy. Kikapcsolva nem fogy: a spórolás is döntés, és a Leső csak
         sötétben nyugszik meg.</div>
-        <div><b>MOZGÁS</b> W A S D · <b>futás</b> Shift · <b>felvétel és
-        mentés</b> E (nyomva tartva) · <b>súgó</b> H</div>
+        <div><b>SZEKRÉNY</b> — állj mellé, és <b>E</b>. Bent egyik szörny sem
+        lát, viszont TE SEM LÁTSZ KI, és a lámpád sem ég. Csak hallasz.</div>
+        <div><b>ELEM</b> — ráállsz, és a lámpa kap még fényt. Nyolc van a
+        házban, a saroktól távol.</div>
+        <div><b>MOZGÁS</b> W A S D · <b>futás</b> Shift (de a futás zaj) ·
+        <b>E</b> felvétel, bújás, mentés · <b>F</b> lámpa · <b>H</b> súgó</div>
         <div><b>HA ELKAPNAK</b>, összecsuklasz. A társadnak ${HAUNT.bleed} másodperce
         van melléd guggolni (${HAUNT.revive} mp, végig nyomva). Ha mindketten
         lent vagytok, vége — és a cukorka is odavan.</div>

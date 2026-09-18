@@ -290,6 +290,21 @@ const colors = [];
  * festett fal makettnek látszik; a foltos falnak MÚLTJA van.
  */
 function szinez(fajta, p, ny) {
+  // 3 = bútor fája, 4 = bútor sötét belseje, 5 = szövet, 6 = fém/réz.
+  if (fajta >= 3) {
+    const [bx, by, bz] = p;
+    const zaj = Math.sin(bx * 91.3 + bz * 77.1 + by * 41.7) * 0.5 + 0.5;
+    if (fajta === 4) return [0.012, 0.011, 0.015];
+    if (fajta === 5) {
+      const t = 0.16 * (0.85 + zaj * 0.3);
+      return [t * 0.92, t * 0.86, t * 1.08];
+    }
+    if (fajta === 6) return [0.3, 0.25, 0.13];
+    // A VÍZFOLT a talpnál: a régi bútorok alja mindig sötétebb.
+    const also = Math.min(1, Math.max(0.4, (by * SCALE) / 1.4));
+    const t = 0.17 * also * (0.84 + zaj * 0.3);
+    return [t * 1.5, t * 1.0, t * 0.66];
+  }
   const [x, y, z] = p;
   const zaj =
     Math.sin(x * 61.1 + z * 37.7) * 0.5 + Math.sin(x * 13.3 - z * 19.9) * 0.5;
@@ -423,6 +438,128 @@ for (const ny of ajtonyilasok) {
     box(cx - vastag, cz2, cx + vastag, cz2 + lap, FLOOR_Z, FLOOR_Z + magas, 2);
   }
 }
+
+// --- BÚTOR ---------------------------------------------------------------
+//
+// A bútor NEM díszlet ebben a módban. Két dolgot csinál, és mindkettő a
+// játékról szól:
+//
+//   TAKAR. Egy üres szoba egyetlen pillantással bejárható; egy szekrénysor
+//   mögött viszont ott lehet valaki. Ettől lesz a fénykúp keresés, nem
+//   világítás.
+//
+//   ELAKASZT. Menekülés közben a bútor az, ami miatt nem egyenesen futsz —
+//   és a Követő pont ezen a különbségen ér utol.
+//
+// Ezért a bútor UGYANABBA A RÁCSBA kerül, mint a falak: ahol áll, ott a
+// `solid` is 1. Egy bútor, amin átsétálsz, rosszabb, mint ha ott sem volna.
+const butorCellak = [];
+const hideSpots = [];
+
+/** Egy téglatest bútor: geometria + a rácscellák elzárása. */
+function butor(x0, y0, x1, y1, magas, fajta, jelolo) {
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      if (x < 0 || y < 0 || x >= W || y >= H) continue;
+      butorCellak.push([x, y]);
+    }
+  }
+  box(
+    ux(x0) - CELL / 2 / SCALE,
+    uz(y0) - CELL / 2 / SCALE,
+    ux(x1) + CELL / 2 / SCALE,
+    uz(y1) + CELL / 2 / SCALE,
+    FLOOR_Z,
+    FLOOR_Z + magas / SCALE,
+    fajta
+  );
+  if (jelolo) {
+    hideSpots.push([ux((x0 + x1) / 2), uy((y0 + y1) / 2)]);
+  }
+}
+
+/**
+ * Szabad-e ez a folt?
+ *
+ * A bútor CELLÁI a szoba belsejébe essenek — az első változat a foltot egy
+ * cellás kerettel együtt kérte szabadnak, és mivel a fal mentén álló bútor
+ * kerete maga a fal, NULLA darab fért ki. A keretből csak egy dolog kell:
+ * ajtónyílás ne legyen mellette, mert egy eltorlaszolt ajtó járhatatlan
+ * szobát csinál.
+ */
+const szabad = (x0, y0, x1, y1, id) => {
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      if (x < 0 || y < 0 || x >= W || y >= H) return false;
+      if (grid[y][x] !== OPEN || room[y][x] !== id) return false;
+    }
+  }
+  // AZ AJTÓKTÓL egy cella ráhagyás — de csak a KÖZVETLEN szomszédságban.
+  //
+  // Elsőre két cellás keretet kértem, és nulla bútor fért ki: a szobát a
+  // folyosótól EGYETLEN fal választja el, tehát minden fal mentén álló
+  // helynek két cellán belül van folyosócellája. A szabály így nem az
+  // ajtókat védte, hanem minden falat kitiltott — vagyis pont azt, ahova a
+  // bútor való.
+  for (let y = y0 - 1; y <= y1 + 1; y++) {
+    for (let x = x0 - 1; x <= x1 + 1; x++) {
+      if (x < 0 || y < 0 || x >= W || y >= H) continue;
+      if (grid[y][x] === OPEN && room[y][x] === 1) return false;
+    }
+  }
+  return true;
+};
+
+// A FÉLE: magasság cellában és centiben, plusz hogy búvóhely-e.
+const FELEK = [
+  { nev: 'szekrény', w: 3, d: 2, magas: 2.2, fajta: 3, bujhato: true },
+  { nev: 'polc', w: 4, d: 1, magas: 2.0, fajta: 3 },
+  { nev: 'ágy', w: 4, d: 5, magas: 0.6, fajta: 5 },
+  { nev: 'asztal', w: 5, d: 3, magas: 0.8, fajta: 3 },
+  { nev: 'komód', w: 3, d: 1, magas: 1.0, fajta: 3 },
+  { nev: 'fotel', w: 2, d: 2, magas: 0.9, fajta: 5 },
+  { nev: 'óra', w: 1, d: 1, magas: 2.1, fajta: 3 },
+];
+
+for (const r of rooms) {
+  // Szobánként három-hat darab, a FAL MENTÉN: a szoba közepére tett bútor
+  // nem takar semmit, csak útban van.
+  const mennyi = 3 + Math.floor(rnd() * 4);
+  let kirakva = 0;
+  for (let probal = 0; probal < mennyi * 8 && kirakva < mennyi; probal++) {
+    const f = FELEK[Math.floor(rnd() * FELEK.length)];
+    // Melyik fal mentén. A méret az orientációval együtt fordul.
+    const fugg = rnd() < 0.5;
+    const w = fugg ? f.d : f.w;
+    const d = fugg ? f.w : f.d;
+    const oldal = Math.floor(rnd() * 4);
+    let x0;
+    let y0;
+    if (oldal === 0) {
+      x0 = r.x0 + 1 + Math.floor(rnd() * Math.max(1, r.x1 - r.x0 - w - 1));
+      y0 = r.y0;
+    } else if (oldal === 1) {
+      x0 = r.x0 + 1 + Math.floor(rnd() * Math.max(1, r.x1 - r.x0 - w - 1));
+      y0 = r.y1 - d + 1;
+    } else if (oldal === 2) {
+      x0 = r.x0;
+      y0 = r.y0 + 1 + Math.floor(rnd() * Math.max(1, r.y1 - r.y0 - d - 1));
+    } else {
+      x0 = r.x1 - w + 1;
+      y0 = r.y0 + 1 + Math.floor(rnd() * Math.max(1, r.y1 - r.y0 - d - 1));
+    }
+    const x1 = x0 + w - 1;
+    const y1 = y0 + d - 1;
+    if (!szabad(x0, y0, x1, y1, r.id)) continue;
+    if (butorCellak.some(([cx, cy]) => cx >= x0 - 2 && cx <= x1 + 2 && cy >= y0 - 2 && cy <= y1 + 2)) continue;
+    butor(x0, y0, x1, y1, f.magas, f.fajta, f.bujhato);
+    kirakva++;
+  }
+}
+
+// A CELLÁK ELZÁRÁSA csak MOST történik meg, a kirakás után: ha közben
+// zárnánk, a következő bútor már nem találna szabad falat maga mellett.
+for (const [x, y] of butorCellak) grid[y][x] = WALLC;
 
 const doc = new Document();
 const buffer = doc.createBuffer();
@@ -561,6 +698,8 @@ const nav = {
   pranks,
   patrol,
   homeowner: kozep(szobak[szobak.length - 1]),
+  /** A szekrények: ide lehet bebújni. A jelenet ebből tudja, hol vannak. */
+  hideSpots,
   floor: floorRows,
   solid: solidRows,
   rooms: roomRows,
@@ -575,5 +714,6 @@ console.log(`  méret:       ${(W * CELL).toFixed(0)} × ${(H * CELL).toFixed(0)
 console.log(`  szobák:      ${rooms.length} + folyosórács`);
 console.log(`  járható:     ${((nyitott / (W * H)) * 100).toFixed(0)}% a befoglalóból`);
 console.log(`  háromszög:   ${indices.length / 3}`);
+console.log(`  bútor:       ${butorCellak.length} cella, ebből ${hideSpots.length} szekrény`);
 console.log(`  glb:         ${(glb.byteLength / 1e6).toFixed(2)} MB`);
 console.log(`  falmagasság: ${(WALL * SCALE).toFixed(0)} egység`);

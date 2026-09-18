@@ -1,3 +1,4 @@
+import { readFileSync, existsSync } from 'node:fs';
 import * as THREE from 'three';
 import { Haunt } from '../src/game/Haunt';
 import { HAUNT, MOVE, NOISE } from '../src/core/config';
@@ -240,7 +241,6 @@ console.log('');
 // négymásodperces hurok alaphangnak jó; egy négymásodperces szívdobbanás
 // nem dobbanás, hanem ágyúlövés.
 {
-  const { existsSync, readFileSync } = await import('node:fs');
   const varas: Array<[string, number, number, string]> = [
     ['h-ambience', 2, 30, 'végtelenített alaphang'],
     ['h-steps', 4, 30, 'léptek hurok'],
@@ -265,6 +265,24 @@ console.log('');
     'hamis ijesztések, amiktől a valódi is működik') && ok;
 }
 
+// --- A BÚJÁS ÁRA ------------------------------------------------------------
+//
+// A szekrény az egyetlen válasz, ami mindhárom szörny ellen működik —
+// ezért csak akkor tisztességes, ha van ára. Az ár a VAKSÁG: bent nem
+// látsz ki, és a lámpád sem ég. Ha bent is látnál, a szekrény nem
+// menedék volna, hanem megoldás.
+{
+  const haz = readFileSync('src/scenes/HouseScene.ts', 'utf8');
+  ok = line('a szekrényben lévőt nem látják a szörnyek',
+    haz.includes('!(i === me && haunt.hidden)'),
+    'nincs a célpontlistán, ahogy a földön fekvő sem') && ok;
+  ok = line('...de a lámpád sem ég bent', haz.includes('&& !haunt.hidden'),
+    'aki bent is lát, annak a bújás nem kockázat') && ok;
+  ok = line('...és nem is mozdulhatsz', haz.includes('testem.velocity.set(0, 0, 0)'),
+    'egy szekrény, amiből ki lehet sétálni, nem szekrény') && ok;
+  line('a szekrényhez oda kell állni', HAUNT.hideReach < 3, `${HAUNT.hideReach} m`);
+}
+
 // --- A KÚRIA JÁRHATÓ-E ------------------------------------------------------
 //
 // Ez az a próba, aminek a hiánya három panaszt okozott egyszerre: „egyes
@@ -277,7 +295,6 @@ console.log('');
 // nyílás azon néha egyetlen mintavételi pontot sem kap. Ilyenkor nincs
 // útvonal — tehát nem is indulnak el.
 {
-  const { readFileSync } = await import('node:fs');
   const { VillageHouse } = await import('../src/world/VillageHouse');
   const nav = JSON.parse(readFileSync('public/models/mansion-nav.json', 'utf8'));
   const haz = VillageHouse.fromNav(nav);
@@ -292,25 +309,37 @@ console.log('');
   const szobak = nav.roomInfo.filter((r: { id: number }) => r.id !== 1);
 
   // 1. MINDEN SZOBÁBAN LEHET ÁLLNI.
-  const allhato = szobak.filter((r: { centre: [number, number] }) =>
-    haz.walkable(vilag(r.centre).x, vilag(r.centre).z, MOVE.radius)
-  );
+  //
+  // Nem a szoba KÖZEPÉN — ott állhat egy asztal, és az nem hiba, hanem
+  // bútor. Az a kérdés, hogy van-e a szobában hely, ahol elférsz; a
+  // középpont csak a keresés kiindulása.
+  const hely = (r: { centre: [number, number]; min: [number, number]; max: [number, number] }) => {
+    const c = vilag(r.centre);
+    for (let k = 0; k < 60; k++) {
+      const sugar = (k / 60) * 6;
+      const szog = k * 2.4;
+      const p = new THREE.Vector3(c.x + Math.cos(szog) * sugar, 0, c.z + Math.sin(szog) * sugar);
+      if (haz.walkable(p.x, p.z, MOVE.radius)) return p;
+    }
+    return c;
+  };
+  const allhato = szobak.filter((r: never) => {
+    const p = hely(r);
+    return haz.walkable(p.x, p.z, MOVE.radius);
+  });
   ok = line('minden szobában el lehet férni', allhato.length === szobak.length,
     `${allhato.length}/${szobak.length}`) && ok;
 
   // 2. MINDEN SZOBÁBA BE LEHET JUTNI — a SZÖRNYEK útkeresésével, mert az a
   // szigorúbb. Ha ezen átmegy, a játékos is átfér.
-  const elerheto = szobak.filter(
-    (r: { centre: [number, number] }) => haz.route(bejarat, vilag(r.centre), 0.4).length > 0
-  );
+  const elerheto = szobak.filter((r: never) => haz.route(bejarat, hely(r), 0.4).length > 0);
   ok = line('minden szobába vezet út a bejárattól', elerheto.length === szobak.length,
     `${elerheto.length}/${szobak.length} szoba`) && ok;
 
   // 3. ÉS A JÁTÉKOS TESTÉVEL IS. A `bodyFits` szigorúbb sugarat kér, mint a
   // szörnyeké — ez az, ami az ajtókon elhasalt.
   const jatekosnak = szobak.filter(
-    (r: { centre: [number, number] }) =>
-      haz.route(bejarat, vilag(r.centre), MOVE.radius * 1.3).length > 0
+    (r: never) => haz.route(bejarat, hely(r), MOVE.radius * 1.3).length > 0
   );
   ok = line('...a játékos testével is', jatekosnak.length === szobak.length,
     `${jatekosnak.length}/${szobak.length} szoba`) && ok;
@@ -319,9 +348,21 @@ console.log('');
   // elől kerülővel kell tudni menekülni. Ha a folyosórács él, akkor a
   // bejárattól két EGYMÁSTÓL TÁVOLI szobába vezető út nem ugyanazon a
   // szakaszon indul.
-  const tavoli = szobak.slice(0, 2).map((r: { centre: [number, number] }) => vilag(r.centre));
+  const tavoli = szobak.slice(0, 2).map((r: never) => hely(r));
   const ut = haz.route(tavoli[0], tavoli[1], 0.4);
   line('a szobák között is van út', ut.length > 0, `${ut.length} csomópont`);
+
+  // 5. BÚTOR ÉS BÚVÓHELY. A bútor ugyanabba a rácsba kerül, mint a falak —
+  // ha nem így volna, átsétálnál rajta. A szekrényekből elég sok kell
+  // ahhoz, hogy menekülés közben tényleg legyen esélyed elérni egyet.
+  ok = line('van elég szekrény', (nav.hideSpots?.length ?? 0) >= 12,
+    `${nav.hideSpots?.length ?? 0} búvóhely`) && ok;
+  const bujo = (nav.hideSpots ?? []).filter((p: [number, number]) =>
+    haz.route(bejarat, vilag(p), MOVE.radius * 1.3).length > 0 ||
+    vilag(p).distanceTo(bejarat) < 8
+  );
+  ok = line('...és mind megközelíthető', bujo.length === (nav.hideSpots?.length ?? 0),
+    `${bujo.length}/${nav.hideSpots?.length ?? 0}`) && ok;
 }
 
 console.log('');

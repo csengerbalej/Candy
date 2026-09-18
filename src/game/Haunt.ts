@@ -45,6 +45,17 @@ export class Haunt {
   candy = 0;
 
   /**
+   * BENT VAGY-E A SZEKRÉNYBEN.
+   *
+   * Nem állapotgép: egyetlen logikai érték, mert egyetlen dolgot jelent —
+   * a szörnyek nem látnak, te sem látsz, és a lámpád nem ég. Minden más
+   * ebből következik.
+   */
+  hidden = false;
+  /** A szekrény helye, ahol bent vagy. */
+  hideAt: THREE.Vector3 | null = null;
+
+  /**
    * ELKAPTAK.
    *
    * Nem azonnali halál: összecsuklasz. A különbség nem kegyelem, hanem a

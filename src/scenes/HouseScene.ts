@@ -120,6 +120,8 @@ export class HouseScene implements GameScene {
   private jumpscare: Jumpscare | null = null;
   private torch: Torch | null = null;
   private batteries: Batteries | null = null;
+  /** A szekrények világkoordinátában — ide lehet bebújni. */
+  private readonly hideSpots: THREE.Vector3[] = [];
   private hauntHud: HauntHud | null = null;
   private hauntBrief: HauntBrief | null = null;
   /** A ház hangjának órája: a szívverés és a neszek ütemezéséhez. */
@@ -554,6 +556,13 @@ export class HouseScene implements GameScene {
       }
       this.batteries = new Batteries(elemek);
       this.scene.add(this.batteries.group);
+
+      // A SZEKRÉNYEK HELYE a ház nav fájljából jön, nem külön listából: a
+      // bútort a házgenerátor rakta ki, tehát ő tudja, hol áll.
+      const nav = (this.world as unknown as { nav?: { hideSpots?: [number, number][] } }).nav;
+      for (const p of nav?.hideSpots ?? []) {
+        this.hideSpots.push(new THREE.Vector3(p[0] * 36, 0, -p[1] * 36));
+      }
 
       // A SZÖRNYEK ugyanaz az osztály, mint a lakó.
       //
@@ -1814,7 +1823,11 @@ export class HouseScene implements GameScene {
     // A SZÖRNYEK. Csak azokat látják, akik ÁLLNAK: aki lent van, az már
     // nem célpont — különben a földön fekve a végtelenségig ütnének, és a
     // mentés esélytelen volna.
-    const talpon = this.players.filter((_, i) => !haunt.down[i as 0 | 1].down);
+    // A SZEKRÉNYBEN LÉVŐT NEM LÁTJÁK. Nem külön szabály a szörnyeknek:
+    // egyszerűen nincs rajta a célpontlistán, ahogy a földön fekvő sem.
+    const talpon = this.players.filter(
+      (_, i) => !haunt.down[i as 0 | 1].down && !(i === me && haunt.hidden)
+    );
     const lampasnal = this.players[haunt.torchHolder];
     const eg = haunt.torchOn && !haunt.down[haunt.torchHolder].down;
     let eget = false;
@@ -2089,6 +2102,43 @@ export class HouseScene implements GameScene {
       sound.clip(this.sors() < 0.45 ? 'h-growl' : 'h-creak', 0.18 + this.sors() * 0.16);
     }
 
+    // === BÚJÁS =============================================================
+    //
+    // A harmadik válasz a „fuss" és az „állj meg" mellé, és az egyetlen,
+    // ami mindhárom szörny ellen működik. Ezért van ára: bent VAK VAGY.
+    // Nem látsz ki, a lámpád nem ég, és nem tudod, mikor érdemes kijönni —
+    // csak hallasz. A hang ezért lett a mód alapja.
+    const kozeliSzekreny = this.hideSpots.reduce<THREE.Vector3 | null>((best, p) => {
+      if (p.distanceTo(testem.position) > HAUNT.hideReach) return best;
+      return !best || p.distanceTo(testem.position) < best.distanceTo(testem.position) ? p : best;
+    }, null);
+
+    if (this.input.get(me).interact && !haunt.down[me].down) {
+      if (haunt.hidden) {
+        haunt.hidden = false;
+        haunt.hideAt = null;
+        this.game.banner = 'KIMÁSZTÁL';
+        sound.clip('h-door', 0.45);
+      } else if (kozeliSzekreny) {
+        haunt.hidden = true;
+        haunt.hideAt = kozeliSzekreny.clone();
+        testem.position.copy(kozeliSzekreny);
+        testem.mesh.position.copy(kozeliSzekreny);
+        this.game.banner = 'BENT VAGY — E: kimászás';
+        sound.clip('h-door', 0.55);
+      }
+    }
+    if (haunt.hidden) {
+      // Bent nem mozdulsz. A szekrény nem menedék, ha ki lehet sétálni
+      // belőle anélkül, hogy kinyitnád az ajtaját.
+      if (haunt.hideAt) {
+        testem.position.copy(haunt.hideAt);
+        testem.velocity.set(0, 0, 0);
+      }
+    } else if (kozeliSzekreny) {
+      this.game.banner = 'E — bebújás';
+    }
+
     // ELEM FELVÉTELE: ráállsz, és kész. Egy külön gomb itt csak
     // bosszantás volna — a sötétben amúgy is elég megtalálni.
     if (this.batteries?.update(step, testem.position)) {
@@ -2115,7 +2165,7 @@ export class HouseScene implements GameScene {
       step,
       nalam.position,
       nezes,
-      haunt.torchOn && !haunt.down[haunt.torchHolder].down,
+      haunt.torchOn && !haunt.down[haunt.torchHolder].down && !haunt.hidden,
       haunt.torch / HAUNT.torch,
       this.director.firstPerson !== null ? this.director.fpPitch : 0
     );

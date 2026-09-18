@@ -1199,6 +1199,21 @@ export const HAUNT = {
    * másodperc kell ahhoz, hogy összejöjjön a különbség, és közben végig
    * takarásban kell maradnod. Tízzel futva három másodperc alatt megvan.
    */
+  /**
+   * BÚJÁS A SZEKRÉNYBE.
+   *
+   * A harmadik válasz a „fuss" és az „állj meg" mellé — és az egyetlen,
+   * ami MINDHÁROM szörny ellen működik. Ezért kell ára: bent VAK VAGY.
+   * Nem látod, mi jár odakint, a lámpád nem ég, és nem tudod, mikor
+   * érdemes kijönni. A félelem itt nem attól van, ami történik, hanem
+   * attól, amit nem látsz.
+   *
+   * A hang marad: hallod a lépteket, és hallod, ha a szívverésed gyorsul.
+   * Ez az egyetlen kapaszkodód, és pont ezért lett hang a módban.
+   */
+  hideReach: 2.2,
+  /** Belépés és kilépés ideje. Nem azonnali: a döntésnek súlya van. */
+  hideTime: 0.8,
   stalkerShakeGap: 10,
   stalkerShake: 5,
   /** Lerázva ennyi ideig nem jön vissza. */
