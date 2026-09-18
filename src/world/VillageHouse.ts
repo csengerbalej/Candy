@@ -286,7 +286,32 @@ export class VillageHouse implements HouseWorld {
     return h === null ? null : h - this.nav.floorZ;
   }
 
+  /**
+   * CSUKOTT AJTÓK: futásidőben elzárt cellák.
+   *
+   * A rács a fájlból jön, és az nem változhat — egy csukott ajtó viszont
+   * pont azt csinálja, hogy megváltoztatja. A megoldás nem a rács
+   * átírása (az sok ezer karakteres szöveg), hanem egy kis halmaz
+   * mellette: ami benne van, az zárt, akármit mond a fájl.
+   *
+   * Így a csukott ajtó MINDENKIRE hat — rád, a szörnyekre, az
+   * útkeresésre —, és pontosan ugyanazt jelenti mindenkinek.
+   */
+  private readonly closedDoors = new Set<number>();
+
+  setDoorClosed(cells: readonly [number, number][], closed: boolean): void {
+    for (const [i, j] of cells) {
+      const kulcs = j * this.n + i;
+      if (closed) this.closedDoors.add(kulcs);
+      else this.closedDoors.delete(kulcs);
+    }
+    // Az útkeresés gyorsítótára a rácsból készült: ha a rács változik, a
+    // tárolt térkép hazudik. Eldobjuk — a következő keresés újraépíti.
+    this.passableCache.clear();
+  }
+
   solidAt(i: number, j: number): boolean {
+    if (this.closedDoors.has(j * this.n + i)) return true;
     return !this.inside(i, j) || this.nav.solid[j][i] === '1';
   }
 

@@ -26,6 +26,7 @@ import { HauntBrief } from '../ui/HauntBrief';
 import { Torch } from '../world/Torch';
 import { Batteries } from '../world/Batteries';
 import { Glimpse } from '../world/Glimpse';
+import { Masonry } from '../world/Masonry';
 import { HAUNT, HOUSE, NOISE } from '../core/config';
 import { makeRandom } from '../core/seed';
 import { planFor, planToWorld } from '../world/HousePlan';
@@ -122,6 +123,7 @@ export class HouseScene implements GameScene {
   private torch: Torch | null = null;
   private batteries: Batteries | null = null;
   private glimpse: Glimpse | null = null;
+  private masonry: Masonry | null = null;
   /** Mikor szaladjon át a következő alak. */
   private kovetkezoAlak = 18;
   /** A szekrények világkoordinátában — ide lehet bebújni. */
@@ -565,9 +567,40 @@ export class HouseScene implements GameScene {
 
       // A SZEKRÉNYEK HELYE a ház nav fájljából jön, nem külön listából: a
       // bútort a házgenerátor rakta ki, tehát ő tudja, hol áll.
-      const nav = (this.world as unknown as { nav?: { hideSpots?: [number, number][] } }).nav;
+      const nav = (
+        this.world as unknown as {
+          nav?: {
+            hideSpots?: [number, number][];
+            wallRuns?: [number, number, number, number][];
+            doors?: { at: [number, number]; vizszintes: boolean; cells: [number, number][] }[];
+            wallCell?: number;
+          };
+        }
+      ).nav;
       for (const p of nav?.hideSpots ?? []) {
         this.hideSpots.push(new THREE.Vector3(p[0] * 36, 0, -p[1] * 36));
+      }
+
+      // A KŐFAL ÉS AZ AJTÓK. A ház geometriája már csak a padló; a falakat
+      // a letöltött kőpanelből építjük fel, a rács futamaira ültetve.
+      if (nav?.wallRuns && this.world instanceof VillageHouse) {
+        this.masonry = new Masonry(nav.doors ?? [], 3.2);
+        this.scene.add(this.masonry.group);
+        void this.masonry.load().then(() => {
+          // A KÉP A HÁZ ANYAGÁRA kerül, nem külön geometriára. A falak,
+          // a padló és az ajtók egyetlen hálóban vannak: egy kép, egy
+          // anyag, egy rajzolási hívás.
+          const kep = this.masonry?.wallTexture;
+          if (!kep) return;
+          this.world.group.traverse((o) => {
+            const mesh = o as THREE.Mesh;
+            if (!mesh.isMesh) return;
+            const anyag = mesh.material as THREE.MeshStandardMaterial;
+            if (!('map' in anyag)) return;
+            anyag.map = kep;
+            anyag.needsUpdate = true;
+          });
+        });
       }
 
       // A SZÖRNYEK ugyanaz az osztály, mint a lakó.
@@ -676,8 +709,15 @@ export class HouseScene implements GameScene {
       // A másik ok a fontosabb: egy horrorházban egyetlen fénynek szabad
       // égnie, a tiédnek. Ha a szoba magától látszik, akkor nincs sötét,
       // és ha nincs sötét, nincs miért félni.
+      // EGYETLEN HALVÁNY KÖRNYEZETI FÉNY marad. Vak feketén nem lopakodsz,
+      // hanem tapogatózol: ennyi pont a körvonalakra elég, a formákra már
+      // nem — azokhoz oda kell vinni a saját fényedet. Környezeti fény,
+      // tehát nem kerül képpontonkénti számításba.
+      const derengés = new THREE.AmbientLight(0x2a2438, 0.09);
+      this.scene.add(derengés);
+
       queueMicrotask(() => {
-        const kimeloek = new Set<THREE.Object3D>();
+        const kimeloek = new Set<THREE.Object3D>([derengés]);
         this.torch?.group.traverse((o) => kimeloek.add(o));
         this.scene.traverse((o) => {
           const l = o as THREE.Light;
@@ -765,7 +805,20 @@ export class HouseScene implements GameScene {
       this.players[this.localIndex === 0 ? 1 : 0].mesh.visible = false;
     }
 
-    this.echo = this.dark ? new Echo() : null;
+    // A VISSZHANG-FÉNYEK NINCSENEK A KÍSÉRTETHÁZBAN.
+    //
+    // A sötét kooperatív házban ez segítség: minden zaj felvillant egy kis
+    // kék fényt ott, ahol keletkezett, tehát LÁTOD a hangokat. Tizenkét
+    // pontfény forog körbe erre a célra.
+    //
+    // Itt viszont a séta is zajt kelt — és ettől a tizenkét fény FOLYAMATOSAN
+    // égett körülötted, ahogy mentél. Kívülről ez pontosan az, hogy
+    // „kivilágosodik a szoba, ha mozgok": nem a lámpád változott, hanem a
+    // saját lépteid gyújtottak fényt.
+    //
+    // És ha nem is világítanának túl, akkor is rossz volna: egy horrorban a
+    // hangot HALLANI kell, nem látni. Aki látja a zajt, az nem fél tőle.
+    this.echo = this.dark && !session.haunt ? new Echo() : null;
     if (this.echo) this.scene.add(this.echo.group);
     this.addLighting();
 
@@ -786,7 +839,20 @@ export class HouseScene implements GameScene {
     // hanem tapogatózol. Ennyi pont a körvonalakra elég, a formákra már nem —
     // azokhoz oda kell vinni a saját fényedet.
     const toon = this.dark ? { floor: 0.012, fill: 0.003 } : { floor: 0.27, fill: 0.06 };
-    toonify(this.world.group, toon);
+    // A KÍSÉRTETHÁZ FALAIT NEM CEL-SHADELJÜK.
+    //
+    // A cel-shading a megvilágítást SÁVOKRA vágja — ez a játék stílusa, és
+    // egy felülről nézett, egyenletesen világított szobában jól is áll. Egy
+    // zseblámpával bevilágított folyosón viszont pont fordítva sül el:
+    // ahogy lépsz, a fal és a szemed szöge alig változik, a sáv viszont
+    // ÁTBILLEN — és egy egész fal egyszerre ugrik sötétből világosba.
+    //
+    // Kívülről ez pontosan úgy néz ki, hogy „kivilágosodik a szoba, ha
+    // mozgok". Nem a fény változik, hanem az, hogy hány sávba esik.
+    //
+    // Sima árnyalással a fényerő folytonos: közelebb lépve fokozatosan
+    // világosodik, ahogy egy lámpától várnád.
+    if (!this.session.haunt) toonify(this.world.group, toon);
     toonify(this.homeowner.group, toon);
     addOutlines(this.homeowner.group, 0.9);
     for (const p of this.players) {
@@ -1851,7 +1917,26 @@ export class HouseScene implements GameScene {
       // egy pillanat volna, és a jutalom semmi.
       if (this.lurkerFled[i] > 0) {
         this.lurkerFled[i] -= step;
-        if (this.lurkerFled[i] > 0) continue;
+        if (this.lurkerFled[i] > 0) {
+          // AKI VÁR, AZ NINCS ITT.
+          //
+          // Eddig csak kihagytuk a léptetését, és ettől ott ÁLLT a házban
+          // mozdulatlanul — a Követő az első ötven másodpercben egy
+          // szoborként bámult maga elé. Kívülről ez pontosan úgy néz ki,
+          // hogy „a szörny nem mozog", és igaza is van annak, aki ezt
+          // mondja: nem mozgott.
+          szorny.group.visible = false;
+          continue;
+        }
+        // Visszatéréskor NE ott bukkanjon fel, ahol hagytuk: a legtávolabbi
+        // járőrpontról indul újra, különben a lerázás semmit sem ért.
+        const tav = [...this.world.patrolWaypoints].sort(
+          (a, b) => b.distanceTo(testem.position) - a.distanceTo(testem.position)
+        )[0];
+        if (tav) {
+          szorny.position.copy(tav);
+          szorny.group.position.copy(tav);
+        }
       }
 
       // RÁFOGTAD-E A FÉNYT. Szög és távolság — ugyanaz a kúp, amit látsz.
@@ -2143,6 +2228,23 @@ export class HouseScene implements GameScene {
       }
     }
 
+    // === AJTÓK =============================================================
+    //
+    // Nyithatók és csukhatók, és ez nem díszlet: a csukott ajtó ELZÁRJA a
+    // cellákat, tehát a Követő nem tud átjönni rajta — kerülnie kell. A
+    // nyitás viszont ZAJ, amire a Vak elindul. Minden ajtó egy alku.
+    this.masonry?.update(step);
+    const kozeliAjto = this.masonry?.nearest(testem.position, 2.6) ?? null;
+    if (kozeliAjto && this.input.get(me).interact && !haunt.hidden) {
+      kozeliAjto.open = !kozeliAjto.open;
+      this.setDoorBlocked(kozeliAjto.spec.cells, !kozeliAjto.open);
+      sound.clip('h-door', kozeliAjto.open ? 0.6 : 0.45);
+      this.noise.emit(kozeliAjto.pivot.position, 24, 'ajtó');
+      this.game.banner = kozeliAjto.open ? 'AJTÓ NYITVA' : 'AJTÓ BECSUKVA';
+    } else if (kozeliAjto && !haunt.hidden) {
+      this.game.banner = kozeliAjto.open ? 'E — becsukod' : 'E — kinyitod';
+    }
+
     // === BÚJÁS =============================================================
     //
     // A harmadik válasz a „fuss" és az „állj meg" mellé, és az egyetlen,
@@ -2229,6 +2331,30 @@ export class HouseScene implements GameScene {
     h.torchOn = !h.torchOn;
     this.game.banner = h.torchOn ? 'LÁMPA BE' : 'LÁMPA KI';
     sound.clip('empty', 0.4);
+  }
+
+  /**
+   * EGY AJTÓ ZÁRJA VAGY NYITJA A CELLÁIT.
+   *
+   * A pontok VILÁGKOORDINÁTÁBAN jönnek, nem cellaindexben: a ház
+   * layout-rácsa és a navigációs rács két külön felbontás, és a köztük
+   * való átváltás pont az a fajta néma hiba, amiből ma már kettőt
+   * megettünk. Világkoordinátát viszont mindkettő ért.
+   *
+   * Minden pont körül a szomszédokat is elzárjuk: a nav cellája kisebb,
+   * mint az ajtó vastagsága, és egy rés az ajtó tövében ugyanannyi, mint
+   * ha ki sem nyílna.
+   */
+  private setDoorBlocked(cells: readonly [number, number][], closed: boolean): void {
+    if (!(this.world instanceof VillageHouse)) return;
+    const haz = this.world;
+    const ki: [number, number][] = [];
+    for (const [x, z] of cells) {
+      const i = haz.col(x);
+      const j = haz.row(z);
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) ki.push([i + a, j + b]);
+    }
+    haz.setDoorClosed(ki, closed);
   }
 
   /** A H gomb: az eligazítás bármikor visszahívható. */

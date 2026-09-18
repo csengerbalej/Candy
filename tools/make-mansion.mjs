@@ -277,6 +277,7 @@ const uy = (y) => -uz(y);
 const positions = [];
 const normals = [];
 const colors = [];
+const uvs = [];
 
 /**
  * A FELÜLET SZÍNE — pofátlanul egyszerűen, mégis elég.
@@ -352,9 +353,18 @@ function box(x0, z0, x1, z1, y0, y1, fajta = 1) {
   for (const [a, b, c, d, nx, ny, nz] of faces) {
     const base = vcount;
     for (const idx of [a, b, c, d]) {
-      positions.push(...v[idx]);
+      const pt = v[idx];
+      positions.push(...pt);
       normals.push(nx, ny, nz);
-      colors.push(...szinez(fajta, v[idx], ny));
+      colors.push(...szinez(fajta, pt, ny));
+      // SÍKVETÍTÉSES UV, a VILÁG mérete szerint: a kép mérete így minden
+      // falon ugyanaz marad, akármilyen hosszú a szakasz. Enélkül egy
+      // hosszú falon szétnyúlna, egy rövidön összenyomódna — és semmi
+      // nem árulja el olcsóbban, hogy a fal nem fal, hanem doboz.
+      const TILE = 2.4;
+      if (Math.abs(nz) > 0.5) uvs.push((pt[0] * SCALE) / TILE, (pt[1] * SCALE) / TILE);
+      else if (Math.abs(nx) > 0.5) uvs.push((pt[2] * SCALE) / TILE, (pt[1] * SCALE) / TILE);
+      else uvs.push((pt[0] * SCALE) / TILE, (pt[2] * SCALE) / TILE);
       vcount++;
     }
     indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
@@ -368,6 +378,7 @@ box(-half.x, -half.z, half.x, half.z, FLOOR_Z - 0.01, FLOOR_Z, 0);
 
 // A FALAK: a szomszédos falcellák VÍZSZINTES FUTAMOKBA vonva. Cellánként
 // egy doboz húszezer háromszög volna; futamokban néhány száz.
+const wallRuns = [];
 const used = Array.from({ length: H }, () => new Array(W).fill(false));
 for (let y = 0; y < H; y++) {
   for (let x = 0; x < W; x++) {
@@ -393,51 +404,63 @@ for (let y = 0; y < H; y++) {
       x1++;
     }
     for (let k = x; k <= x1; k++) used[y][k] = true;
+    // A FAL GEOMETRIÁJA NEM ITT KÉSZÜL EL.
+    //
+    // Csak a futamot jegyezzük fel; a látvány futásidőben, a letöltött
+    // kőfal-panelből épül fel, példányosítva. Egy generált doboz és egy
+    // ráhelyezett panel együtt kétszeres geometria és z-vibrálás volna —
+    // így viszont a rács marad az egyetlen igazság, a panel meg csak
+    // ráül arra, amit a rács amúgy is zártnak tud.
+    // VILÁGKOORDINÁTÁBAN jegyezzük fel, nem cellában: a futásidejű
+    // építőnek nem kell tudnia, milyen rácson készült a ház, és így nem
+    // lehet összekeverni a nav rács (384) celláival sem.
+    // A FAL A GENERÁLT DOBOZ MARAD — de mostantól KÉPPEL.
+    //
+    // Először a letöltött kőfal-panelt példányosítottam rá, ezerkétszáz
+    // darabban, és mérve NEGYVENMILLIÓ háromszög lett belőle: a panel
+    // harmincegyezer háromszögű, és a `simplify` háromezernél megállt (egy
+    // kőfal sok különálló kő, nincs mit összevonni rajta).
+    //
+    // A textúra viszont pontosan ugyanazt a látványt adja, és egy doboz
+    // hatvan háromszög. A letöltött modell munkája így is benne van —
+    // csak nem a geometriában, hanem a felületben.
+    wallRuns.push([ux(x) * SCALE, uz(y) * SCALE, ux(x1) * SCALE, uz(y) * SCALE]);
     box(
       ux(x) - CELL / 2 / SCALE,
       uz(y) - CELL / 2 / SCALE,
       ux(x1) + CELL / 2 / SCALE,
       uz(y) + CELL / 2 / SCALE,
       FLOOR_Z,
-      FLOOR_Z + WALL
+      FLOOR_Z + WALL,
+      1
     );
   }
 }
 
 // --- AJTÓK ---------------------------------------------------------------
 //
-// Nem zárnak el semmit: nyitva állnak, a keretük mégis elmondja, hogy ez
-// itt ÁTJÁRÓ, nem lyuk a falban. A lap a nyílás TÖVÉBEN áll, kifelé
-// fordulva — ahol a rács szerint is szabad a hely, tehát senki nem akad
-// el benne.
-//
-// Az első változat magából a rácsból próbálta kitalálni, hol vannak az
-// ajtók, és NULLA darabot talált: egy hat cellás nyílás közepén nincs
-// szemközti fal, amiből fel lehetne ismerni. A kivágás viszont pontosan
-// tudja, hol vágott — azóta onnan jön a lista.
-for (const ny of ajtonyilasok) {
-  const vastag = 0.1 / SCALE;
-  const lap = (CELL * 2.4) / SCALE;
-  const magas = WALL * 0.84;
-  // A LAP A FAL SÍKJÁBAN fekszik, a nyíláson KÍVÜL — vagyis úgy áll, mint
-  // egy tárva hagyott ajtó, ami nekitámaszkodik a falnak. Ha a nyílásba
-  // lógna, átsétálnál rajta: a rács szerint ott szabad a hely, a szemed
-  // szerint viszont ajtó van. Az ilyen ellentmondás rosszabb, mint ha
-  // egyáltalán nem volna ajtó.
-  if (ny.vizszintes) {
-    const cz = uz(ny.y);
-    const cx = ux(ny.x);
-    box(cx - lap, cz - vastag, cx, cz + vastag, FLOOR_Z, FLOOR_Z + magas, 2);
-    const cx2 = ux(ny.x + DOOR - 1);
-    box(cx2, cz - vastag, cx2 + lap, cz + vastag, FLOOR_Z, FLOOR_Z + magas, 2);
-  } else {
-    const cx = ux(ny.x);
-    const cz = uz(ny.y);
-    box(cx - vastag, cz - lap, cx + vastag, cz, FLOOR_Z, FLOOR_Z + magas, 2);
-    const cz2 = uz(ny.y + DOOR - 1);
-    box(cx - vastag, cz2, cx + vastag, cz2 + lap, FLOOR_Z, FLOOR_Z + magas, 2);
-  }
-}
+// A lapokat sem itt rajzoljuk ki: a letöltött ajtómodell kerül a helyükre
+// futásidőben, zsanérral és nyithatóan. A generátor csak azt mondja meg,
+// HOL van ajtó és merre néz.
+const doorList = ajtonyilasok.map((ny) => ({
+  at: [
+    ux(ny.x + (ny.vizszintes ? (DOOR - 1) / 2 : 0)) * SCALE,
+    uz(ny.y + (ny.vizszintes ? 0 : (DOOR - 1) / 2)) * SCALE,
+  ],
+  vizszintes: ny.vizszintes,
+  // A nyílás pontjai VILÁGKOORDINÁTÁBAN — ezeket zárja el a csukott ajtó.
+  //
+  // Nem cellaindexet adunk át: a ház layout-rácsa (fél méteres cellák) és
+  // a navigációs rács (384-es felbontás) két külön dolog, és a kettő közti
+  // átváltás pont az a fajta néma hiba, amiből ma már kettőt megettünk.
+  // Világkoordinátát viszont mindkettő ért.
+  cells: Array.from({ length: DOOR * 2 }, (_, k) => {
+    const t = k / 2;
+    return ny.vizszintes
+      ? [ux(ny.x + t) * SCALE, uz(ny.y) * SCALE]
+      : [ux(ny.x) * SCALE, uz(ny.y + t) * SCALE];
+  }),
+}));
 
 // --- BÚTOR ---------------------------------------------------------------
 //
@@ -569,6 +592,7 @@ const prim = doc
   .setAttribute('POSITION', doc.createAccessor().setType('VEC3').setArray(new Float32Array(positions)).setBuffer(buffer))
   .setAttribute('NORMAL', doc.createAccessor().setType('VEC3').setArray(new Float32Array(normals)).setBuffer(buffer))
   .setAttribute('COLOR_0', doc.createAccessor().setType('VEC3').setArray(new Float32Array(colors)).setBuffer(buffer))
+  .setAttribute('TEXCOORD_0', doc.createAccessor().setType('VEC2').setArray(new Float32Array(uvs)).setBuffer(buffer))
   .setIndices(doc.createAccessor().setType('SCALAR').setArray(new Uint32Array(indices)).setBuffer(buffer))
   .setMaterial(
     doc
@@ -700,6 +724,12 @@ const nav = {
   homeowner: kozep(szobak[szobak.length - 1]),
   /** A szekrények: ide lehet bebújni. A jelenet ebből tudja, hol vannak. */
   hideSpots,
+  /** A falszakaszok cellában: ebből épül a kőfal futásidőben. */
+  wallRuns,
+  /** Az ajtók: hol állnak, merre néznek, és mely cellákat zárják el. */
+  doors: doorList,
+  /** Egy rácscella mérete a világban — a fal vastagsága is ennyi. */
+  wallCell: CELL,
   floor: floorRows,
   solid: solidRows,
   rooms: roomRows,
@@ -715,5 +745,6 @@ console.log(`  szobák:      ${rooms.length} + folyosórács`);
 console.log(`  járható:     ${((nyitott / (W * H)) * 100).toFixed(0)}% a befoglalóból`);
 console.log(`  háromszög:   ${indices.length / 3}`);
 console.log(`  bútor:       ${butorCellak.length} cella, ebből ${hideSpots.length} szekrény`);
+console.log(`  falszakasz:  ${wallRuns.length} · ajtó: ${doorList.length} · cella ${CELL} m`);
 console.log(`  glb:         ${(glb.byteLength / 1e6).toFixed(2)} MB`);
 console.log(`  falmagasság: ${(WALL * SCALE).toFixed(0)} egység`);

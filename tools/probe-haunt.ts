@@ -265,6 +265,21 @@ console.log('');
     'hamis ijesztések, amiktől a valódi is működik') && ok;
 }
 
+// --- A FALAK ÁRNYALÁSA ------------------------------------------------------
+//
+// A cel-shading sávokra vágja a megvilágítást. Felülnézetből ez stílus;
+// zseblámpával bevilágított folyosón viszont egy egész fal ugrik sötétből
+// világosba, ahogy lépsz — és ez kívülről úgy néz ki, hogy „kivilágosodik a
+// szoba, ha mozgok". A kísértetház falai ezért sima árnyalást kapnak.
+{
+  const haz = readFileSync('src/scenes/HouseScene.ts', 'utf8');
+  ok = line('a kísértetház falai nem cel-shadeltek',
+    haz.includes('if (!this.session.haunt) toonify(this.world.group, toon)'),
+    'a sáv átbillenése úgy néz ki, mintha a fény változna') && ok;
+  ok = line('...de nem is vakfeketék', haz.includes('new THREE.AmbientLight(0x2a2438'),
+    'vak feketén nem lopakodsz, hanem tapogatózol') && ok;
+}
+
 // --- AMI ÁTSZALAD ELŐTTED ---------------------------------------------------
 //
 // Ez az egyetlen dolog a módban, aminek NINCS következménye — és pont ezért
