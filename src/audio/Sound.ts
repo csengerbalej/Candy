@@ -54,6 +54,11 @@ export class Sound {
 
     const wake = (): void => {
       void this.ctx?.resume().catch(() => {});
+      // A MINTÁK MÁR MOST töltődjenek, ne az első lövéskor. A letöltés és a
+      // dekódolás együtt néhány tized másodperc — ha ez akkor történik,
+      // amikor meghúzod a ravaszt, abból AKADÁS lesz pont a legrosszabb
+      // pillanatban. Az első gombnyomás viszont a menüben van, ott van rá idő.
+      this.loadClips();
       void this.music?.play().catch(() => {});
     };
     window.addEventListener('keydown', wake);

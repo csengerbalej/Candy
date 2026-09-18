@@ -1274,6 +1274,66 @@ console.log('');
     `${normal.steps} lépés, ${(normal.rest * 1000).toFixed(1)} ms átvíve`) && ok;
 }
 
+// --- DÍSZLET ÉS DENEVÉREK ----------------------------------------------------
+//
+// Mindkettő ugyanazt a hibát tudná elkövetni, amit az imént mértünk ki a
+// szörnyecskéknél: száz külön objektum, száz külön rajzolási hívás, és a
+// játék akadozik egy olyan dologtól, amit észre sem veszel. Ezért mindkettő
+// PÉLDÁNYOSÍTOTT — és ezt a próba nem a kódból hiszi el, hanem megszámolja.
+{
+  const { Scenery } = await import('../src/world/Scenery');
+  const { Bats } = await import('../src/world/Bats');
+
+  // Egy apró álváros: kilenc útcsempe egy rácson, körülötte szabad terület.
+  const roads: { centre: THREE.Vector3 }[] = [];
+  for (let x = -1; x <= 1; x++) {
+    for (let z = -1; z <= 1; z++) roads.push({ centre: new THREE.Vector3(x * 24, 0, z * 24) });
+  }
+  const world = {
+    roads,
+    tileSize: 12,
+    onRoad: (x: number, z: number) =>
+      roads.some((t) => Math.abs(t.centre.x - x) < 6 && Math.abs(t.centre.z - z) < 6),
+    onMotorway: () => false,
+  };
+
+  let seed = 7;
+  const random = (): number => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+
+  // A modellek nélkül is kiszórható a díszlet: a HELYEK a szabályból jönnek,
+  // nem a hálóból. Ezt mérjük — hogy egy fa se álljon az úton.
+  const scenery = new Scenery(world, random);
+  const spots = (scenery as unknown as { scatter(k: unknown): THREE.Matrix4[] }).scatter.call(scenery, {
+    url: '', count: 60, height: 6, spread: 0.3, offRoad: 7,
+  });
+  const at = (m: THREE.Matrix4): THREE.Vector3 => new THREE.Vector3().setFromMatrixPosition(m);
+  line('a díszlet kikerül a pályára', spots.length > 30, `${spots.length} darab 60-ból`);
+  line('EGY FA SEM áll az úton', spots.every((m) => !world.onRoad(at(m).x, at(m).z)),
+    'nekihajtanál');
+  const meretek = spots.map((m) => new THREE.Vector3().setFromMatrixScale(m).x);
+  line('a méretük szór (nem klónok)',
+    Math.max(...meretek) - Math.min(...meretek) > 0.2,
+    `${Math.min(...meretek).toFixed(2)}–${Math.max(...meretek).toFixed(2)}`);
+
+  const bats = new Bats(24, random);
+  const car = new THREE.Vector3(0, 0, 0);
+  bats.update(0.016, car);
+  const elso = bats.positionOf(0).clone();
+  for (let t = 0; t < 3; t += 0.016) bats.update(0.016, car);
+  const mostani = bats.positionOf(0);
+  line('a denevérek repülnek', elso.distanceTo(mostani) > 1,
+    `${elso.distanceTo(mostani).toFixed(1)} egységet tettek meg 3 mp alatt`);
+  line('az ÉGEN vannak, nem a földön', mostani.y > 20, `${mostani.y.toFixed(0)} egység magasan`);
+  // A denevér KÖVETI a kocsit: enélkül a város egyik felén nyüzsögnének, a
+  // másikon üres volna az ég.
+  bats.update(0.016, new THREE.Vector3(500, 0, 500));
+  line('a kocsi körül keringenek', bats.positionOf(0).distanceTo(new THREE.Vector3(500, 0, 500)) < 200,
+    'nem a város közepe fölött');
+}
+
 console.log('');
 if (!ok) process.exitCode = 1;
 
@@ -1766,3 +1826,4 @@ if (!ok) process.exitCode = 1;
 
 console.log(ok ? 'MIND OK — a vezetés hangolása stabil' : 'VAN BUKÓ TESZT');
 process.exit(ok ? 0 : 1);
+

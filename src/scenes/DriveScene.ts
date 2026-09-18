@@ -31,6 +31,8 @@ import { DriveHud } from '../ui/DriveHud';
 import { NavigatorMap } from '../ui/NavigatorMap';
 import { models } from '../assets/ModelLoader';
 import { toonify, addOutlines, pruneOutlines } from '../render/Toon';
+import { Scenery } from '../world/Scenery';
+import { Bats } from '../world/Bats';
 import { nightSky, kitchenSurround } from '../render/Environment';
 import type { InputManager } from '../input/InputManager';
 import type { Session } from '../game/Session';
@@ -218,6 +220,10 @@ export class DriveScene implements GameScene {
   readonly game: DriveGame;
   private readonly traffic: CritterTraffic;
   private readonly streetCandy: StreetCandy;
+  /** A város díszlete: fák, tökök, sírkövek. */
+  private readonly scenery: Scenery;
+  /** Az égen keringő denevérek. */
+  private readonly bats = new Bats();
   private readonly lights: TrafficLights;
   private sky: THREE.Object3D | null = null;
   private readonly challenge: Challenge;
@@ -353,6 +359,13 @@ export class DriveScene implements GameScene {
     // Az utcán heverő cukorka. Az első dolog kint, ami a zsákba kerül.
     this.streetCandy = new StreetCandy(world);
     this.scene.add(this.streetCandy.group);
+
+    // A DÍSZLET és a DENEVÉREK. Egyik sem játékelem: nem lehet őket
+    // felszedni, nem állnak az utadba, és nem adnak pontot. Attól még ők
+    // teszik a várost Halloween-éjszakává — a házak csak házak.
+    this.scenery = new Scenery(world);
+    this.scene.add(this.scenery.group, this.bats.group);
+    void this.scenery.load(models);
 
     // The authored town is a daylight palette — light walls, grey tarmac. The
     // tint is what turns it into a night: cool and dark on the surfaces, while
@@ -951,6 +964,9 @@ export class DriveScene implements GameScene {
     // módban pont az a jó, ha látod, mit csinált.
     if (this.partner) this.skids.update(step, this.partner, this.groundAt);
     this.traffic.update(step, this.car, elapsed);
+    // A denevérek a KOCSI körül keringenek, nem a város közepe fölött: a
+    // végtelen eget nem kitölteni kell, hanem követni.
+    this.bats.update(step, this.car.position);
     this.game.driverIndex = this.session.driverIndex;
 
     if (networked && !this.amDriver) {

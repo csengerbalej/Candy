@@ -159,8 +159,13 @@ export class CritterTraffic {
 
   update(dt: number, car: Car, elapsed: number): void {
     const carPos = car.position;
+    const drawRange2 = STREET.critterDrawRange * STREET.critterDrawRange;
 
     for (const c of this.critters) {
+      // TÁVOLI SZÖRNYECSKE NEM RAJZOLÓDIK. A szimulációja fut tovább (az
+      // néhány szorzás), a kirajzolása viszont húszezer háromszög — és a
+      // felük olyan messze ácsorog, hogy egy képpontot ha kitesz.
+      c.mesh.visible = c.position.distanceToSquared(carPos) < drawRange2;
       if (c.launched > 0) {
         // Comic arc, no gore: they bounce, they land, they scurry off.
         c.launched -= dt;

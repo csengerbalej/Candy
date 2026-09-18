@@ -713,6 +713,20 @@ export const STREET = {
    * változik, ez sem maradhat.)
    */
   critterDashRange: 28,
+  /**
+   * Ennél messzebb a szörnyecske nem RAJZOLÓDIK ki.
+   *
+   * Mérve: a városban negyvennyolc szörnyecske él, egyenként húszezer
+   * háromszög — ez egymillió a képkockánkénti kétmillióból, tehát a FELE a
+   * terhelésnek. A hozzájuk tartozó medián távolság viszont 245 egység: a
+   * felük olyan messze van, hogy egy-két képpontot ha elfoglalna. Kiszámolni
+   * mindet, hogy aztán ne látszódjon, pont az, amitől akadozik.
+   *
+   * Százhúsz egység a látótávolság széle: a köd ott már úgyis elnyeli őket,
+   * tehát az eltűnésük nem látszik. Mozogni közben MOZOGNAK — csak nem
+   * rajzoljuk ki őket, tehát amikor odaérsz, ott vannak, ahol lenniük kell.
+   */
+  critterDrawRange: 120,
   /** Meddig tart a kiugrás, mielőtt visszaáll ácsorogni. */
   critterDashTime: 1.6,
   /** A kiugrás sebessége. Háromszorosa a sétálásnak: ettől ijesztő. */
