@@ -96,6 +96,19 @@ export class HouseScene implements GameScene {
   private readonly lurkers: Homeowner[] = [];
   /** Melyik szörny melyik arccal ijeszt. */
   private readonly lurkerFaces: string[] = [];
+  /**
+   * A SZÖRNYEK FAJTÁJA és a hozzá tartozó számlálók.
+   *
+   * Fegyver nincs: mindegyiket MÁSTÓL lehet elijeszteni, és ez a tudás a
+   * fegyver. Az árnyékot a fény elégeti, a lesőt a fény ébreszti fel — a
+   * lámpa tehát egyszerre a helyes és a végzetes válasz, attól függően,
+   * hogy mi áll ott a sötétben.
+   */
+  private readonly lurkerKind: Array<'arnyek' | 'leso' | 'koveto'> = [];
+  /** Mennyi ideje éri a fény (árnyék), vagy mióta nyugodt (leső). */
+  private readonly lurkerTimer: number[] = [];
+  /** Amíg fut, elijesztve van és nem jön vissza. */
+  private readonly lurkerFled: number[] = [];
   private jumpscare: Jumpscare | null = null;
   private torch: Torch | null = null;
   private hauntHud: HauntHud | null = null;
@@ -522,9 +535,14 @@ export class HouseScene implements GameScene {
         szorny.rescue = (from, toward, radius) => this.world.nearestStanding(from, toward, radius);
         szorny.findRoute = (from, to, radius) => this.world.route(from, to, radius);
         this.lurkers.push(szorny);
+        // Egy mindegyikből: három szörny, három ellenszer. Ha kettő volna
+        // ugyanolyan, az egyik tudás feleslegessé válna.
+        this.lurkerKind.push((['arnyek', 'leso', 'koveto'] as const)[i % 3]);
+        this.lurkerTimer.push(0);
+        this.lurkerFled.push(0);
         this.lurkerFaces.push(CHARACTERS[arcok[i % arcok.length]].portrait);
         this.scene.add(szorny.group);
-        void this.dressLurker(szorny, CHARACTERS[arcok[i % arcok.length]].model);
+        void this.dressLurker(szorny, CHARACTERS[arcok[i % arcok.length]].model, this.lurkerKind[i]);
       }
 
       // A LAKÓ nincs a házban: itt nem egy dühös felnőtt a tét. A csoportját
@@ -947,7 +965,11 @@ export class HouseScene implements GameScene {
    * A másik meg az, hogy a szörny, ami rád hasonlít, ijesztőbb annál, ami
    * nem. Ugyanaz a fajta vagy, mint ő — csak ő már régebben van itt.
    */
-  private async dressLurker(who: Homeowner, model: string): Promise<void> {
+  private async dressLurker(
+    who: Homeowner,
+    model: string,
+    fajta: 'arnyek' | 'leso' | 'koveto'
+  ): Promise<void> {
     try {
       // EMBERMÉRETŰ SZÖRNY: két méter. A lakó 6,4 egység magas, mert ő egy
       // óriás a szörnyecskék világában — itt viszont te vagy ember, és ami
@@ -970,15 +992,33 @@ export class HouseScene implements GameScene {
           emissiveIntensity: 0.4,
         });
       });
-      // A SZEME világít. Ez az egyetlen dolog, ami magától látszik a
-      // sötétben — és ez az, amit észreveszel, mielőtt bármi mást.
-      for (const oldal of [-1, 1]) {
+      // A SZEM A JEL, amiből eldöntöd, mit csinálj.
+      //
+      // Az ÁRNYÉKNAK NINCS SZEME — rá nyugodtan ráfoghatod a lámpát, az
+      // égeti. A LESŐ szeme viszont visszaveri a fényt, MIELŐTT elindulna:
+      // ha két fénylő pontot látsz a sötétben, akkor a lámpa a rossz
+      // válasz, és le kell kapcsolnod.
+      //
+      // Ez az egész mód legfontosabb fél másodperce, és szándékosan egy
+      // pillanatnyi döntés: ugyanaz a mozdulat menti meg vagy öli meg a
+      // kört, attól függően, mit látsz.
+      if (fajta === 'arnyek') {
+        who.group.visible = true;
+        art.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          // Az árnyék TÉNYLEG árnyék: nem veri vissza a fényt, csak
+          // kitakarja azt, ami mögötte van.
+          mesh.material = new THREE.MeshBasicMaterial({ color: 0x07050b });
+        });
+      }
+      for (const oldal of fajta === 'arnyek' ? [] : [-1, 1]) {
         const szem = new THREE.Mesh(
           new THREE.SphereGeometry(0.075, 8, 8),
-          new THREE.MeshBasicMaterial({ color: 0xff3a2a })
+          new THREE.MeshBasicMaterial({ color: fajta === 'leso' ? 0xfff0b0 : 0xff3a2a })
         );
         szem.userData.cpNoOutline = true;
-        szem.position.set(oldal * 0.17, HOMEOWNER.height * 0.82, 0.3);
+        szem.position.set(oldal * 0.14, 1.75, 0.25);
         art.add(szem);
       }
       who.group.add(art);
@@ -1629,7 +1669,66 @@ export class HouseScene implements GameScene {
     // nem célpont — különben a földön fekve a végtelenségig ütnének, és a
     // mentés esélytelen volna.
     const talpon = this.players.filter((_, i) => !haunt.down[i as 0 | 1].down);
-    for (const szorny of this.lurkers) {
+    const lampasnal = this.players[haunt.torchHolder];
+    const eg = haunt.torchOn && !haunt.down[haunt.torchHolder].down;
+    let eget = false;
+
+    for (let i = 0; i < this.lurkers.length; i++) {
+      const szorny = this.lurkers[i];
+
+      // ELIJESZTVE: távol van, és nem is számít. Enélkül a menekülés csak
+      // egy pillanat volna, és a jutalom semmi.
+      if (this.lurkerFled[i] > 0) {
+        this.lurkerFled[i] -= step;
+        if (this.lurkerFled[i] > 0) continue;
+      }
+
+      // RÁFOGTAD-E A FÉNYT. Szög és távolság — ugyanaz a kúp, amit látsz.
+      const felé = szorny.position.clone().sub(lampasnal.position);
+      const tav = felé.length();
+      const irany = Math.atan2(felé.x, felé.z);
+      const elteres = Math.abs(((irany - lampasnal.mesh.rotation.y + Math.PI) % (Math.PI * 2)) - Math.PI);
+      const fenyben = eg && tav < HAUNT.beamRange && elteres < HAUNT.beam;
+
+      if (this.lurkerKind[i] === 'arnyek') {
+        // AZ ÁRNYÉKOT A FÉNY ELÉGETI. De amíg ráfogod, ÁLLSZ — és a telep
+        // hatszoros ütemben fogy. A győzelem itt nem ingyenes: fényt
+        // égetsz el érte, és közben nem mozdulsz.
+        if (fenyben) {
+          this.lurkerTimer[i] += step;
+          eget = true;
+          this.game.banner = `ÉGETED… ${Math.round((this.lurkerTimer[i] / HAUNT.burn) * 100)}%`;
+          if (this.lurkerTimer[i] >= HAUNT.burn) {
+            this.lurkerTimer[i] = 0;
+            this.lurkerFled[i] = HAUNT.flee;
+            szorny.group.visible = false;
+            this.game.banner = 'AZ ÁRNYÉK SZÉTFOSZLOTT';
+            sound.clip('reload-start', 0.5);
+            continue;
+          }
+        } else {
+          // Levetted róla: az égés nem őrződik meg. Szakaszokban nem megy.
+          this.lurkerTimer[i] = Math.max(0, this.lurkerTimer[i] - step * 2);
+        }
+      } else if (this.lurkerKind[i] === 'leso') {
+        // A LESŐT A FÉNY ÉBRESZTI FEL — ugyanaz a mozdulat, ellentétes
+        // következménnyel. Az ellenszere a sötét: kapcsold le a lámpát és
+        // állj meg, és négy másodperc múlva visszaáll a helyére.
+        if (fenyben) {
+          this.lurkerTimer[i] = 0;
+        } else if (!eg && lampasnal.moving === false) {
+          this.lurkerTimer[i] += step;
+          if (this.lurkerTimer[i] >= HAUNT.calm && szorny.state !== 'PATROL') {
+            szorny.state = 'PATROL';
+            this.lurkerTimer[i] = 0;
+            this.game.banner = 'ELVESZTETTE A NYOMOT';
+          }
+        }
+      }
+      // A KÖVETŐNEK nincs fényellenszere: azt csak elveszíteni lehet. A
+      // ház a fegyver ellene — sarkok, kerülők, a folyosórács.
+
+      szorny.group.visible = true;
       szorny.update(step, talpon, this.noise);
     }
 
@@ -1638,6 +1737,7 @@ export class HouseScene implements GameScene {
     if (!haunt.down[me].down) {
       for (let i = 0; i < this.lurkers.length; i++) {
         const szorny = this.lurkers[i];
+        if (this.lurkerFled[i] > 0) continue;
         if (szorny.position.distanceTo(testem.position) > HOUSE.catchRadius) continue;
         if (!haunt.caught(me, testem.position)) continue;
         // AZ IJESZTÉS a becsapódás PILLANATÁBAN jön, minden bevezetés
@@ -1672,7 +1772,9 @@ export class HouseScene implements GameScene {
 
     // A LÁMPA. Csak annál ég, akinél van, és csak amíg van benne telep.
     const lampasE = haunt.torchHolder === me;
-    haunt.update(step, lampasE);
+    // ÉGETÉS KÖZBEN a telep hatszoros ütemben fogy: az árnyék elűzése
+    // FÉNYBE kerül, nem ügyességbe.
+    haunt.update(step * (eget ? HAUNT.burnDrain : 1), lampasE);
     const nalam = this.players[haunt.torchHolder];
     this.torch?.update(
       step,

@@ -1133,6 +1133,34 @@ export const HAUNT = {
   /** Az ijesztés hossza — a kép és a hang. */
   scare: 1.2,
   /**
+   * AZ ELIJESZTÉS: mindegyik szörny MÁSTÓL fél.
+   *
+   * Fegyver nincs, és nem is hiányzik — egy fegyver úgyis csak egy válasz
+   * volna minden kérdésre. Helyette mindegyiknek SAJÁT ellenszere van, és a
+   * tudás maga a fegyver: a kérdés az lesz, MI áll ott a sötétben, mert a
+   * válasz attól függ.
+   *
+   * A legszebb pár az ÁRNYÉK és a LESŐ. Az egyiket a fény elégeti, a
+   * másikat a fény ébreszti fel — és amíg rájuk nem világítasz, ugyanúgy
+   * néznek ki. Egyetlen jel különbözteti meg őket: a Leső szeme
+   * VISSZAVERI a fényt, mielőtt elindulna. Az Árnyéknak nincs szeme.
+   *
+   * A lámpa tehát egyszerre a helyes és a végzetes válasz.
+   */
+  /** Ennyi ideig kell ráfogni a fényt az Árnyékra, hogy szétfoszoljon. */
+  burn: 2.0,
+  /** Égetés közben ennyiszer gyorsabban fogy a telep. */
+  burnDrain: 6,
+  /** Elijesztve ennyi ideig nem jön vissza. */
+  flee: 22,
+  /** A lámpa kúpjának fél szöge: ekkorában „ráfogtad". */
+  beam: 0.42,
+  /** És eddig a távolságig ér el. */
+  beamRange: 22,
+  /** A Leső ennyi mozdulatlan, sötét másodperc után nyugszik meg. */
+  calm: 4,
+
+  /**
    * EMBERMÉRTÉK.
    *
    * A kísértetház nem a szörnyecskék világa: ott egy egység egy méter, a

@@ -125,6 +125,33 @@ console.log('');
   line('a telep egy teljes körre elég', HAUNT.torch > 120, `${HAUNT.torch} mp`);
 }
 
+// --- MINDEGYIKET MÁSHOGY LEHET ELIJESZTENI ----------------------------------
+//
+// Fegyver nincs. Ami helyette van: mindegyik szörnynek saját ellenszere, és
+// a legfontosabb az, hogy a kettő KÖZÜL kell választanod. Az árnyékot a fény
+// elégeti, a lesőt a fény ébreszti fel — ha ez a két szám elcsúszik
+// egymástól, az egész döntés értelmét veszti.
+{
+  line('az égetés rövid, de nem azonnali', HAUNT.burn >= 1.2 && HAUNT.burn <= 3,
+    `${HAUNT.burn} mp ráfogva`);
+  // AZ ÁRA. Ha az égetés ingyen volna, mindig azt csinálnád, és a sötét
+  // megszűnne erőforrás lenni.
+  const ar = HAUNT.burn * HAUNT.burnDrain;
+  line('...és a telepbe kerül', ar >= 8,
+    `${ar.toFixed(0)} másodpercnyi fény egy árnyékért`);
+  line('...de nem viszi el a felét', ar < HAUNT.torch * 0.2,
+    `${((ar / HAUNT.torch) * 100).toFixed(0)}% a telepből`);
+  line('az elijesztett szörny sokáig marad távol', HAUNT.flee > HAUNT.burn * 8,
+    `${HAUNT.flee} mp`);
+  // A LESŐ ellenszere a VÁRAKOZÁS: négy másodperc sötétben, mozdulatlanul.
+  // Rövidebb nem érne semmit, hosszabb alatt a másik kettő odaér.
+  line('a lesőt kivárni lehet, nem legyőzni', HAUNT.calm >= 3 && HAUNT.calm <= 6,
+    `${HAUNT.calm} mp sötétben, mozdulatlanul`);
+  // A KÚP: elég szűk ahhoz, hogy célozni kelljen vele.
+  line('a fénykúp célzást kíván', HAUNT.beam < 0.6,
+    `${((HAUNT.beam * 180) / Math.PI).toFixed(0)}° fél szög`);
+}
+
 console.log('');
 console.log(ok ? 'MIND OK — a kísértetház szabályai állnak' : 'VAN BUKÓ TESZT');
 process.exit(ok ? 0 : 1);
