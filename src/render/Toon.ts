@@ -207,6 +207,14 @@ export function toonify(
       const toon = new THREE.MeshToonMaterial({
         color: tint ? new THREE.Color().copy(std.color).multiply(tint) : std.color,
         map: std.map,
+        // A CSÚCSSZÍN ÁTMEGY A CEL-SHADINGEN.
+        //
+        // Enélkül a kúria vakítóan fehér lett: a falak festése csúcsszínben
+        // van (a generált háznak nincs UV-kiterítése, tehát képet nem lehet
+        // ráfeszíteni), az alapszíne pedig fehér — és a cserénél a
+        // csúcsszín-kapcsoló lemaradt. A szoba nem „túl világos" volt,
+        // hanem FESTETLEN.
+        vertexColors: std.vertexColors,
         emissive: authored ? std.emissive : hasTexture ? new THREE.Color(0xffffff) : std.emissive,
         emissiveMap: std.emissiveMap ?? (hasTexture ? std.map : null),
         emissiveIntensity: authored ? std.emissiveIntensity : hasTexture ? fill : std.emissiveIntensity,
