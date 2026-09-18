@@ -1002,6 +1002,15 @@ export const RIVAL = {
   fearRadius: 9,
   /** Mennyire pontos: ennyi egységgel mellé célozhat. */
   aimError: 0.8,
+  /**
+   * Milyen gyorsan vezet, a kocsi végsebességéhez képest.
+   *
+   * 0,9 — nem a maximum, és ez szándékos: az AI-nak megnyerhetőnek kell
+   * lennie. Egy tökéletes sofőr ellen nem verseny van, hanem bemutató. A
+   * fizikája viszont UGYANAZ, tehát a kanyarban ugyanúgy megcsúszik, és egy
+   * jól vett ív nálad többet ér, mint nála.
+   */
+  driveSkill: 0.9,
 } as const;
 
 /**

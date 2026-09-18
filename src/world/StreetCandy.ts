@@ -80,6 +80,17 @@ export class StreetCandy {
   }
 
   /**
+   * A KINT FEKVŐ darabok helye.
+   *
+   * Az AI sofőrnek kell: neki is teljesítenie kell a gyűjtés-kihívást, és
+   * ahhoz tudnia kell, hová menjen. A lista csak a felszedhetőket adja — egy
+   * épp visszatérő darab felé indulni annyi, mint a semmi felé.
+   */
+  get spots(): THREE.Vector3[] {
+    return this.pieces.filter((p) => p.cooldown <= 0).map((p) => p.home.clone());
+  }
+
+  /**
    * @returns hány darabot szedett fel ez a képkocka.
    */
   update(dt: number, elapsed: number, car: THREE.Vector3): number {

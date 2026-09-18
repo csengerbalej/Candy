@@ -13,6 +13,7 @@ import { TrafficLights } from '../world/TrafficLights';
 import { Checkpoints } from '../world/Checkpoints';
 import { SkidMarks } from '../vehicle/SkidMarks';
 import { Base } from '../world/Base';
+import { RivalDriver } from '../ai/RivalDriver';
 import { FogoHud } from '../ui/FogoHud';
 import { Delivery } from '../game/Delivery';
 import { CarTraffic } from '../ai/CarTraffic';
@@ -128,6 +129,84 @@ export class DriveScene implements GameScene {
 
   /** A talajon maradó gumicsík. Egyetlen háló, gyűrűpufferrel. */
   private readonly skids = new SkidMarks();
+  /** Az AI sofőr és a saját küldetése, fogó módban egyedül játszva. */
+  private rivalDriver: RivalDriver | null = null;
+  private rivalChallenge: Challenge | null = null;
+  private rivalLastAt = new THREE.Vector3();
+  private rivalThink = 0;
+  /** Igaz, ha az AI beért a házhoz — a HUD ebből mondja meg, hogy sietned kell. */
+  private rivalParked = false;
+  private rivalAnnounced = false;
+
+  /**
+   * Az AI egy képkockányi vezetése.
+   *
+   * A sorrend fontos: előbb a CÉL (mit akar most), aztán az ÚTVONAL (hogyan
+   * jut oda), és csak utána a gomb. A célt ritkán kell újragondolni — az
+   * útkeresés négyezer csomópontot jár be —, a kormányt viszont
+   * képkockánként.
+   */
+  private driveRival(step: number): void {
+    const car = this.partner!;
+    const driver = this.rivalDriver!;
+    const challenge = this.rivalChallenge!;
+
+    // A KÜLDETÉSE a VALÓDI haladásából számol, ugyanúgy, ahogy a tiéd: egy
+    // falnak nyomott gáz neki sem megtett út.
+    const moved = car.position.distanceTo(this.rivalLastAt);
+    this.rivalLastAt.copy(car.position);
+    challenge.update(step, moved, car.position);
+
+    // MEGÉRKEZETT: a küldetése kész, és ott áll a ház előtt. Innentől nem
+    // kap új útvonalat — különben másfél másodpercenként újraindulna ugyanoda,
+    // és a ház előtt oda-vissza billegne (élőben mérve pontosan ez történt).
+    const arrived =
+      challenge.done &&
+      car.position.distanceTo(this.game.target.driveway) < STREET.arriveRadius;
+    if (arrived) {
+      this.rivalParked = true;
+      // Fékez és megáll: egy leállított AI, ami még gurul, nem parkol.
+      car.update(
+        step,
+        { ...DriveScene.IDLE_INPUT, moveY: Math.abs(car.speed) > 0.5 ? -1 : 0 },
+        this.world.colliders
+      );
+      return;
+    }
+
+    this.rivalThink -= step;
+    if (this.rivalThink <= 0 || !driver.busy) {
+      this.rivalThink = 1.5;
+      // MIT AKAR MOST: amíg a küldetése tart, azt csinálja; utána a házhoz.
+      const want = challenge.done
+        ? this.game.target.driveway
+        : challenge.nextGate ?? this.nearestCandyFor(car.position) ?? this.game.target.driveway;
+      const path = this.world.route(car.position, want);
+      driver.follow(path.length ? path : [want]);
+    }
+
+    car.update(step, driver.drive(step, car), this.world.colliders);
+    // Az utcai cukorka NEKI IS jár, ha ráhajt — különben a GYŰJTÉS kihívást
+    // sosem tudná teljesíteni.
+    const got = this.streetCandy.update(step, 0, car.position);
+    if (got > 0) challenge.tookCandy(got);
+  }
+
+  /** Álló bemenet: se gáz, se kormány. Egy helyen, hogy ne szülessen újra. */
+  private static readonly IDLE_INPUT = {
+    moveX: 0, moveY: 0, jump: false, jumpHeld: false, sprint: false,
+    interact: false, interactHeld: false, pause: false, usingGamepad: false, nitro: false,
+  } as const;
+
+  /** A legközelebbi utcai cukorka — a GYŰJTÉS kihíváshoz. */
+  private nearestCandyFor(at: THREE.Vector3): THREE.Vector3 | null {
+    const spots = this.streetCandy.spots;
+    if (!spots.length) return null;
+    return spots.reduce((a: THREE.Vector3, b: THREE.Vector3) =>
+      a.distanceTo(at) <= b.distanceTo(at) ? a : b
+    );
+  }
+
   /** Kötött hivatkozás, hogy ne szülessen új függvény képkockánként. */
   private readonly groundAt = (x: number, z: number): number => this.world.groundAt(x, z);
   private readonly windowGlow: Array<{ light: THREE.PointLight; phase: number; base: number }> = [];
@@ -192,13 +271,21 @@ export class DriveScene implements GameScene {
     // gombnyomásokat. Így nincs két, egymástól elcsúszó valóság.
     //
     // Kicsit odébb indul: két autó nem születhet ugyanarra a pontra.
-    this.partner = net.current.paired
+    // A MÁSODIK KOCSI: a társé, vagy — fogó módban, egyedül — az AI-é.
+    //
+    // Ugyanaz a hely, ugyanaz a `Car`: így az ütközés, a rajzolás és a
+    // térképjelölő mind működik rá anélkül, hogy bármit megkettőznénk. A
+    // különbség csak annyi, hogy a társ kocsiját a HÁLÓZAT mozgatja, az
+    // AI-ét meg egy sofőr — de mindkettő ugyanazt a fizikát kapja.
+    const needsSecondCar = net.current.paired || (session.fogo && !net.current.paired);
+    this.partner = needsSecondCar
       ? new Car(
           world.carSpawn.clone().add(new THREE.Vector3(Math.cos(world.carHeading) * 7, 0, -Math.sin(world.carHeading) * 7)),
           world.carHeading
         )
       : null;
     if (this.partner) this.scene.add(this.partner.mesh);
+
 
     this.traffic = new CritterTraffic(world);
     this.scene.add(this.traffic.group);
@@ -214,6 +301,16 @@ export class DriveScene implements GameScene {
       this.car.position
     );
     this.challenge = new Challenge(session.visited.size, gatePoints);
+
+    // AZ AI SOFŐR és a SAJÁT KÜLDETÉSE. Nem ugyanaz a kihívás-példány, mint
+    // a tiéd: ő a saját haladását gyűjti, és neki is teljesítenie kell,
+    // mielőtt bemehet. Egy közös számláló azt jelentené, hogy egymás
+    // munkájából is profitáltok — ez viszont verseny.
+    if (session.fogo && !net.current.paired && this.partner) {
+      this.rivalDriver = new RivalDriver();
+      this.rivalChallenge = new Challenge(session.visited.size, gatePoints);
+      this.rivalLastAt.copy(this.partner.position);
+    }
     this.checkpoints =
       this.challenge.kind === 'IDOFUTAM' ? new Checkpoints(gatePoints, Challenge.GATE_REACH) : null;
     if (this.checkpoints) this.scene.add(this.checkpoints.group);
@@ -331,6 +428,10 @@ export class DriveScene implements GameScene {
       .catch((e) => console.warn('critter model failed', e));
 
     this.game = new DriveGame(world, this.car, this.traffic, session.stats, this.challenge, this.partner);
+    // Versenyben a ház ajtaja NEM VÁR az ellenfélre: a kooperatív szabály
+    // („együtt kell megérkezni") itt zsákutca lenne — az AI hét egységre
+    // parkolt le a háztól, és sosem állt pontosan a helyére.
+    if (this.rivalDriver) this.game.rivalry = true;
     this.game.driverIndex = session.driverIndex;
     this.game.targetId = session.chooseTarget(world.houses.map((h) => h.id));
     this.game.names = session.selection.names;
@@ -698,7 +799,9 @@ export class DriveScene implements GameScene {
       // A TÁRSÉT viszont sosem: azt a kapott állapotból rajzoljuk. Ha
       // mindkét gép átvenné a másikét, a két kocsi egymást rángatná, és
       // egyiknek sem lenne igaza.
-      if (this.partner && netRoom) {
+      if (this.rivalDriver && this.partner) {
+        this.driveRival(step);
+      } else if (this.partner && netRoom) {
         this.link.apply(this.partner, netRoom.peers());
         this.partner.syncMesh(step);
       }
@@ -784,6 +887,19 @@ export class DriveScene implements GameScene {
     // A talajszintet a VILÁG mondja meg, pontonként: az út teteje nem a
     // kocsi magassága (lásd SkidMarks).
     this.base?.update(step);
+    // AZ ELLENFÉL ÁLLÁSA a kinti szakaszban is látszik: ha ő már a háznál
+    // vár, sietned kell. Egy verseny, amiben nem tudod, hol tart a másik,
+    // csak egy magányos időmérés.
+    if (this.rivalChallenge && !this.rivalAnnounced) {
+      if (this.rivalParked) {
+        this.rivalAnnounced = true;
+        this.game.say('AZ ELLENFÉL MÁR A HÁZNÁL VÁR');
+      } else if (this.rivalChallenge.done) {
+        this.rivalAnnounced = true;
+        this.game.say('AZ ELLENFÉL TELJESÍTETTE A KÜLDETÉST');
+      }
+    }
+
     if (this.session.delivery) {
       // Az irányjelző a rakománytól függ: megrakott kocsival a bázisra mutat.
       const mine = this.session.delivery.loads[this.localIndex as 0 | 1];

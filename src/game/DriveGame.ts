@@ -61,6 +61,14 @@ export class DriveGame {
    * DO — and do together, like everything else the pair does.
    */
   parked = false;
+
+  /**
+   * Verseny megy-e (fogó mód).
+   *
+   * Egy mező, mert a szabály KÜLÖNBSÉGE egyetlen helyen dől el: közös
+   * célnál meg kell várni a másikat, versenyben nem.
+   */
+  rivalry = false;
   /** Who has climbed out. Both, and only both, ends the drive. */
   readonly outOfCar: [boolean, boolean] = [false, false];
 
@@ -258,7 +266,16 @@ export class DriveGame {
     const mineParked =
       this.distanceToTarget < STREET.arriveRadius &&
       Math.abs(this.car.speed) < STREET.parkSpeed;
+    // FOGÓ MÓDBAN NEM KELL MEGVÁRNI A MÁSIKAT.
+    //
+    // A kooperatív szabály — az ajtó kettőtökre nyílik — ott helyes, ahol
+    // közös a cél. Versenyben viszont épp az ellenkezője igaz: ha az
+    // ellenfélre kellene várni, a lassabb fél BLOKKOLNÁ a gyorsabbat, és a
+    // verseny értelme veszne el. (Ez egy valódi zsákutca lett volna: az AI a
+    // ház előtt hét egységre parkolt le, és soha nem állt pontosan a
+    // helyére — a játékos örökre kint rekedt volna.)
     const theirsParked =
+      this.rivalry ||
       !this.partner ||
       (this.partner.position.distanceTo(this.target.driveway) < STREET.arriveRadius &&
         Math.abs(this.partner.speed) < STREET.parkSpeed);

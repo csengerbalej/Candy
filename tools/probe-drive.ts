@@ -14,6 +14,7 @@ import { Engine } from '../src/audio/Sound';
 import { Anger } from '../src/game/Anger';
 import { StreetCandy } from '../src/world/StreetCandy';
 import { SkidMarks } from '../src/vehicle/SkidMarks';
+import { RivalDriver } from '../src/ai/RivalDriver';
 
 /**
  * Headless probe for the driving feel constants. Run: npm run probe:drive
@@ -1659,6 +1660,57 @@ if (!ok) process.exitCode = 1;
   //    az egész várost befestené.
   for (let t = 0; t < 12; t += SIM.step) marks.update(SIM.step, still);
   ok = line('a nyom elhalványul', anyMark(marks) === 0, `${anyMark(marks)} lenyomat 12 mp után`) && ok;
+}
+
+
+/**
+ * AZ AI SOFŐR.
+ *
+ * Eddig a házban várt rád, mintha odateleportált volna. Amit itt mérünk, az
+ * nem az „okosság", hanem három olyan dolog, ami nélkül az AI sofőr
+ * bosszantó, nem ellenfél:
+ *
+ *   ELJUT-E oda, ahová küldik (különben a verseny meg sem kezdődik),
+ *   NEM CSAL-E (ugyanaz a kocsi, ugyanaz a végsebesség),
+ *   KIJÖN-E, ha beszorul (különben egy szegélynek fordulva ott marad).
+ */
+{
+  const car = new Car(new THREE.Vector3(0, 0, 0), 0);
+  const driver = new RivalDriver(() => 0.5);
+  const cel = new THREE.Vector3(0, 0, 160);
+  driver.follow([new THREE.Vector3(0, 0, 60), new THREE.Vector3(0, 0, 110), cel]);
+
+  let leggyorsabb = 0;
+  for (let t = 0; t < 22; t += SIM.step) {
+    car.update(SIM.step, driver.drive(SIM.step, car), []);
+    leggyorsabb = Math.max(leggyorsabb, Math.abs(car.speed));
+  }
+  ok = line('az AI eljut a célig', car.position.distanceTo(cel) < 12,
+    `${car.position.distanceTo(cel).toFixed(1)} egységre állt meg`) && ok;
+  ok = line('...és nem gyorsabb a kocsi határánál', leggyorsabb <= CAR.maxSpeed * 1.01,
+    `${(leggyorsabb * 3.6).toFixed(0)} km/h (a határ ${(CAR.maxSpeed * 3.6).toFixed(0)})`) && ok;
+
+  // KANYAR: derékszögű fordulóból is ki kell jönnie.
+  const k = new Car(new THREE.Vector3(0, 0, 0), 0);
+  const d2 = new RivalDriver(() => 0.5);
+  const sarok = new THREE.Vector3(70, 0, 70);
+  d2.follow([new THREE.Vector3(0, 0, 70), sarok]);
+  for (let t = 0; t < 26; t += SIM.step) k.update(SIM.step, d2.drive(SIM.step, k), []);
+  ok = line('a derékszögű kanyart is beveszi', k.position.distanceTo(sarok) < 16,
+    `${k.position.distanceTo(sarok).toFixed(1)} egységre`) && ok;
+
+  // BESZORULÁS: fal elé állítva tolatnia kell, nem ott maradnia.
+  const b = new Car(new THREE.Vector3(0, 0, 0), 0);
+  const fal = [new THREE.Box3(new THREE.Vector3(-20, 0, 6), new THREE.Vector3(20, 6, 9))];
+  const d3 = new RivalDriver(() => 0.5);
+  d3.follow([new THREE.Vector3(0, 0, 60)]);
+  let tolatott = false;
+  for (let t = 0; t < 8; t += SIM.step) {
+    const inp = d3.drive(SIM.step, b);
+    if (inp.moveY < 0) tolatott = true;
+    b.update(SIM.step, inp, fal);
+  }
+  ok = line('falnak szorulva tolat', tolatott, 'nem marad ott gázt adva') && ok;
 }
 
 console.log(ok ? 'MIND OK — a vezetés hangolása stabil' : 'VAN BUKÓ TESZT');
