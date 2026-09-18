@@ -359,7 +359,16 @@ export class HouseScene implements GameScene {
       }
     }
 
-    if (random.length >= 4 || spots.length) {
+    // A KÍSÉRTETHÁZBAN NINCS FEGYVER.
+    //
+    // Nem elfelejtett kapcsoló: amint lőni lehet, a szörny célponttá válik,
+    // és a félelem elpárolog. A fegyver minden kérdésre ugyanaz a válasz —
+    // ebben a módban viszont pont az a játék, hogy mindegyikre MÁS.
+    //
+    // (Egyszer már beírtam ezt a feltételt, és némán nem érvényesült: a
+    // keresett sor közé azóta bekerült egy megjegyzés, tehát a csere nem
+    // talált. Azóta minden ilyen csere ellenőrzi magát.)
+    if (!session.haunt && (random.length >= 4 || spots.length)) {
       // A KÖZÖS SORSOLÓ a fegyvereknek is kell: melyik fegyver hol terem, és
       // mikor jön vissza. Enélkül a te sörétesed a társad gépén mesterlövész
       // volna, ugyanazon a helyen.
@@ -598,7 +607,9 @@ export class HouseScene implements GameScene {
         // ugyanolyan, az egyik tudás feleslegessé válna.
         this.lurkerKind.push(faj.kind);
         this.lurkerTimer.push(0);
-        this.lurkerFled.push(0);
+        // A KÖVETŐ nem a bejáratnál vár: az első ötven másodperc a
+        // kutatásé. Ugyanaz a számláló tartja távol, ami a lerázás után.
+        this.lurkerFled.push(faj.kind === 'koveto' ? HAUNT.stalkerWake : 0);
         this.lurkerShake.push(0);
         this.lurkerLast.push(Infinity);
         this.lurkerFaces.push(CHARACTERS[faj.arc].portrait);

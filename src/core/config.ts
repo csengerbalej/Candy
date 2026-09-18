@@ -1173,6 +1173,18 @@ export const HAUNT = {
    * áll — nem támad, csak áll. Ez az egyetlen szörny, ami akkor is
    * dolgozik, amikor nincs a képernyőn.
    */
+  /**
+   * A KÖVETŐ CSAK KÉSŐBB INDUL EL.
+   *
+   * Az első perc a KUTATÁSÉ: körbenézel, megtalálod az első cukorkát, és
+   * elhiszed, hogy ez egy sétálós játék. Ha a követő már a bejáratnál a
+   * nyomodban van, ez a szakasz elvész — és vele az egész ív, mert nem lesz
+   * mihez képest rosszabb, ami utána jön.
+   *
+   * Ötven másodperc: annyi, hogy két-három szobát bejárj, és épp annyi,
+   * hogy mire elfelejtenéd, hogy van ilyen, megjelenjen mögötted.
+   */
+  stalkerWake: 50,
   stalkerNoise: 26,
   /** Ennyire zárkózik fel: mögötted marad, nem rád mászik. */
   stalkerGap: 7,

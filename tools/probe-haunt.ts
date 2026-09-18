@@ -199,6 +199,14 @@ console.log('');
   // volna, mint a saját léptedé, akkor semmit nem csinálna.
   line('a követő zaja hangosabb a saját léptednél', HAUNT.stalkerNoise > NOISE.sprintRadius * 0.8,
     `${HAUNT.stalkerNoise} vs a futásod ${NOISE.sprintRadius}`);
+  // AZ ELSŐ PERC a kutatásé. Ha a követő a bejáratnál a nyomodban van, ez a
+  // szakasz elvész — és vele az ív, mert nem lesz mihez képest rosszabb,
+  // ami utána jön.
+  line('a követő nem azonnal indul', HAUNT.stalkerWake >= 30,
+    `${HAUNT.stalkerWake} mp csend a kör elején`);
+  line('...de nem is a kör felét várja ki', HAUNT.stalkerWake < HAUNT.torch * 0.5,
+    `${HAUNT.stalkerWake} mp a ${HAUNT.torch} mp-es telepből`);
+
   // A MÖGÉD KERÜLÉS ne legyen se gyakori, se azonnali: ha minden
   // másodpercben átugrana, az nem kísérteties, hanem hibásnak látszik.
   line('nem ugrál folyton mögéd', HAUNT.stalkerBlink >= 6, `${HAUNT.stalkerBlink} mp-enként legfeljebb`);
