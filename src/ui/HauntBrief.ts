@@ -33,9 +33,11 @@ export class HauntBrief {
         </div>
         <div class="szorny">
           <b>A KÖVETŐ</b>
-          <span class="jel">tompa vörös szem · lassú</span>
-          <span class="ellen">Nem adja fel, és fény nem hat rá. FUSS, és kerüld meg —
-          de a futás zaj, amit a Vak meghall.</span>
+          <span class="jel">tompa vörös szem · lassú · NEM BÁNT</span>
+          <span class="ellen">Nem támad — csak jön, és minden lépésével ZAJT KELT,
+          amire a Vak megérkezik. Amíg mögötted van, folyamatosan hívja rád a
+          többieket. Tűnj el a szeme elől és menj messzire: pár másodperc
+          után feladja.</span>
         </div>
         <div class="szorny">
           <b>A LESŐ</b>

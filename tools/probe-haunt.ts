@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Haunt } from '../src/game/Haunt';
-import { HAUNT, MOVE } from '../src/core/config';
+import { HAUNT, MOVE, NOISE } from '../src/core/config';
 
 /**
  * A KÍSÉRTETHÁZ SZABÁLYAI.
@@ -194,6 +194,22 @@ console.log('');
   // A LASSÚSÁG HATÁRA: a követő nem lehet olyan lassú, hogy sétálva le
   // lehessen hagyni — akkor nem fenyegetés, hanem díszlet. A játékos
   // kísértetházban 0,42-es szorzót kap.
+  // A KÖVETŐ SZABÁLYAI. Ő az egyetlen, aki nem bánt — és pont ezért kell
+  // mérni, hogy a helyettesítő fenyegetés elég erős-e. Ha a zaja kisebb
+  // volna, mint a saját léptedé, akkor semmit nem csinálna.
+  line('a követő zaja hangosabb a saját léptednél', HAUNT.stalkerNoise > NOISE.sprintRadius * 0.8,
+    `${HAUNT.stalkerNoise} vs a futásod ${NOISE.sprintRadius}`);
+  // A MÖGÉD KERÜLÉS ne legyen se gyakori, se azonnali: ha minden
+  // másodpercben átugrana, az nem kísérteties, hanem hibásnak látszik.
+  line('nem ugrál folyton mögéd', HAUNT.stalkerBlink >= 6, `${HAUNT.stalkerBlink} mp-enként legfeljebb`);
+  line('...és nem mászik rád', HAUNT.stalkerGap >= 5, `${HAUNT.stalkerGap} méterre marad`);
+  // A LERÁZÁS legyen elérhető, de ne triviális — és a jutalma legyen
+  // észrevehetően hosszabb, mint a ráfordított idő.
+  line('a lerázás pár másodperc takarás', HAUNT.stalkerShake >= 4 && HAUNT.stalkerShake <= 10,
+    `${HAUNT.stalkerShake} mp látótávolságon kívül`);
+  line('...és jóval tovább marad távol', HAUNT.stalkerRest > HAUNT.stalkerShake * 3,
+    `${HAUNT.stalkerRest} mp`);
+
   // A TESTÜK ÁTFÉR EGY AJTÓN. A kúria ajtaja két méter; egy 2,2 széles
   // test nem megy át rajta, és a szörny rángani kezd a küszöbön.
   line('a testük átfér a két méteres ajtón', 0.8 < 2.0, '0,8 m széles test');

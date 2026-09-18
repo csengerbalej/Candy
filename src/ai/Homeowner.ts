@@ -587,7 +587,18 @@ export class Homeowner {
       const speed = dt > 0 ? moved / dt : 0;
       this.lastSpeed += (speed - this.lastSpeed) * (1 - Math.exp(-9 * dt));
       this.rig.setSpeedScale(
-        THREE.MathUtils.clamp(this.lastSpeed / HOMEOWNER.walkSpeed, 0.35, 2.2)
+        // A LÉPÉS ÜTEME A SAJÁT tempójához mérve, nem a lakóéhoz.
+        //
+        // A lakó 4,4-gyel jár; a kísértetház szörnyei ennek a felével-
+        // kétharmadával. Ha az ütem a lakó számához mérne, a szörny fele
+        // sebességű járásciklust játszana kétszeres haladás mellett — és
+        // pontosan ez az, amit a szem CSÚSZÁSNAK lát. „Buggos mozgás":
+        // a láb nem oda lép, ahova a test megy.
+        THREE.MathUtils.clamp(
+          this.lastSpeed / (HOMEOWNER.walkSpeed * this.speedScale),
+          0.35,
+          2.2
+        )
       );
       if (this.grabLeft <= 0) this.rig.play(Homeowner.motionFor(this.state));
       this.rig.update(dt);

@@ -110,6 +110,10 @@ export class HouseScene implements GameScene {
   private readonly lurkerTimer: number[] = [];
   /** Amíg fut, elijesztve van és nem jön vissza. */
   private readonly lurkerFled: number[] = [];
+  /** Mióta nem lát a Követő — ennyi kell a lerázásához. */
+  private readonly lurkerShake: number[] = [];
+  /** A Követő előző távolsága — ebből derül ki, hogy TÁVOLODSZ-e tőle. */
+  private readonly lurkerLast: number[] = [];
   private jumpscare: Jumpscare | null = null;
   private torch: Torch | null = null;
   private hauntHud: HauntHud | null = null;
@@ -578,6 +582,10 @@ export class HouseScene implements GameScene {
           // zaj, amit a másik kettő meghall.
           szorny.speedScale = 0.62;
           szorny.relentless = true;
+          // ŐT NEM KELL MEGGYŐZNI. A többi szörny lát vagy hall; a követő
+          // egyszerűen TUDJA, hol vagy. Ez nem csalás, hanem a szerepe: ő
+          // az, aki elől nem elbújni kell, hanem lehagyni.
+          szorny.sightBlocked = () => false;
         } else {
           // A LESŐ ÁLL. Amíg rá nem világítasz, nem is létezik: nem
           // járőrözik, nem hall, nem néz. Amikor viszont felébred, ő a
@@ -591,6 +599,8 @@ export class HouseScene implements GameScene {
         this.lurkerKind.push(faj.kind);
         this.lurkerTimer.push(0);
         this.lurkerFled.push(0);
+        this.lurkerShake.push(0);
+        this.lurkerLast.push(Infinity);
         this.lurkerFaces.push(CHARACTERS[faj.arc].portrait);
         this.scene.add(szorny.group);
         void this.dressLurker(szorny, faj.model, faj.kind);
@@ -1825,6 +1835,77 @@ export class HouseScene implements GameScene {
           // — vagy kitartod, vagy nem kezded el.
           this.lurkerTimer[i] = Math.max(0, this.lurkerTimer[i] - step * 2);
         }
+      } else if (this.lurkerKind[i] === 'koveto') {
+        // --- A KÖVETŐ ---------------------------------------------------
+        //
+        // Három dolgot csinál, és egyik sem bántás:
+        //
+        //   ZAJT KELT minden lépésével. Ez a tényleges veszély: a vak erre
+        //   jön, és ő már bánt. A követőt azért kell lerázni, mert amíg a
+        //   nyomodban van, addig folyamatosan HÍVJA a többieket rád.
+        const tav = szorny.position.distanceTo(testem.position);
+        this.noise.emit(szorny.position, HAUNT.stalkerNoise, 'léptek mögötted');
+
+        //   MINDIG TUDJA, HOL VAGY, és mindig jön. A többi szörnynek látnia
+        //   vagy hallania kell téged; ő nem keres, hanem követ. Enélkül a
+        //   ház túlsó végében ácsorgott, amíg meg nem látott — mérve tíz
+        //   másodpercig meg sem mozdult.
+        szorny.lastStimulus = testem.position.clone();
+        if (szorny.state !== 'CHASE') szorny.state = 'CHASE';
+
+        //   MÖGÉD KERÜL, amikor nem nézel oda. Nem varázslat: pontosan
+        //   akkor lép, amikor a fal vagy a hátad takarja. Megfordulsz, és
+        //   ott áll — nem támad, csak áll.
+        const latom =
+          !this.world.sightBlocked(testem.position, szorny.position) &&
+          Math.abs(
+            ((Math.atan2(
+              szorny.position.x - testem.position.x,
+              szorny.position.z - testem.position.z
+            ) - nezesKup + Math.PI) % (Math.PI * 2)) - Math.PI
+          ) < 1.1;
+
+        this.lurkerTimer[i] += step;
+        if (!latom && this.lurkerTimer[i] > HAUNT.stalkerBlink && tav > HAUNT.stalkerGap) {
+          const moge = new THREE.Vector3(
+            testem.position.x - Math.sin(nezesKup) * HAUNT.stalkerGap,
+            0,
+            testem.position.z - Math.cos(nezesKup) * HAUNT.stalkerGap
+          );
+          const hely = this.world.nearestStanding(moge, testem.position, 0.5);
+          if (this.world.walkable(hely.x, hely.z, 0.5)) {
+            szorny.position.copy(hely);
+            szorny.group.position.copy(hely);
+            this.lurkerTimer[i] = 0;
+            sound.clip('reload-start', 0.35);
+          }
+        }
+
+        //   LERÁZHATÓ: ha elég sokáig nem lát és messze vagy, feladja egy
+        //   időre. Ez az egyetlen ellenszere — nincs fény, ami hatna rá.
+        //   ...de csak MOZGÁS KÖZBEN. Az első változatban elég volt
+        //   állni: mérve a kör első másodperceiben leráztam anélkül, hogy
+        //   egy lépést tettem volna, mert a ház nagy, és a fal takar.
+        //   Lerázni annyit tesz, hogy MESSZEBB KERÜLSZ tőle — ezért az idő
+        //   csak akkor telik, ha nő a távolság.
+        const tavolodsz = tav > (this.lurkerLast[i] ?? tav) + 0.001;
+        this.lurkerLast[i] = tav;
+        if (
+          tavolodsz &&
+          tav > HAUNT.stalkerGap * 2 &&
+          this.world.sightBlocked(testem.position, szorny.position)
+        ) {
+          this.lurkerShake[i] += step;
+          if (this.lurkerShake[i] >= HAUNT.stalkerShake) {
+            this.lurkerShake[i] = 0;
+            this.lurkerFled[i] = HAUNT.stalkerRest;
+            szorny.group.visible = false;
+            this.game.banner = 'LERÁZTAD';
+            continue;
+          }
+        } else {
+          this.lurkerShake[i] = 0;
+        }
       } else if (this.lurkerKind[i] === 'vak') {
         // A VAK a csendtől veszíti el a nyomot. Nem lát, tehát nincs mit
         // megszakítani — állj meg, és néhány másodperc múlva továbbmegy.
@@ -1856,6 +1937,9 @@ export class HouseScene implements GameScene {
       for (let i = 0; i < this.lurkers.length; i++) {
         const szorny = this.lurkers[i];
         if (this.lurkerFled[i] > 0) continue;
+        // A KÖVETŐ NEM BÁNT. Ő csak jön, és közben zajt kelt — a baj nem ő,
+        // hanem amit MIATTA hallanak meg a többiek.
+        if (this.lurkerKind[i] === 'koveto') continue;
         if (szorny.position.distanceTo(testem.position) > HOUSE.catchRadius) continue;
         if (!haunt.caught(me, testem.position)) continue;
         // AZ IJESZTÉS a becsapódás PILLANATÁBAN jön, minden bevezetés

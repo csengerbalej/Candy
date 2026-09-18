@@ -1161,6 +1161,29 @@ export const HAUNT = {
   calm: 4,
 
   /**
+   * A KÖVETŐ: nem bánt, csak jön — és ez rosszabb.
+   *
+   * Az első változatban elkapott, és az unalmas volt: még egy szörny, ami
+   * elől futni kell. Így viszont ő lett a mód legkellemetlenebb lénye,
+   * mert nem AZ a baj, amit ő csinál, hanem amit MIATTA történik: minden
+   * lépésével zajt kelt, és a zajra jönnek a többiek. Nem tőle félsz,
+   * hanem attól, hogy nem tudsz megszabadulni tőle.
+   *
+   * És nem szembe jön: amíg nem látod, MÖGÉD kerül. Megfordulsz, és ott
+   * áll — nem támad, csak áll. Ez az egyetlen szörny, ami akkor is
+   * dolgozik, amikor nincs a képernyőn.
+   */
+  stalkerNoise: 26,
+  /** Ennyire zárkózik fel: mögötted marad, nem rád mászik. */
+  stalkerGap: 7,
+  /** Ennyi idő után kerül megint mögéd, ha épp nem látod. */
+  stalkerBlink: 9,
+  /** Ennyi ideig kell látótávolságon kívül lenned, hogy lerázd. */
+  stalkerShake: 6,
+  /** Lerázva ennyi ideig nem jön vissza. */
+  stalkerRest: 25,
+
+  /**
    * EMBERMÉRTÉK.
    *
    * A kísértetház nem a szörnyecskék világa: ott egy egység egy méter, a
