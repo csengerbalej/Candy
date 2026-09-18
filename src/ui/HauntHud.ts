@@ -45,7 +45,9 @@ export class HauntHud {
       `<div class="sor"><span><b>F</b> — lámpa be/ki · <b>H</b> — súgó</span></div>` +
       `<div class="sor">${tars}</div>` +
       (en ? `<div class="sor">${en}</div>` : '') +
-      `<div class="sor"><span>${haunt.candy} cukorka a zsákban</span></div>`;
+      `<div class="sor"><span>${haunt.candy} / ${HAUNT.quota} cukorka` +
+      (haunt.candy >= HAUNT.quota ? ' — <b class="eleg">ELÉG</b>' : '') +
+      `</span></div>`;
   }
 
   dispose(): void {

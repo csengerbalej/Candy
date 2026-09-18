@@ -25,6 +25,10 @@ export class HauntBrief {
       <h2>A KÚRIA</h2>
       <p class="mit">Szedjétek össze a cukorkát, és jussatok ki. Fegyver nincs.
       Mindegyik szörnyre MÁS hat — és ez a tudás az egyetlen fegyveretek.</p>
+      <p class="mit"><b>A KIJÁRAT MINDIG NYITVA.</b> ${HAUNT.quota} cukorkával
+      sikeres a kör, de kimenni bármikor ki lehet — akár kevesebbel is.
+      Minden felvett darab után eldöntitek: kifelé most, vagy még egyért?
+      Ha mindketten lent maradtok, az egész odavan.</p>
       <div class="sorok">
         <div class="szorny">
           <b>A VAK</b>

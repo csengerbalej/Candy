@@ -126,6 +126,8 @@ export class HouseScene implements GameScene {
   private masonry: Masonry | null = null;
   /** Mikor szaladjon át a következő alak. */
   private kovetkezoAlak = 18;
+  /** Hol tart a kifelé menetel. */
+  private kijutas = 0;
   /** A szekrények világkoordinátában — ide lehet bebújni. */
   private readonly hideSpots: THREE.Vector3[] = [];
   private hauntHud: HauntHud | null = null;
@@ -1893,8 +1895,18 @@ export class HouseScene implements GameScene {
     }
 
     if (haunt.state === 'vege') {
-      // VÉGE. A ház nem enged ki: ez nem az a mód, ahol ki lehet sétálni.
-      this.game.banner = 'ELKAPTAK. A CUKORKA ODAVAN.';
+      this.game.banner = haunt.escaped
+        ? haunt.candy >= HAUNT.quota
+          ? `KIJUTOTTATOK — ${haunt.candy} CUKORKÁVAL`
+          : `KIJUTOTTATOK, DE CSAK ${haunt.candy} CUKORKÁVAL`
+        : 'ELKAPTAK. A CUKORKA ODAVAN.';
+      // Egy pillanat, hogy a felirat olvasható legyen, aztán vége a körnek.
+      this.exitGrace += step;
+      if (this.exitGrace > 2.2) {
+        this.game.stats.candy = haunt.candy;
+        this.game.stats.escaped = haunt.escaped;
+        this.finished = true;
+      }
       return;
     }
 
@@ -2243,6 +2255,51 @@ export class HouseScene implements GameScene {
       this.game.banner = kozeliAjto.open ? 'AJTÓ NYITVA' : 'AJTÓ BECSUKVA';
     } else if (kozeliAjto && !haunt.hidden) {
       this.game.banner = kozeliAjto.open ? 'E — becsukod' : 'E — kinyitod';
+    }
+
+    // === CUKORKA ÉS KIJUTÁS ================================================
+    //
+    // A cukorka RÁÁLLÁSRA jön, nem gombra: a sötétben már az is elég munka,
+    // hogy megtaláld. A zsák viszont nem biztonság — ha mindketten lementek,
+    // az egész odavan.
+    for (const spot of this.world.candySpots) {
+      if (spot.taken || haunt.hidden) continue;
+      if (spot.position.distanceTo(testem.position) > 1.7) continue;
+      spot.taken = true;
+      spot.mesh.visible = false;
+      haunt.candy++;
+      sound.clip('reload-done', 0.5);
+      this.game.banner =
+        haunt.candy >= HAUNT.quota
+          ? `${haunt.candy} CUKORKA — MEHETTEK`
+          : `${haunt.candy} / ${HAUNT.quota} CUKORKA`;
+    }
+
+    // A KIJÁRAT MINDIG NYITVA.
+    //
+    // Ez a mód legfontosabb szabálya, és szándékosan nem feltételhez kötött:
+    // kimenni bármikor ki lehet, akár üres kézzel is. A küszöb csak azt
+    // mondja meg, sikerült-e a kör.
+    //
+    // Egy zárt ajtó, ami nyolc cukorkára nyílik, ellenőrzőlistát csinál a
+    // játékból. Egy nyitott ajtó, ami mögött ott a tét, KAPZSISÁGOT: minden
+    // egyes darab után újra eldöntöd, hogy kimész-e most, vagy maradsz még
+    // egyért.
+    const ajtoban = testem.position.distanceTo(this.world.exitZone) < this.world.exitRadius;
+    if (ajtoban && !haunt.hidden) {
+      if (this.input.get(me).interactHeld) {
+        this.kijutas += step;
+        this.game.banner = `KIFELÉ… ${Math.round((this.kijutas / HAUNT.exitHold) * 100)}%`;
+        if (this.kijutas >= HAUNT.exitHold) haunt.escape();
+      } else {
+        this.kijutas = 0;
+        this.game.banner =
+          haunt.candy >= HAUNT.quota
+            ? `E — KIFELÉ (${haunt.candy} cukorkával, ELÉG)`
+            : `E — KIFELÉ (${haunt.candy} / ${HAUNT.quota} — maradsz még egyért?)`;
+      }
+    } else {
+      this.kijutas = 0;
     }
 
     // === BÚJÁS =============================================================

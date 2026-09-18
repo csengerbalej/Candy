@@ -265,6 +265,40 @@ console.log('');
     'hamis ijesztések, amiktől a valódi is működik') && ok;
 }
 
+// --- A KIJUTÁS ÉS A KÜSZÖB --------------------------------------------------
+//
+// Ez a mód motorja, és egyetlen szabályon áll: a kijárat MINDIG NYITVA van.
+// Egy zárt ajtó, ami nyolc cukorkára nyílik, ellenőrzőlistát csinál a
+// játékból; egy nyitott ajtó, ami mögött ott a tét, kapzsiságot.
+{
+  const h = new Haunt();
+  h.candy = 0;
+  h.escape();
+  line('üres kézzel is ki lehet menni', h.state === 'vege' && h.escaped,
+    'a küszöb nem a kijárat feltétele, csak a siker mércéje');
+
+  const k = new Haunt();
+  k.candy = 12;
+  k.caught(0, at(0, 0));
+  k.caught(1, at(3, 0));
+  line('de ha mindketten lent maradtok, a zsák odavan',
+    k.state === 'vege' && !k.escaped && k.candy === 0, '12-ből 0');
+
+  // A KÜSZÖB a ház készletéhez mérve legyen szoros, de teljesíthető: ha
+  // ugyanannyi, mint amennyi van, az utolsó darabért maradni kötelező —
+  // és akkor nincs döntés, csak menetrend.
+  const keszlet = 10;
+  line('a küszöb szoros, de nem az összes', HAUNT.quota < keszlet && HAUNT.quota >= keszlet * 0.6,
+    `${HAUNT.quota} a ${keszlet} cukorkából`);
+  line('a kijutás nem véletlen', HAUNT.exitHold >= 1, `${HAUNT.exitHold} mp az ajtóban`);
+
+  const haz = readFileSync('src/scenes/HouseScene.ts', 'utf8');
+  ok = line('a kijáratnak nincs cukorka-feltétele', !haz.includes('candy >= HAUNT.quota) haunt.escape'),
+    'kimenni bármikor ki lehet') && ok;
+  ok = line('bújás közben nem lehet kimenni', haz.includes('ajtoban && !haunt.hidden'),
+    'a szekrényből nem sétálsz ki az ajtón') && ok;
+}
+
 // --- A FALAK ÁRNYALÁSA ------------------------------------------------------
 //
 // A cel-shading sávokra vágja a megvilágítást. Felülnézetből ez stílus;

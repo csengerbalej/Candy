@@ -1234,6 +1234,22 @@ export const HAUNT = {
   /** Ilyen messze fut át. Közelről kiderülne, hogy egy sötét folt. */
   glimpseNear: 20,
   glimpseFar: 34,
+  /**
+   * A KÜSZÖB: ennyi cukorkával számít sikeresnek a kör.
+   *
+   * De NEM ez a kijárat feltétele — kimenni bármikor ki lehet. Ez a
+   * különbség az egész mód motorja: minden felvett cukorka után dönthettek,
+   * hogy kimentek most, vagy maradtok még egyért. Egy zárt ajtó, ami csak
+   * nyolc cukorkára nyílik, ellenőrzőlistát csinál belőle; egy nyitott
+   * ajtó, ami mögött ott a tét, KAPZSISÁGOT.
+   *
+   * A kúriában tíz cukorka van. Nyolc azt jelenti: majdnem mindet meg kell
+   * találni, de nem az utolsót is — az utolsó darabért maradni már az a
+   * döntés, ami elviszi a kört.
+   */
+  quota: 8,
+  /** Ennyi ideig kell az ajtóban állni. A kijutás se legyen véletlen. */
+  exitHold: 1.4,
   hideReach: 2.2,
   /** Belépés és kilépés ideje. Nem azonnali: a döntésnek súlya van. */
   hideTime: 0.8,

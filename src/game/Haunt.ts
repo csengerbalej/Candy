@@ -133,6 +133,22 @@ export class Haunt {
     this.torchHolder = this.torchHolder === 0 ? 1 : 0;
   }
 
+  /**
+   * KIJUTOTTATOK.
+   *
+   * Nem ugyanaz, mint a győzelem: kimenni bármikor ki lehet, akár üres
+   * kézzel is. A `quota` csak azt mondja meg, sikerült-e — a kijárat nem
+   * kérdezi meg. Ez a különbség az, amiből a kapzsiság-döntés lesz.
+   */
+  escape(): void {
+    if (this.state === 'vege') return;
+    this.state = 'vege';
+    this.escaped = true;
+  }
+
+  /** Kijutottatok-e, vagy odabent ért véget. */
+  escaped = false;
+
   private fail(): void {
     this.state = 'vege';
     // A ZSÁKMÁNY IS ODA. Enélkül az elbukás csak egy újrakezdés volna, és
