@@ -104,17 +104,39 @@ fpsBadge.hidden = true;
 app.appendChild(fpsBadge);
 let fpsFrames = 0;
 let fpsClock = performance.now();
+/**
+ * A KÉPKOCKASZÁMLÁLÓ — és ami mellette tényleg számít.
+ *
+ * Az átlagos képkockaszám elhallgatja az akadozást: hatvan képkocka
+ * másodpercenként, amiből egy huszonöt ezredmásodperces, ugyanúgy „60 fps",
+ * pedig pont az az egy az, amit megérzel. Ezért a LEGROSSZABB képkocka is
+ * kiíródik — és mellé a két szám, amiből meg lehet mondani, MITŐL akad: hány
+ * rajzolási hívás megy ki, és hány háromszög.
+ *
+ * Enélkül az „akadozik" panaszra csak tippelni lehet. Egy szám, amit a
+ * játékos le tud olvasni, többet ér, mint bármilyen sejtés.
+ */
 function tickFps(): void {
   fpsBadge.hidden = !settings.showFps;
   if (!settings.showFps) return;
   fpsFrames++;
   const now = performance.now();
+  const gap = now - fpsLast;
+  fpsLast = now;
+  if (gap < 500) fpsWorst = Math.max(fpsWorst, gap);
   if (now - fpsClock >= 500) {
-    fpsBadge.textContent = `${Math.round((fpsFrames * 1000) / (now - fpsClock))} fps`;
+    const info = renderer.info.render;
+    fpsBadge.textContent =
+      `${Math.round((fpsFrames * 1000) / (now - fpsClock))} fps · ` +
+      `legrosszabb ${fpsWorst.toFixed(0)} ms · ` +
+      `${info.calls} hívás · ${Math.round(info.triangles / 1000)}e háromszög`;
     fpsFrames = 0;
     fpsClock = now;
+    fpsWorst = 0;
   }
 }
+let fpsLast = performance.now();
+let fpsWorst = 0;
 
 // --- loading card ---------------------------------------------------------
 const loader = document.createElement('div');
