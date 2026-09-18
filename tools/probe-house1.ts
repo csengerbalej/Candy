@@ -1014,7 +1014,17 @@ const canStand = (p: THREE.Vector3, slack = 2): boolean => {
     ok = line('a cukorkádért a MÁSIK oldalra kell menned', sajatOldalon === 0,
       `${sajatOldalon} terem a saját sarkod oldalán`) && ok;
 
-    // 6. A FEGYVEREK SZÉTSZÓRVA. Két fegyver egy kupacban fél felvétel.
+    // 6. A LAKÓ NEM INDUL A SARKOKBÓL. A járőrpontok közül a legtávolabbira
+    // kerül — de ha MINDEGYIK közel volna valamelyik sarokhoz, az itt derül
+    // ki, nem a játékban.
+    const jaror = house.patrolWaypoints;
+    const legjobb = Math.max(
+      ...jaror.map((p) => Math.min(p.distanceTo(narancs), p.distanceTo(lila)))
+    );
+    ok = line('a lakó indulhat a sarkoktól távol', legjobb > CAPTURE.bankRadius * 4,
+      `a legjobb járőrpont ${legjobb.toFixed(0)} egységre a közelebbi saroktól`) && ok;
+
+    // 7. A FEGYVEREK SZÉTSZÓRVA. Két fegyver egy kupacban fél felvétel.
     let legkozelebb = Infinity;
     const fegyverek = plan.weapons.map(hova);
     for (let i = 0; i < fegyverek.length; i++) {

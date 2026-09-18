@@ -406,6 +406,8 @@ export class HouseScene implements GameScene {
           if (spot && c.owner !== undefined) spot.owner = c.owner;
         });
       }
+      const legkozelebbiSarok = (p: THREE.Vector3): number =>
+        Math.min(...(this.corners?.list ?? []).map((c) => c.position.distanceTo(p)));
       this.corners = new Corners(
         walkable.length >= 2 ? walkable : this.world.patrolWaypoints
       );
@@ -440,6 +442,25 @@ export class HouseScene implements GameScene {
         this.players[corner.player].position.copy(corner.position);
         this.players[corner.player].mesh.position.copy(corner.position);
       }
+      // A LAKÓ NEM ÁLLHAT A SARKODBAN, AMIKOR ELKEZDŐDIK.
+      //
+      // Mérve: a megrajzolt alaprajz a narancssárga sarkot a hálószobába
+      // tette, a lakó indulóhelye pedig ott van — öt egységre. A kör úgy
+      // kezdődött, hogy már üldözött, mielőtt egy lépést tettem volna. Egy
+      // szabály, ami azt mondja, „a sarokba nem jöhet be", semmit nem ér, ha
+      // a kör kezdetén már ott áll az ajtóban.
+      //
+      // A járőrpontok közül arra kerül, ami a KÉT SAROKTÓL EGYÜTT a
+      // legtávolabb van. Nem új szabály: ugyanaz a járőrözés indul, csak a
+      // ház közepéről, nem valakinek a hálószobájából.
+      const tavol = [...this.world.patrolWaypoints].sort(
+        (a, b) => legkozelebbiSarok(b) - legkozelebbiSarok(a)
+      )[0];
+      if (tavol) {
+        this.homeowner.position.copy(tavol);
+        this.homeowner.group.position.copy(tavol);
+      }
+
       // A KIJUTÁS pillanatában a sarok tartalma a kocsiba kerül. A könyvelés
       // a munkameneté, nem a jeleneté: a rakománynak túl kell élnie az ajtót.
       this.game.onEscape = () => {
@@ -1446,8 +1467,19 @@ export class HouseScene implements GameScene {
     // (Ezt korábban félreolvastam: azt hittem, a lakó már kergeti az AI-t,
     // pedig a `game.cast` egyedül csak a saját szörnyemet tartalmazta, és
     // a CHASE, amit mértem, rám vonatkozott.)
-    if (this.capture) return this.players;
-    return this.game.cast.map((i) => this.players[i]);
+    // A SAJÁT SARKODBAN LÁTHATATLAN VAGY.
+    //
+    // Mérve: a lakó a kör elején odasétált a sarkomhoz, és ott MEGÁLLT —
+    // pontosan a menedék peremén, 5,8 egységre, mert beljebb nem jöhetett.
+    // Nyolc mérésből nyolcszor ugyanott állt, üldöző állapotban. A szabály
+    // („a sarokba nem jöhet be") így nem menedéket csinált, hanem csapdát:
+    // bent biztonságban voltál, de kilépni sem tudtál.
+    //
+    // Ha a menedék menedék, akkor a lakó ODA NEM IS NÉZ. Kilépve azonnal
+    // újra látni fog — a védelem a szobáé, nem a tiéd.
+    const latszik = (p: PlayerController): boolean => !this.inSafeRoom(p.position.x, p.position.z);
+    if (this.capture) return this.players.filter(latszik);
+    return this.game.cast.map((i) => this.players[i]).filter(latszik);
   }
 
   private peers(): readonly { isMe: boolean; presence: Readonly<Record<string, unknown>>; peer: string; kind: 'viewer' | 'agent' }[] {
