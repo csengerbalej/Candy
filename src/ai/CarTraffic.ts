@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { VILLAGE_SCALE } from '../world/VillageWorld';
+import { addLamps, type Lamps } from '../render/CarLamps';
 import type { TrafficLights } from '../world/TrafficLights';
 
 export interface StreetGrid {
@@ -47,6 +48,8 @@ interface Npc {
   speed: number;
   /** Amíg fut, áll — piros lámpa vagy az előtte lévő autó miatt. */
   waiting: number;
+  /** A lámpái. A féklámpa akkor izzik fel, amikor tényleg megáll. */
+  lamps?: Lamps;
 }
 
 export class CarTraffic {
@@ -103,9 +106,25 @@ export class CarTraffic {
   setArt(make: () => THREE.Object3D): void {
     for (const npc of this.npcs) {
       const art = make();
+      // SZÍNVÁLTOZAT: tizenkét egyforma autó egy városban flottának látszik,
+      // nem forgalomnak. A festés a játék palettájából jön, hogy a városba
+      // illeszkedjen — nem szivárvány, hanem ugyanannak a világnak a színei.
+      const tint = CarTraffic.PAINT[Math.floor(this.random() * CarTraffic.PAINT.length)];
+      art.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const from = mesh.material as THREE.MeshStandardMaterial;
+        const made = from.clone();
+        made.color = new THREE.Color(tint);
+        mesh.material = made;
+      });
       npc.mesh.add(art);
+      npc.lamps = addLamps(npc.mesh);
     }
   }
+
+  /** A városi autók festése. A játék palettájának sötétebb változatai. */
+  private static readonly PAINT = [0x6b5a86, 0x8a5a3c, 0x3f4a6b, 0x7a4a5a, 0x4f6b5a, 0x8a7a4a];
 
   private spawn(): void {
     const alongZ = this.random() < 0.5;
@@ -180,6 +199,10 @@ export class CarTraffic {
         const side = npc.alongZ ? dx : dz;
         if (ahead > 0 && ahead < 10 && Math.abs(side) < 4) npc.waiting = 0.2;
       }
+
+      // FÉKLÁMPA: akkor ég, amikor tényleg áll. Messziről ebből tudod, hogy
+      // piros van, még mielőtt magát a lámpát meglátnád.
+      npc.lamps?.setBraking(npc.waiting > 0);
 
       if (npc.waiting > 0) continue;
 

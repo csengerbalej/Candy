@@ -950,22 +950,40 @@ export class HouseScene implements GameScene {
    */
   private applyHouseName(): void {
     if (!this.dark || this.goggles) return;
-    const shell = new THREE.Mesh(
-      new THREE.BoxGeometry(1.4, 0.7, 0.5),
+    // Helykitöltő doboz, amíg a modell betölt: a játék nem várhat egy
+    // letöltésre, és egy hiányzó tárgy rosszabb, mint egy ideiglenes.
+    const shell = new THREE.Group();
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(1.1, 0.6, 0.45),
       new THREE.MeshBasicMaterial({ color: 0x6effc0 })
     );
-    const lens = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.28, 0.28, 0.7, 12),
-      new THREE.MeshBasicMaterial({ color: 0x0b2a1c })
-    );
-    lens.rotation.x = Math.PI / 2;
-    lens.position.z = 0.3;
-    shell.add(lens);
+    shell.add(box);
     shell.userData.cpNoOutline = true;
     this.goggles = shell;
     this.scene.add(shell);
     this.scene.add(this.nightLight);
     this.placeGoggles();
+
+    void models
+      .instance('models/goggles.json', { length: 1.1 })
+      .then((art) => {
+        if (this.disposed || !this.goggles) return;
+        art.traverse((o) => {
+          o.userData.cpNoOutline = true;
+          const mesh = o as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          // Saját fényű, mint minden felszedhető: a vaksötét házban egy
+          // megvilágításra szoruló tárgy egyszerűen nincs.
+          const from = mesh.material as THREE.MeshStandardMaterial;
+          mesh.material = new THREE.MeshBasicMaterial({
+            map: from.map ?? null,
+            color: from.color?.clone() ?? new THREE.Color(0xffffff),
+          });
+        });
+        shell.clear();
+        shell.add(art);
+      })
+      .catch(() => {});
   }
 
   private addLighting(): void {

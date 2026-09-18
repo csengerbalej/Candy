@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { STREET } from '../core/config';
+import { addLamps } from '../render/CarLamps';
 
 /**
  * A SZTRÁDA FORGALMA: autók a városon kívüli körpályán.
@@ -73,6 +74,9 @@ export class MotorwayTraffic {
       r.mesh.clear();
       const art = make(r.fast);
       r.mesh.add(art);
+      // A sztrádán a lámpa nem díszítés: kétszáz kilométerrel közeledő autót
+      // éjjel a fényéről veszel észre, nem a karosszériájáról.
+      addLamps(r.mesh);
     }
   }
 
