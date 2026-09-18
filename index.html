@@ -9,7 +9,34 @@
       /* A class that sets `display` beats the browser's own [hidden] rule, so
          anything toggled with el.hidden needs this or it never goes away. */
       [hidden] { display: none !important; }
+      /* AZ INTERNETEN FUT, NEM EGY ABLAKBAN.
+
+         Két dolog, amit egy asztali böngészőben mérve soha nem látni:
+
+         · A TELEFON BÖNGÉSZŐSÁVJA. A `height: 100%` a nagy nézetablakhoz
+           mérődik — ahhoz, amekkora a lap AKKOR, amikor a címsor már
+           elgörgött. Amíg ott van, az alsó sáv RÁFEKSZIK a lap aljára, és
+           minden, ami alulra van tűzve (a cukorkaszámláló, a gombok),
+           alatta van. A `dvh` a pillanatnyi nézetablak, ami épp látszik.
+
+         · A BEVÁGÁS ÉS A KEZELŐSÁV. A fejlécben ott a `viewport-fit=cover`,
+           tehát a lap a bevágás ALÁ is kiterül — ez kell is, mert a játék
+           képe a teljes kijelzőt akarja. De ami a SZÉLÉRE van tűzve, az
+           ettől a bevágás alá kerül: fekvő iPhone-on a bal oldali 44
+           képpont a kamera, alul a kezelősáv csíkja. Ezért minden
+           széltávolság ezekből a változókból indul, és `0px`-re esik
+           vissza ott, ahol nincs bevágás (asztali gép, Android, régi
+           telefon) — ott tehát pontosan a régi elrendezés marad. */
+      :root {
+        --fent: env(safe-area-inset-top, 0px);
+        --lent: env(safe-area-inset-bottom, 0px);
+        --balra: env(safe-area-inset-left, 0px);
+        --jobbra: env(safe-area-inset-right, 0px);
+      }
       html, body, #app { width: 100%; height: 100%; overflow: hidden; background: #0b0716; }
+      @supports (height: 100dvh) {
+        html, body, #app { height: 100dvh; }
+      }
       body { font: 13px/1.3 ui-monospace, "SF Mono", Menlo, monospace; color: #fff; }
       canvas { display: block; }
 
@@ -62,7 +89,7 @@
 
       /* Shared, because the homeowner is the one thing both players share. */
       .hud-watch {
-        position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
+        position: absolute; left: 50%; bottom: calc(12px + var(--lent)); transform: translateX(-50%);
         display: flex; align-items: center; gap: 12px;
         padding: 7px 16px; border-radius: 20px;
         background: rgba(10, 6, 22, .74); backdrop-filter: blur(6px);
@@ -306,7 +333,7 @@
       }
 
       .fps {
-        position: fixed; right: 12px; bottom: 12px; z-index: 6;
+        position: fixed; right: calc(12px + var(--jobbra)); bottom: calc(12px + var(--lent)); z-index: 6;
         padding: 3px 8px; border-radius: 3px;
         background: rgba(10,6,22,.72); color: #7ef0b6;
         font-size: 10px; letter-spacing: .1em; font-variant-numeric: tabular-nums;
@@ -559,7 +586,7 @@
          198 képpont szélesen. A menüben ez egy nagy türkiz folt volt a
          magyarázó fölött, és semmi nem árulta el, honnan jön. A billentyűk
          azóta `msg` osztályt viselnek. */
-      .chat { position: fixed; left: 14px; bottom: 84px; z-index: 6;
+      .chat { position: fixed; left: calc(14px + var(--balra)); bottom: calc(84px + var(--lent)); z-index: 6;
               width: min(320px, 38vw); display: grid; gap: 6px; }
       .chat-log { display: grid; gap: 3px; }
       .chat-log p { margin: 0; padding: 5px 9px; border-radius: 4px;
@@ -631,7 +658,7 @@
 /* A KÍSÉRTETHÁZ KIJELZŐJE. Halvány és kicsi: horrorban a kijelző nem
    lehet kapaszkodó, csak a legkevesebb, ami még elég. */
 .haunt-hud {
-  position: fixed; left: 14px; bottom: 96px; z-index: 40;
+  position: fixed; left: calc(14px + var(--balra)); bottom: calc(96px + var(--lent)); z-index: 40;
   font: 600 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: .06em; color: #cbb8d8; text-shadow: 0 1px 3px #000;
   pointer-events: none; display: grid; gap: 5px;
@@ -685,7 +712,7 @@
         /* BALRA, a névtábla alá. Jobb felül a MINIMAPA van — 880 képpont
            széles ablakban mérve a kettő egymásra futott, és a térkép a
            fontosabb: azt nézed menekülés közben, a szobajelzőt nem. */
-        position: fixed; top: 46px; left: 14px; right: auto;
+        position: fixed; top: calc(46px + var(--fent)); left: calc(14px + var(--balra)); right: auto;
         max-width: min(420px, 52vw); z-index: 60; pointer-events: none;
         display: flex; align-items: center; gap: 8px;
         padding: 7px 12px 7px 10px; border-radius: 999px;
@@ -716,7 +743,11 @@
            A `safe` kulcsszó pont ennyit tesz: amíg befér, középen van; amint
            nem, a tetejétől indul, és onnan végig lehet görgetni. */
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        gap: 18px; padding: 30px 24px; text-align: center;
+        gap: 18px; text-align: center;
+        /* A menü a bevágás alá is kiterül (viewport-fit=cover), de a SZÖVEGE
+           nem mehet alá — ezért a belső távolság a bevágásból indul. */
+        padding: calc(30px + var(--fent)) calc(24px + var(--jobbra))
+                 calc(30px + var(--lent)) calc(24px + var(--balra));
         background: radial-gradient(120% 90% at 50% 0%, #1a1030 0%, #0b0716 70%);
       }
       .select h1 {
@@ -752,7 +783,8 @@
       .touch * { touch-action: none; -webkit-user-select: none; user-select: none; }
 
       .touch-pad {
-        position: absolute; left: 22px; bottom: 26px; width: 132px; height: 132px;
+        position: absolute; left: calc(22px + var(--balra)); bottom: calc(26px + var(--lent));
+        width: 132px; height: 132px;
         border-radius: 50%; pointer-events: auto;
         background: radial-gradient(circle, rgba(255,255,255,.10), rgba(255,255,255,.03) 70%);
         border: 1px solid rgba(255,255,255,.16);
@@ -767,7 +799,7 @@
          (nézés), tehát a tűzgomb nem lehet ott: célozni és lőni egyszerre
          kell tudni. */
       .touch-fire {
-        position: absolute; left: 20px; bottom: 176px;
+        position: absolute; left: calc(20px + var(--balra)); bottom: calc(176px + var(--lent));
         display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
         pointer-events: auto;
       }
@@ -783,7 +815,7 @@
       .touch-btn.scope[data-on] { background: rgba(120,170,255,.45); color: #fff; }
 
       .touch-keys {
-        position: absolute; right: 20px; bottom: 26px;
+        position: absolute; right: calc(20px + var(--jobbra)); bottom: calc(26px + var(--lent));
         display: flex; flex-direction: column-reverse; gap: 12px; align-items: flex-end;
         pointer-events: auto;
       }
@@ -798,7 +830,8 @@
       .touch-btn.nitro[data-on] { background: rgba(70,200,255,.5); }
 
       .touch-top {
-        position: absolute; right: 16px; top: 14px; display: flex; gap: 8px; pointer-events: auto;
+        position: absolute; right: calc(16px + var(--jobbra)); top: calc(14px + var(--fent));
+        display: flex; gap: 8px; pointer-events: auto;
       }
       .touch-mini {
         min-width: 54px; height: 34px; border-radius: 17px;
@@ -826,7 +859,7 @@
 
          Mindhárom ugyanabból jön: a HUD asztali képernyőre készült, ahol
          van hely a sarkokban. Érintőn a sarkok a hüvelykujjaké. */
-      body[data-touch] .haunt-hud { bottom: 210px; }
+      body[data-touch] .haunt-hud { bottom: calc(210px + var(--lent)); }
       body[data-mode="haunt"] .touch-fire { display: none; }
 
       /* A KÓD-JELVÉNY SZŰK KÉPERNYŐN ALULRA MEGY.
@@ -838,7 +871,7 @@
          elrejtjük — a szobakód a meghíváshoz kell, nem menekülés közben. */
       @media (max-width: 700px) {
         .net-badge {
-          top: auto; bottom: 8px; left: 50%; right: auto;
+          top: auto; bottom: calc(8px + var(--lent)); left: 50%; right: auto;
           transform: translateX(-50%);
           max-width: 94vw;
         }
@@ -851,12 +884,12 @@
          alá esik, és a saját sebességedet nem takarhatja el a saját hüvelykujjad. */
       body[data-touch] .drive-speed {
         left: 12px !important; right: auto !important;
-        top: auto !important; bottom: 176px !important;
+        top: auto !important; bottom: calc(176px + var(--lent)) !important;
         transform: scale(.78); transform-origin: 0 100%;
       }
       /* A kisterkép a navigátor képpaneljének a sarkában ül — azt nem mozgatom,
          mert akkor elválna attól, amit mutat. Helyette a GOMBOK mennek feljebb. */
-      body[data-touch] .touch-keys { bottom: 150px; }
+      body[data-touch] .touch-keys { bottom: calc(150px + var(--lent)); }
       /* A pontsáv FELÜLRE megy: alul a bal hüvelykujj és a botja ül rajta,
          és egy szám, amit a kezed takar, nem szám. */
       body[data-touch] .hud-watch {
@@ -864,19 +897,20 @@
            széle 367-nél volt, a kistérkép bal széle 231-nél — egymáson ültek.
            A térkép mérete a képernyővel nő: fekvő iPaden (1024×768) 143
            képpont széles, ott 165 kellett. 178 mindegyiknél elég. */
-        left: 8px; right: 178px; width: auto; max-width: none; transform: none;
-        top: 46px; bottom: auto;
+        left: calc(8px + var(--balra)); right: calc(178px + var(--jobbra));
+        width: auto; max-width: none; transform: none;
+        top: calc(46px + var(--fent)); bottom: auto;
         font-size: 10px; gap: 8px; flex-wrap: wrap; justify-content: center;
       }
       /* Az üzenetsáv NE érjen a gombok alá: telón jobbról helyet hagyunk
          nekik, különben a szöveg a nitró gomb alatt folytatódik. */
       body[data-touch] .hud-banner {
-        bottom: 250px; max-width: 220px; margin-right: 110px;
+        bottom: calc(250px + var(--lent)); max-width: 220px; margin-right: 110px;
       }
       /* A fejlécben a beviteli eszköz neve („keyboard") telón se nem igaz,
          se nem fér ki — a CHAT gomb alá csúszott. */
       body[data-touch] .hud-panel { max-width: 200px; }
-      body[data-touch] .chat { bottom: 200px; }
+      body[data-touch] .chat { bottom: calc(200px + var(--lent)); }
 
 
       /* ALACSONY KÉPERNYŐ (fekvő telefon) és ÉRINTŐ.
@@ -904,7 +938,7 @@
          ez nem látszik, mert ott bőven van függőleges hely; fekvőn nincs.
          A gombok mennek lejjebb, mert a térkép ahhoz tartozik, amit mutat. */
       @media (max-height: 560px) {
-        body[data-touch] .touch-keys { bottom: 12px; }
+        body[data-touch] .touch-keys { bottom: calc(12px + var(--lent)); }
       }
 
       body[data-touch] .title-inner .foot::after {
@@ -1034,7 +1068,7 @@
       /* Onboarding text, not HUD: it retires so it can never fight a player's
          own panel once the screen splits. */
       #help {
-        position: fixed; right: 14px; top: 14px; z-index: 5;
+        position: fixed; right: calc(14px + var(--jobbra)); top: calc(14px + var(--fent)); z-index: 5;
         animation: help-retire 1s ease-in 7s forwards;
         padding: 10px 14px; border-radius: 4px;
         background: rgba(10, 6, 22, .7); backdrop-filter: blur(6px);
