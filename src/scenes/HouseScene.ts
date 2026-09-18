@@ -727,6 +727,17 @@ export class HouseScene implements GameScene {
       // hanem tapogatózol: ennyi pont a körvonalakra elég, a formákra már
       // nem — azokhoz oda kell vinni a saját fényedet. Környezeti fény,
       // tehát nem kerül képpontonkénti számításba.
+      // A HÁZ FOGADJA ÉS VETI AZ ÁRNYÉKOT. A falak és a bútor eddig csak
+      // „ott voltak"; árnyékkal a fénykúp formát kap, és egy ajtónyílás
+      // mögül előbb látod meg a hosszú, vetülő alakot, mint magát a
+      // szörnyet.
+      this.world.group.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+      });
+
       const derengés = new THREE.AmbientLight(0x2a2438, 0.09);
       this.scene.add(derengés);
 
@@ -875,7 +886,14 @@ export class HouseScene implements GameScene {
       addOutlines(p.mesh, 0.9);
     }
     void this.loadCharacters(toon);
-    void this.loadHomeowner();
+    // A LAKÓ MODELLJE NÉGY MEGABÁJT — és a kísértetházban nincs is lakó.
+    //
+    // Mérve: a horror kör 7,6 MB-ot tölt le, és ebből 4,5 olyan fájl, amit
+    // soha nem használ (a lakó, a klipjei, az éjjellátó). Egy linken
+    // megosztott játéknál ez nem apróság: ennyivel tovább tart az első
+    // betöltés, mobilneten pedig ez a különbség a „kipróbálom" és a
+    // „bezárom" között.
+    if (!session.haunt) void this.loadHomeowner();
     void this.loadDog();
 
     this.hud = new Hud(parent);
@@ -1441,7 +1459,9 @@ export class HouseScene implements GameScene {
    * innentől igaz — tehát a sötétséghez kötött dolgokat itt kell elővenni.
    */
   private applyHouseName(): void {
-    if (!this.dark || this.goggles) return;
+    // Éjjellátó sincs a kísértetházban: ott a lámpa AZ erőforrás, és egy
+    // húsz másodperces ingyen látás pont azt a döntést venné el.
+    if (!this.dark || this.goggles || this.session.haunt) return;
     // Helykitöltő doboz, amíg a modell betölt: a játék nem várhat egy
     // letöltésre, és egy hiányzó tárgy rosszabb, mint egy ideiglenes.
     const shell = new THREE.Group();

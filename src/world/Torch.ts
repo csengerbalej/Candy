@@ -47,7 +47,24 @@ export class Torch {
     //
     // Vagyis pont ott lett erősebb, ahol hiányzott: a folyosó túlsó végén.
     this.light = new THREE.SpotLight(0xffd9a8, 0, 32, HAUNT.beam, 0.4, 0.8);
-    this.light.castShadow = false;
+    // A LÁMPA ÁRNYÉKOT VET — és ez a mód legnagyobb látványbeli nyeresége.
+    //
+    // Enélkül a szörny egy világos folt a sötétben; árnyékkal viszont
+    // ELŐBB LÁTOD AZ ÁRNYÉKÁT, mint őt magát. Egy folyosón végigvetülő,
+    // hosszú alak több, mint amit bármilyen textúra adhat.
+    //
+    // Egyetlen árnyékvető fény van a házban, és 1024-es térképpel dolgozik:
+    // ez egy mélységi rajzolás képkockánként, nem tizenkettő. A vágósíkok
+    // szűkek (fél métertől a lámpa hatótávjáig), mert egy tág tartományon
+    // a mélységi pontosság szétesik, és az árnyék „csíkozni" kezd.
+    this.light.castShadow = true;
+    this.light.shadow.mapSize.set(1024, 1024);
+    this.light.shadow.camera.near = 0.5;
+    this.light.shadow.camera.far = 32;
+    // A ferdén érő fény ÖNÁRNYÉKA a legcsúnyább hiba, amit egy reflektor
+    // tud: a fal saját magára vet csíkokat. A torzítás ezt tolja el.
+    this.light.shadow.bias = -0.0015;
+    this.light.shadow.normalBias = 0.04;
     this.group.add(this.light, this.target);
     this.light.target = this.target;
   }
