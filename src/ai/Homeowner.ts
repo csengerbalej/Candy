@@ -109,6 +109,20 @@ export class Homeowner {
    */
   relentless = false;
 
+  /**
+   * ÉG-E A ZSEBLÁMPÁJA.
+   *
+   * A lakóé igen: a fénykúpja az ÁLLAPOTA, a játékos abból olvassa ki, hogy
+   * merre néz és mikor lett gyanús. A kísértetház szörnyeié viszont nem —
+   * ott a sötét a lényeg, és egy magának világító szörny el is árulná
+   * magát. A kúpmesh is eltűnik vele: az is csak jelzés volt.
+   */
+  torchOn(on: boolean): void {
+    this.torch.intensity = on ? 900 : 0;
+    this.torch.visible = on;
+    this.cone.visible = on;
+  }
+
   setArt(art: THREE.Object3D, rig: Rig): void {
     this.group.remove(this.blockout);
     this.blockout.geometry.dispose();

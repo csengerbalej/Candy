@@ -499,6 +499,12 @@ window.addEventListener('keydown', (e) => {
   // ezt a számot, és a szög ízlés kérdése, amit fejetlen próbával nem lehet
   // eldönteni. A falak rajzolt magassága automatikusan követi.
   // NÉZETVÁLTÁS a házban: belső és külső között.
+  // Az F: a zseblámpa. Ugyanaz a gomb, ami a kocsiban a nitró — egy
+  // eszközön egy ujjal elérhető, és a két mód sosem fut egyszerre.
+  if (e.code === 'KeyF' && active && 'toggleTorch' in active) {
+    (active as { toggleTorch(): void }).toggleTorch();
+  }
+
   // A H: a kísértetház eligazítása. Aki elfelejtette, melyik szörnyre mi
   // hat, az ne úgy tudja meg, hogy meghal.
   if (e.code === 'KeyH' && active && 'toggleBrief' in active) {

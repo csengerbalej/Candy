@@ -46,8 +46,11 @@ export class HauntBrief {
         </div>
       </div>
       <div class="eszkoz">
-        <div><b>A LÁMPA</b> egy van kettőtökre, és fogy.
-        Kikapcsolva nem fogy — a spórolás is döntés.</div>
+        <div><b>A LÁMPA</b> — az <b>F</b> kapcsolja. Egy van kettőtökre, és
+        fogy. Kikapcsolva nem fogy: a spórolás is döntés, és a Leső csak
+        sötétben nyugszik meg.</div>
+        <div><b>MOZGÁS</b> W A S D · <b>futás</b> Shift · <b>felvétel és
+        mentés</b> E (nyomva tartva) · <b>súgó</b> H</div>
         <div><b>HA ELKAPNAK</b>, összecsuklasz. A társadnak ${HAUNT.bleed} másodperce
         van melléd guggolni (${HAUNT.revive} mp, végig nyomva). Ha mindketten
         lent vagytok, vége — és a cukorka is odavan.</div>

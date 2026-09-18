@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Haunt } from '../src/game/Haunt';
-import { HAUNT } from '../src/core/config';
+import { HAUNT, MOVE } from '../src/core/config';
 
 /**
  * A KÍSÉRTETHÁZ SZABÁLYAI.
@@ -197,6 +197,65 @@ console.log('');
   // A TESTÜK ÁTFÉR EGY AJTÓN. A kúria ajtaja két méter; egy 2,2 széles
   // test nem megy át rajta, és a szörny rángani kezd a küszöbön.
   line('a testük átfér a két méteres ajtón', 0.8 < 2.0, '0,8 m széles test');
+}
+
+// --- A KÚRIA JÁRHATÓ-E ------------------------------------------------------
+//
+// Ez az a próba, aminek a hiánya három panaszt okozott egyszerre: „egyes
+// szobákba nem tudok bemenni", „a szörnyek nem mozognak", „beragadnak a
+// falba". Egyik sem volt külön hiba — mind a három ugyanaz: az ajtók
+// szűkebbek voltak, mint amennyi HELYET a rács kér.
+//
+// A rács ugyanis nem a testedet nézi, hanem hogy van-e körülötted tiszta
+// hely; a szörnyek útkeresése ráadásul durvább rácson fut, és egy szűk
+// nyílás azon néha egyetlen mintavételi pontot sem kap. Ilyenkor nincs
+// útvonal — tehát nem is indulnak el.
+{
+  const { readFileSync } = await import('node:fs');
+  const { VillageHouse } = await import('../src/world/VillageHouse');
+  const nav = JSON.parse(readFileSync('public/models/mansion-nav.json', 'utf8'));
+  const haz = VillageHouse.fromNav(nav);
+
+  // A NAV FÁJL TENGELYE NEM A VILÁGÉ: a mélységet Blender-Y-ban tartja, és
+  // a világ z-je ennek a mínusza. A próbának ugyanúgy kell fordítania, mint
+  // a betöltőnek — különben a ház túlsó felét méri, és pont ott lesz zöld,
+  // ahol nem kellene.
+  const vilag = (p: [number, number]): THREE.Vector3 =>
+    new THREE.Vector3(p[0] * 36, 0, -p[1] * 36);
+  const bejarat = vilag(nav.spawn);
+  const szobak = nav.roomInfo.filter((r: { id: number }) => r.id !== 1);
+
+  // 1. MINDEN SZOBÁBAN LEHET ÁLLNI.
+  const allhato = szobak.filter((r: { centre: [number, number] }) =>
+    haz.walkable(vilag(r.centre).x, vilag(r.centre).z, MOVE.radius)
+  );
+  ok = line('minden szobában el lehet férni', allhato.length === szobak.length,
+    `${allhato.length}/${szobak.length}`) && ok;
+
+  // 2. MINDEN SZOBÁBA BE LEHET JUTNI — a SZÖRNYEK útkeresésével, mert az a
+  // szigorúbb. Ha ezen átmegy, a játékos is átfér.
+  const elerheto = szobak.filter(
+    (r: { centre: [number, number] }) => haz.route(bejarat, vilag(r.centre), 0.4).length > 0
+  );
+  ok = line('minden szobába vezet út a bejárattól', elerheto.length === szobak.length,
+    `${elerheto.length}/${szobak.length} szoba`) && ok;
+
+  // 3. ÉS A JÁTÉKOS TESTÉVEL IS. A `bodyFits` szigorúbb sugarat kér, mint a
+  // szörnyeké — ez az, ami az ajtókon elhasalt.
+  const jatekosnak = szobak.filter(
+    (r: { centre: [number, number] }) =>
+      haz.route(bejarat, vilag(r.centre), MOVE.radius * 1.3).length > 0
+  );
+  ok = line('...a játékos testével is', jatekosnak.length === szobak.length,
+    `${jatekosnak.length}/${szobak.length} szoba`) && ok;
+
+  // 4. A KÖRÖK. Egy zsákutcás ház nem ijesztő, hanem igazságtalan: a Követő
+  // elől kerülővel kell tudni menekülni. Ha a folyosórács él, akkor a
+  // bejárattól két EGYMÁSTÓL TÁVOLI szobába vezető út nem ugyanazon a
+  // szakaszon indul.
+  const tavoli = szobak.slice(0, 2).map((r: { centre: [number, number] }) => vilag(r.centre));
+  const ut = haz.route(tavoli[0], tavoli[1], 0.4);
+  line('a szobák között is van út', ut.length > 0, `${ut.length} csomópont`);
 }
 
 console.log('');

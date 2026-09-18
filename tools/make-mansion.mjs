@@ -187,15 +187,25 @@ for (let r = 0; r < ROWS; r++) {
 // Követő elé sétálsz, és onnan nincs kijárat — az nem feszültség, hanem
 // csapda. Kettővel a szoba maga is kerülőút lesz.
 /**
- * AZ AJTÓ SZÉLESSÉGE: négy cella, két méter.
+ * AZ AJTÓ SZÉLESSÉGE: hat cella, három méter — annyi, mint a folyosó.
  *
- * Mérve: hárommal (1,5 m) a szörnyek NEM FÉRTEK ÁT. A testük 2,2 egység
- * széles, a rács pedig a fél szélességgel (1,1) kérdez rá a járhatóságra —
- * egy másfél méteres ajtón ez nem megy át. A hiba néma volt: nem akadtak
- * el látványosan, hanem rángtak az ajtóban, aztán a mentőszabály odébb
- * tette őket. Kívülről ez „buggos szörny", pedig egy szám volt.
+ * Kétszer mértem be, és másodszorra derült ki, hogy nem is egy hibáról van
+ * szó, hanem kettőről:
+ *
+ *   A JÁTÉKOS nem fért be. A rács nem a testedet nézi, hanem hogy van-e
+ *   körülötted TISZTA HELY: a `bodyFits` 0,585 méter sugarat kér, ami a
+ *   0,21-es cellákkal három cella minden irányban — vagyis 1,26 méter kell
+ *   a nyílás közepétől. Egy két méteres ajtó ebből egy métert ad. Ezért
+ *   voltak szobák, amikbe egyszerűen nem lehetett bemenni.
+ *
+ *   A SZÖRNYEK meg nem TALÁLTAK ÁT. Az útkeresés durvább rácson fut (minden
+ *   negyedik cella), és egy két méteres nyílás azon a rácson néha egyetlen
+ *   mintavételi pontot sem kap — a keresés szerint ott fal van. Nem
+ *   „beragadtak": nem volt útvonal, tehát nem indultak el.
+ *
+ * Három méterrel mindkettő elfér, és egy kúria ajtaja amúgy is széles.
  */
-const DOOR = 4;
+const DOOR = 6;
 const doorHere = (x0, y0, x1, y1, oldal) => {
   if (oldal === 'fent') {
     const x = Math.floor((x0 + x1) / 2) - 1;
@@ -239,7 +249,23 @@ const kapuCella = [kapuX + 0.5, H - 1];
 // --- innentől: a rács kész. Minden más EBBŐL származik. ------------------
 
 const ux = (x) => ((x + 0.5) * CELL - (W * CELL) / 2) / SCALE;
+/** Egy rácssor a VILÁG z tengelyén, modellegységben. A geometria ezt használja. */
 const uz = (y) => ((y + 0.5) * CELL - (H * CELL) / 2) / SCALE;
+/**
+ * ...és UGYANAZ A SOR a nav fájl tengelyén.
+ *
+ * A nav fájl NEM világkoordinátában beszél: a rácsot annak idején
+ * Blenderben mérték, ahol a mélységtengely az Y, és a glTF ennek a
+ * MÍNUSZÁT hívja Z-nek. A betöltő ezért `row(z) = (-z - origó) / cella`
+ * képlettel számol.
+ *
+ * Elsőre világ-z-t írtam a fájlba, és mivel a ház a z tengelyre
+ * szimmetrikus, a HATÁROK stimmeltek — a TARTALOM viszont tükröződött. A
+ * geometria szerint jobbra volt a fal, a rács szerint balra. Ebből lett a
+ * „beragadnak a falba", a „nem tudok bemenni egyes szobákba" és a
+ * „szörnyek nem mozognak": mind a három ugyanaz az egy előjel.
+ */
+const uy = (y) => -uz(y);
 
 // --- geometria -----------------------------------------------------------
 const positions = [];
@@ -343,7 +369,8 @@ const cellU = (maxX - minX) / N;
 
 const at = (i, j) => {
   const x = minX + (i + 0.5) * cellU;
-  const z = minZ + (j + 0.5) * ((maxZ - minZ) / N);
+  // A sor a nav tengelyén fut; a világ z-je ennek a mínusza.
+  const z = -(minZ + (j + 0.5) * ((maxZ - minZ) / N));
   const gx = Math.floor(((x * SCALE + (W * CELL) / 2) / CELL));
   const gy = Math.floor(((z * SCALE + (H * CELL) / 2) / CELL));
   if (gx < 0 || gy < 0 || gx >= W || gy >= H) return null;
@@ -391,8 +418,8 @@ for (const r of mind) {
     for (let x = 0; x < W; x++) {
       if (room[y][x] !== r.id || grid[y][x] !== OPEN) continue;
       cells++;
-      lo = [Math.min(lo[0], ux(x)), Math.min(lo[1], uz(y))];
-      hi = [Math.max(hi[0], ux(x)), Math.max(hi[1], uz(y))];
+      lo = [Math.min(lo[0], ux(x)), Math.min(lo[1], uy(y))];
+      hi = [Math.max(hi[0], ux(x)), Math.max(hi[1], uy(y))];
     }
   }
   if (!cells) continue;
@@ -420,7 +447,16 @@ const candy = szobak.slice(0, 10).map((id, i) => ({ at: kozep(id), room: id, rew
 // világító gyűrű, ami elárulja, hogy ez itt játék.
 const pranks = [];
 
-const kapu = [ux(kapuCella[0]), uz(H - 1)];
+const kapu = [ux(kapuCella[0]), uy(H - 1)];
+/**
+ * A BELÉPÉS PONTJA: a körfolyosó közepe a kapu mögött.
+ *
+ * Előbb „öt méterrel beljebb" volt, és ez a falba esett — a körfolyosó
+ * három méter széles, öt méter már a szemközti szoba fala. A próba
+ * fogta meg: a bejárattól EGYETLEN szobába sem vezetett út, miközben a
+ * szobák között igen. Nem az ajtók voltak rosszak, hanem az indulópont.
+ */
+const belepes = [ux(kapuCella[0]), uy(H - 1 - MARGIN - Math.floor(CORR / 2))];
 const nav = {
   scale: SCALE,
   min: [minX, minZ, FLOOR_Z],
@@ -429,9 +465,9 @@ const nav = {
   cell: cellU,
   floorZ: FLOOR_Z,
   wallTop: FLOOR_Z + WALL,
-  porch: [kapu[0], kapu[1] + 3 / SCALE],
+  porch: [kapu[0], kapu[1] - 3 / SCALE],
   door: kapu,
-  spawn: [kapu[0], kapu[1] - 5 / SCALE],
+  spawn: belepes,
   entryRoom: 1,
   candy,
   pranks,

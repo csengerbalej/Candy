@@ -39,6 +39,10 @@ export class HauntHud {
       `<div class="telep" data-allapot="${allapot}">` +
       `<i style="width:${Math.max(0, telep)}%"></i>` +
       `<span>${haunt.torchOn ? 'LÁMPA' : 'SÖTÉT'} ${telep}%</span></div>` +
+      // A GOMB ott áll a telep alatt. Egy szabály, amit nem tudsz
+      // használni, nincs is — és a lekapcsolás itt szabály: sötétben nem
+      // fogy a telep, és a Leső is csak sötétben nyugszik meg.
+      `<div class="sor"><span><b>F</b> — lámpa be/ki · <b>H</b> — súgó</span></div>` +
       `<div class="sor">${tars}</div>` +
       (en ? `<div class="sor">${en}</div>` : '') +
       `<div class="sor"><span>${haunt.candy} cukorka a zsákban</span></div>`;

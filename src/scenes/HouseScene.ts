@@ -559,6 +559,11 @@ export class HouseScene implements GameScene {
         // egység széles test és 7,6-os üldözési sebesség. Itt a test 0,8
         // (átfér egy ajtón), a tempó pedig a te sebességedhez mérve dől el.
         szorny.bodyWidth = 0.8;
+        // A SZÖRNYEK NEM VILÁGÍTANAK. A lakó zseblámpája 900 candela — ez
+        // a házban a legerősebb fény, és háromszor is szerepelne. Egy
+        // szörny, aki maga elé világít, ráadásul elárulná magát: sötétben
+        // csak a szeme látszik, és pont ez a jó benne.
+        szorny.torchOn(false);
 
         if (faj.kind === 'vak') {
           // A VAK NEM LÁT. Nem „rosszul lát": a látása egyszerűen nem
@@ -1202,6 +1207,18 @@ export class HouseScene implements GameScene {
    * or competing with the torch.
    */
   private lightCharacter(art: THREE.Object3D): void {
+    // A KÍSÉRTETHÁZBAN A SZEREPLŐKNEK NINCS SAJÁT FÉNYÜK.
+    //
+    // Máshol ez a három kis fény menti meg a képet: nélkülük a szörnyed
+    // sziluett a sötétben. Itt viszont PONT az a cél — és az ára is
+    // mérhető. Minden fény MINDEN képpontra számol: nyolc égő fénnyel a
+    // rajzolás 8 ezredmásodperc egy negyed képernyőn, teljes méretben
+    // ennek a többszöröse. Ettől akadozott.
+    //
+    // Egy egyszeri „oltsunk el mindent" nem volt elég, mert a szereplők
+    // modellje KÉSŐBB érkezik, és magával hozza a saját fényeit. A forrásnál
+    // kell elvágni, ne utólag takarítani.
+    if (this.session.haunt) return;
     // A three-point rig, scaled to one character. Key from the front, cool
     // fill opposite so the shadow side keeps its form, and a rim behind to
     // separate a dark costume from a dark floor.
@@ -1239,7 +1256,7 @@ export class HouseScene implements GameScene {
     // És kétélű: a te köröd a lakónak is látszik. Sötétben nem az a kérdés,
     // látsz-e, hanem hogy megéri-e látni.
     if (this.dark) {
-      const lantern = new THREE.PointLight(0xffc27a, 300, 22, 2);
+      const lantern = new THREE.PointLight(0xffc27a, this.session.haunt ? 0 : 300, 22, 2);
       lantern.position.set(0, 2.4, 0);
       art.add(lantern);
     }
@@ -1894,6 +1911,25 @@ export class HouseScene implements GameScene {
       this.director.firstPerson !== null ? this.director.fpPitch : 0
     );
     this.hauntHud?.update(haunt, me);
+  }
+
+  /**
+   * A LÁMPA KAPCSOLÓJA.
+   *
+   * Kell egy gomb rá, mert a kikapcsolás SZABÁLY, nem kényelem: a sötétben
+   * nem fogy a telep, és a Leső is csak sötétben nyugszik meg. Egy szabály,
+   * amit nem lehet használni, nincs is.
+   */
+  toggleTorch(): void {
+    const h = this.haunt;
+    if (!h) return;
+    if (!h.torchOn && h.torch <= 0) {
+      this.game.banner = 'A TELEP KIFOGYOTT';
+      return;
+    }
+    h.torchOn = !h.torchOn;
+    this.game.banner = h.torchOn ? 'LÁMPA BE' : 'LÁMPA KI';
+    sound.clip('empty', 0.4);
   }
 
   /** A H gomb: az eligazítás bármikor visszahívható. */
