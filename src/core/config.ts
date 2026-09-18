@@ -1191,7 +1191,16 @@ export const HAUNT = {
   /** Ennyi idő után kerül megint mögéd, ha épp nem látod. */
   stalkerBlink: 9,
   /** Ennyi ideig kell látótávolságon kívül lenned, hogy lerázd. */
-  stalkerShake: 6,
+  /**
+   * Ennyire kell eltávolodnod ahhoz, hogy a lerázás ideje teljen.
+   *
+   * Tizennégy volt (a követési távolság duplája), és a gyakorlatban
+   * elérhetetlen: a szörny 2,7-tel jön, te sétálva 3,3-mal mész — hét
+   * másodperc kell ahhoz, hogy összejöjjön a különbség, és közben végig
+   * takarásban kell maradnod. Tízzel futva három másodperc alatt megvan.
+   */
+  stalkerShakeGap: 10,
+  stalkerShake: 5,
   /** Lerázva ennyi ideig nem jön vissza. */
   stalkerRest: 25,
 

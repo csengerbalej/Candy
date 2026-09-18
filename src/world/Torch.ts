@@ -27,7 +27,13 @@ export class Torch {
     // A KÚP SZÖGE ugyanaz, mint amit a szabály használ (HAUNT.beam): a
     // fénykör, amit LÁTSZ, és a kúp, ami ÉGET, nem lehet két különböző
     // dolog — abból az lenne, hogy ráfogod a fényt, és nem történik semmi.
-    this.light = new THREE.SpotLight(0xffd9a8, 0, 26, HAUNT.beam, 0.35, 1.5);
+    // A FÉNYERŐ ÉS A LECSENGÉS EGYÜTT dönti el, mit látsz.
+    //
+    // Először 240 volt 1,5-ös lecsengéssel, és közelről KIÉGETT: egy méterre
+    // álló szörny fehér foltként töltötte be a képet, és pont az veszett el,
+    // ami ijesztő benne — a forma. A fényerő harmadára, a lecsengés
+    // laposabbra: közel nem világít agyon, messze viszont még elér.
+    this.light = new THREE.SpotLight(0xffd9a8, 0, 24, HAUNT.beam, 0.4, 1.15);
     this.light.castShadow = false;
     this.group.add(this.light, this.target);
     this.light.target = this.target;
@@ -69,7 +75,7 @@ export class Torch {
     // ritmusa. Egy szabályos pulzálás gépnek látszik.
     const flicker = 1 + Math.sin(this.clock * 11) * 0.04 + Math.sin(this.clock * 3.3) * 0.05;
     const low = fade < 0.2 ? 0.45 + Math.sin(this.clock * 24) * 0.35 : 1;
-    this.light.intensity = on ? 240 * flicker * Math.min(1, fade * 4) * low : 0;
+    this.light.intensity = on ? 95 * flicker * Math.min(1, fade * 4) * low : 0;
   }
 
   dispose(): void {

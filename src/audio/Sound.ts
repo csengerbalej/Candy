@@ -7,6 +7,15 @@ const CLIPS = [
   'gun-shotgun',
   'gun-sniper',
   'gun-rocket',
+  // A KÍSÉRTETHÁZ HANGJAI. Ezek a legfontosabbak az egész módban: egy néma
+  // ház nem ijesztő, hanem üres. A csend attól félelmetes, hogy BÁRMIKOR
+  // lehet benne valami — ehhez viszont kell, hogy néha tényleg legyen.
+  'h-ambience',
+  'h-steps',
+  'h-door',
+  'h-heart',
+  'h-growl',
+  'h-creak',
 ] as const;
 type ClipName = (typeof CLIPS)[number];
 
@@ -293,7 +302,7 @@ export class Sound {
       // tömörítés egy fél másodperces kattanáson úgysem nyerne semmit), a
       // lövések viszont MP3-ok, mert azok másodpercesek és a mesterlövészé
       // WAV-ban másfél megabájt volna.
-      void fetch(`audio/${name}${name.startsWith('gun-') ? '.mp3' : '.wav'}`)
+      void fetch(`audio/${name}${name.startsWith('gun-') || name.startsWith('h-') ? '.mp3' : '.wav'}`)
         .then((r) => r.arrayBuffer())
         .then((bytes) => this.ctx!.decodeAudioData(bytes))
         .then((buffer) => this.clips.set(name, buffer))
@@ -340,6 +349,53 @@ export class Sound {
       if (this.voices.get(name) === source) this.voices.delete(name);
     };
     return true;
+  }
+
+  /**
+   * HURKOLT HANG: az alaphangulat és a léptek.
+   *
+   * Nem `clip`-pel, mert az minden hívásra új példányt indít, és egy
+   * huroknál pont az kell, hogy EGY szóljon, folyamatosan, állítható
+   * hangerővel. A hangerő nulla helyett nem állítjuk le: egy újraindított
+   * hurok minden alkalommal ugyanonnan kezdene, és a lépteknél ez
+   * kopogásnak hallatszana.
+   */
+  private readonly loops = new Map<string, { gain: GainNode; source: AudioBufferSourceNode }>();
+
+  loop(name: ClipName, gain: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || this.muted) return;
+    this.loadClips();
+    const running = this.loops.get(name);
+    if (running) {
+      // Simán, nem ugrásszerűen: egy hirtelen felcsapó lépészaj elárulja,
+      // hogy gép csinálja.
+      running.gain.gain.setTargetAtTime(gain, ctx.currentTime, 0.12);
+      return;
+    }
+    const buffer = this.clips.get(name);
+    if (!buffer || gain <= 0) return;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    const volume = ctx.createGain();
+    volume.gain.value = 0;
+    source.connect(volume).connect(this.master);
+    source.start();
+    volume.gain.setTargetAtTime(gain, ctx.currentTime, 0.2);
+    this.loops.set(name, { gain: volume, source });
+  }
+
+  /** Minden hurkot elhallgattat — jelenetváltáskor. */
+  stopLoops(): void {
+    for (const [, l] of this.loops) {
+      try {
+        l.source.stop();
+      } catch {
+        // Már véget ért.
+      }
+    }
+    this.loops.clear();
   }
 
   /** Újratöltés: két kattanás. A második azt mondja, hogy KÉSZ. */

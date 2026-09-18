@@ -114,10 +114,16 @@ export class HouseScene implements GameScene {
   private readonly lurkerShake: number[] = [];
   /** A Követő előző távolsága — ebből derül ki, hogy TÁVOLODSZ-e tőle. */
   private readonly lurkerLast: number[] = [];
+  /** A távolodás fél másodperces ablaka. */
+  private readonly lurkerWindow: number[] = [];
   private jumpscare: Jumpscare | null = null;
   private torch: Torch | null = null;
   private hauntHud: HauntHud | null = null;
   private hauntBrief: HauntBrief | null = null;
+  /** A ház hangjának órája: a szívverés és a neszek ütemezéséhez. */
+  private hangClock = 0;
+  private szivUtolso = 0;
+  private kovetkezoNesz = 6;
   /** Az AI teste. A második játékos helyén ül, ha nincs valódi társ. */
   private rivalBody: PlayerController | null = null;
 
@@ -589,7 +595,13 @@ export class HouseScene implements GameScene {
           // gyors volna, esélytelen lenne ellene; ha feladná, elég volna
           // befordulni egy sarkon. Így viszont futni kell — és a futás
           // zaj, amit a másik kettő meghall.
-          szorny.speedScale = 0.62;
+          // LASSÚ, MERT NEM BÁNT. A mérés mutatta meg, mennyire számít: 0,62-vel
+          // az üldözési tempója 4,7 m/s, a futásod 5,2 — fél méter másodpercenként
+          // a különbség, vagyis a lerázáshoz kellő tíz méter hat másodpercnyi
+          // szakadatlan futás lett volna takarásban. A szabály papíron létezett,
+          // a játékban nem. 0,42-vel a különbség két méter másodpercenként:
+          // futva másfél másodperc, sétálva épphogy semmi.
+          szorny.speedScale = 0.42;
           szorny.relentless = true;
           // ŐT NEM KELL MEGGYŐZNI. A többi szörny lát vagy hall; a követő
           // egyszerűen TUDJA, hol vagy. Ez nem csalás, hanem a szerepe: ő
@@ -612,6 +624,7 @@ export class HouseScene implements GameScene {
         this.lurkerFled.push(faj.kind === 'koveto' ? HAUNT.stalkerWake : 0);
         this.lurkerShake.push(0);
         this.lurkerLast.push(Infinity);
+        this.lurkerWindow.push(0);
         this.lurkerFaces.push(CHARACTERS[faj.arc].portrait);
         this.scene.add(szorny.group);
         void this.dressLurker(szorny, faj.model, faj.kind);
@@ -1877,7 +1890,19 @@ export class HouseScene implements GameScene {
           ) < 1.1;
 
         this.lurkerTimer[i] += step;
-        if (!latom && this.lurkerTimer[i] > HAUNT.stalkerBlink && tav > HAUNT.stalkerGap) {
+        // ...DE NEM AKKOR, AMIKOR ÉPP MENEKÜLSZ ELŐLE.
+        //
+        // Ez tette lerázhatatlanná: futottál, gyűlt a lerázás ideje, aztán
+        // a szörny mögéd villant, a távolság hétre esett, és a számláló
+        // nullázódott. Minden menekülés így ért véget. Amíg a lerázás fut,
+        // a mögéd kerülés ALSZIK — különben a szabály önmagát eszi meg.
+        const menekulok = this.lurkerShake[i] > 0.4;
+        if (
+          !menekulok &&
+          !latom &&
+          this.lurkerTimer[i] > HAUNT.stalkerBlink &&
+          tav > HAUNT.stalkerGap
+        ) {
           const moge = new THREE.Vector3(
             testem.position.x - Math.sin(nezesKup) * HAUNT.stalkerGap,
             0,
@@ -1888,7 +1913,9 @@ export class HouseScene implements GameScene {
             szorny.position.copy(hely);
             szorny.group.position.copy(hely);
             this.lurkerTimer[i] = 0;
-            sound.clip('reload-start', 0.35);
+            // Egy AJTÓ nyikordul mögötted. Nem magyarázat, csak annyi, hogy
+            // valami történt — és amikor megfordulsz, ott áll.
+            sound.clip('h-door', 0.5);
           }
         }
 
@@ -1899,11 +1926,19 @@ export class HouseScene implements GameScene {
         //   egy lépést tettem volna, mert a ház nagy, és a fal takar.
         //   Lerázni annyit tesz, hogy MESSZEBB KERÜLSZ tőle — ezért az idő
         //   csak akkor telik, ha nő a távolság.
-        const tavolodsz = tav > (this.lurkerLast[i] ?? tav) + 0.001;
-        this.lurkerLast[i] = tav;
+        //   A TÁVOLODÁST fél másodperces ablakban nézzük, nem képkockánként.
+        //   Egy sarkon befordulva a távolság pillanatokra csökkenhet, és egy
+        //   képkockára szigorított szabály ilyenkor nullázta a menekülést.
+        this.lurkerWindow[i] += step;
+        let tavolodsz = this.lurkerShake[i] > 0;
+        if (this.lurkerWindow[i] >= 0.5) {
+          tavolodsz = tav > (this.lurkerLast[i] ?? tav) + 0.2;
+          this.lurkerLast[i] = tav;
+          this.lurkerWindow[i] = 0;
+        }
         if (
           tavolodsz &&
-          tav > HAUNT.stalkerGap * 2 &&
+          tav > HAUNT.stalkerShakeGap &&
           this.world.sightBlocked(testem.position, szorny.position)
         ) {
           this.lurkerShake[i] += step;
@@ -1981,6 +2016,53 @@ export class HouseScene implements GameScene {
         // mentés kockázat nélküli volna, mert be lehetne szakaszolni.
         haunt.letGo(tars);
       }
+    }
+
+    // === A HÁZ HANGJA ======================================================
+    //
+    // Ez a mód legfontosabb rétege, és sokáig hiányzott. Négy dolog szól, és
+    // mindegyik MOND valamit — egyik sem díszítés:
+    //
+    //   ALAPHANG: halk zúgás, végig. Nem ijeszt, hanem a csendet teszi
+    //   „valamivé": egy néma játékban a csend hiba, egy zúgó házban készülés.
+    //
+    //   LÉPTEK: a sajátod, amikor mozogsz. Ettől lesz a futásnak SÚLYA — és
+    //   ezért lesz nehéz futni, amikor a csend a védelmed.
+    //
+    //   SZÍVVERÉS: ha szörny van a közeledben. Nem mondja meg, hogy melyik
+    //   és honnan — csak azt, hogy VAN. A bizonytalanság a félelem, nem az
+    //   információ.
+    //
+    //   MORGÁS és RECCSENÉS: ritkán, véletlenszerűen. Ezek a hamis
+    //   ijesztések; ezektől lesz hihető a valódi.
+    this.hangClock += step;
+    sound.loop('h-ambience', 0.22);
+    sound.loop('h-steps', testem.moving && !haunt.down[me].down ? 0.5 : 0);
+
+    // A LEGKÖZELEBBI SZÖRNY dönti el a szívverést. Húsz méteren belül
+    // kezdődik, és ahogy közeledik, hangosabb — de sosem mondja meg, merre.
+    let legkozelebb = Infinity;
+    for (let i = 0; i < this.lurkers.length; i++) {
+      if (this.lurkerFled[i] > 0) continue;
+      legkozelebb = Math.min(legkozelebb, this.lurkers[i].position.distanceTo(testem.position));
+    }
+    if (legkozelebb < 20 && !haunt.down[me].down) {
+      const kozel = 1 - legkozelebb / 20;
+      // A szívverés ÜTEME is gyorsul: hetven felett száztízig.
+      const utem = 60 / (72 + kozel * 48);
+      if (this.hangClock - this.szivUtolso > utem) {
+        this.szivUtolso = this.hangClock;
+        sound.clip('h-heart', 0.25 + kozel * 0.55);
+      }
+    }
+
+    // A HÁZ MAGÁTÓL IS HANGOT AD. Nyolc-huszonöt másodpercenként egy
+    // reccsenés vagy egy távoli morgás — semmi nem történik utána. Pont ez
+    // a lényeg: megtanulod, hogy nem minden zaj jelent szörnyet, és akkor
+    // egyszer mégis.
+    if (this.hangClock > this.kovetkezoNesz) {
+      this.kovetkezoNesz = this.hangClock + 8 + this.sors() * 17;
+      sound.clip(this.sors() < 0.45 ? 'h-growl' : 'h-creak', 0.18 + this.sors() * 0.16);
     }
 
     // A LÁMPA. Csak annál ég, akinél van, és csak amíg van benne telep.
@@ -2207,6 +2289,7 @@ export class HouseScene implements GameScene {
     if (document.pointerLockElement) document.exitPointerLock();
     this.disposed = true;
     sound.stopMusic();
+    sound.stopLoops();
     this.jumpscare?.dispose();
     this.hauntBrief?.dispose();
     this.hauntHud?.dispose();

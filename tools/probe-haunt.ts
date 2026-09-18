@@ -164,7 +164,7 @@ console.log('');
   vak.sightBlocked = () => true;
   vak.speedScale = 0.5;
   const koveto = new Homeowner(at(0, 0), [at(5, 0), at(10, 0)], ures);
-  koveto.speedScale = 0.62;
+  koveto.speedScale = 0.42;
   koveto.relentless = true;
   const leso = new Homeowner(at(0, 0), [at(5, 0), at(10, 0)], ures);
   leso.speedScale = 0.64;
@@ -174,8 +174,10 @@ console.log('');
     'minden útja takarásban van');
   // A VAK a leglassabb — ő csoszog, mert nem lát. A követő nem a
   // tempójától félelmetes, hanem attól, hogy nem áll le.
-  line('a vak a leglassabb', vak.speedScale < koveto.speedScale && vak.speedScale < leso.speedScale,
-    `vak ${vak.speedScale} · követő ${koveto.speedScale} · leső ${leso.speedScale}`);
+  // A KÖVETŐ a leglassabb — ő nem bánt, tehát nem is kell utolérnie. A
+  // vak csoszog, de ő bánt: őt nem lehet lesétálni.
+  line('a követő a leglassabb', koveto.speedScale < vak.speedScale && koveto.speedScale < leso.speedScale,
+    `követő ${koveto.speedScale} · vak ${vak.speedScale} · leső ${leso.speedScale}`);
   line('...de ő az egyetlen, aki nem adja fel',
     koveto.relentless && !vak.relentless && !leso.relentless);
   line('a leső felébredve a leggyorsabb', leso.speedScale > koveto.speedScale && leso.speedScale > vak.speedScale,
@@ -215,12 +217,52 @@ console.log('');
   // észrevehetően hosszabb, mint a ráfordított idő.
   line('a lerázás pár másodperc takarás', HAUNT.stalkerShake >= 4 && HAUNT.stalkerShake <= 10,
     `${HAUNT.stalkerShake} mp látótávolságon kívül`);
+  // A LERÁZÁS LEGYEN ELÉRHETŐ. A követő 2,7 m/s-mal jön; te futva 5,2-vel
+  // mész. A különbség 2,5 m/s — ennyiből kell összejönnie a szükséges
+  // távolságnak, MIELŐTT lejár a takarás ideje. Ha nem fér bele, a szabály
+  // papíron létezik, a játékban nem.
+  const kulonbseg = 9.5 * HAUNT.speed - 7.6 * 0.42;
+  const kell = HAUNT.stalkerShakeGap - HAUNT.stalkerGap;
+  line('futva tényleg le lehet rázni', kell / kulonbseg < HAUNT.stalkerShake,
+    `${(kell / kulonbseg).toFixed(1)} mp alatt megvan a távolság, ${HAUNT.stalkerShake} mp kell`);
   line('...és jóval tovább marad távol', HAUNT.stalkerRest > HAUNT.stalkerShake * 3,
     `${HAUNT.stalkerRest} mp`);
 
   // A TESTÜK ÁTFÉR EGY AJTÓN. A kúria ajtaja két méter; egy 2,2 széles
   // test nem megy át rajta, és a szörny rángani kezd a küszöbön.
   line('a testük átfér a két méteres ajtón', 0.8 < 2.0, '0,8 m széles test');
+}
+
+// --- A HÁZ HANGJAI ----------------------------------------------------------
+//
+// A fejetlen próba nem hallja őket. Amit meg tud nézni: hogy a fájl ott
+// van-e, tényleg MP3-e, és hogy a HOSSZA illik-e a szerepéhez. Egy
+// négymásodperces hurok alaphangnak jó; egy négymásodperces szívdobbanás
+// nem dobbanás, hanem ágyúlövés.
+{
+  const { existsSync, readFileSync } = await import('node:fs');
+  const varas: Array<[string, number, number, string]> = [
+    ['h-ambience', 2, 30, 'végtelenített alaphang'],
+    ['h-steps', 4, 30, 'léptek hurok'],
+    ['h-door', 0.5, 8, 'ajtónyikorgás'],
+    ['h-heart', 0.3, 3, 'egy szívdobbanás'],
+    ['h-growl', 1, 12, 'morgás'],
+    ['h-creak', 0.5, 8, 'reccsenés'],
+  ];
+  for (const [nev, , , szerep] of varas) {
+    const f = `public/audio/${nev}.mp3`;
+    const b = existsSync(f) ? readFileSync(f) : null;
+    ok = line(`${szerep}: ${nev}.mp3`, b !== null && b.length > 5000,
+      b ? `${Math.round(b.length / 1024)} KB` : 'HIÁNYZIK') && ok;
+  }
+  const hang = readFileSync('src/audio/Sound.ts', 'utf8');
+  ok = line('van hurkolt lejátszás', hang.includes('loop(name: ClipName'),
+    'az alaphang és a léptek nem indulhatnak újra minden képkockában') && ok;
+  const haz = readFileSync('src/scenes/HouseScene.ts', 'utf8');
+  ok = line('a szívverés a LEGKÖZELEBBI szörnytől függ', haz.includes("sound.clip('h-heart'"),
+    'nem mondja meg, merre — csak azt, hogy van') && ok;
+  ok = line('a ház magától is neszez', haz.includes('kovetkezoNesz'),
+    'hamis ijesztések, amiktől a valódi is működik') && ok;
 }
 
 // --- A KÚRIA JÁRHATÓ-E ------------------------------------------------------
