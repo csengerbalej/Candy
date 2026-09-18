@@ -20,6 +20,7 @@ import { Weapon, type Target } from '../game/Weapon';
 
 import { Homeowner } from '../ai/Homeowner';
 import { makeRandom } from '../core/seed';
+import { planFor, planToWorld } from '../world/HousePlan';
 import { Dog } from '../ai/Dog';
 import { kennelAt } from '../world/Kennel';
 import { Echo } from '../world/Echo';
@@ -270,11 +271,31 @@ export class HouseScene implements GameScene {
     // üzenetváltás és várakozás nélkül.
     const sors = this.partnered && net.seed ? makeRandom(`${net.seed}|${this.houseName}`) : Math.random;
     this.sors = sors;
+
+    // A MEGRAJZOLT ALAPRAJZ, ha van ehhez a házhoz.
+    //
+    // A sorsolás nem tud arról, hogy a fürdőszoba zsákutca, és hogy két
+    // cukorka egy szobában nem két cél, hanem egy. A rajz tud. Ahol van
+    // rajz, az dönt; ahol nincs, marad a sorsolás — nem hagyunk házat
+    // játszhatatlanul csak azért, mert még nem rajzoltuk meg.
+    const plan = planFor(this.houseName);
+    const terv = plan && this.world instanceof VillageHouse ? plan : null;
+    const hely = (pt: { u: number; v: number }): THREE.Vector3 => {
+      const raw = planToWorld(pt, (this.world as VillageHouse).bounds);
+      // A rajz a PADLÓRÓL szól, a bútorokról nem: a pont a legközelebbi
+      // olyan helyre ugrik, ahol a test is elfér.
+      return this.world.nearestStanding(raw, raw, MOVE.radius);
+    };
+
     const bowls = this.world.candySpots.map((c) => c.position);
     const walkable: THREE.Vector3[] = [];
-    for (let i = 0; i < 60; i++) {
-      const p = this.world.randomStanding(sors, MOVE.radius, bowls, 7);
-      if (p) walkable.push(p);
+    if (terv) {
+      for (const c of terv.corners) walkable.push(hely(c));
+    } else {
+      for (let i = 0; i < 60; i++) {
+        const p = this.world.randomStanding(sors, MOVE.radius, bowls, 7);
+        if (p) walkable.push(p);
+      }
     }
     const spots = [
       ...this.world.patrolWaypoints,
@@ -284,9 +305,13 @@ export class HouseScene implements GameScene {
     // egy sarokban termő fegyvert az kapna ingyen, aki épp hazaért.
     const avoid = this.corners ? this.corners.list.map((c) => c.position) : [];
     const random: THREE.Vector3[] = [];
-    for (let i = 0; i < 40; i++) {
-      const p = this.world.randomStanding(sors, MOVE.radius, avoid, CAPTURE.bankRadius * 3);
-      if (p) random.push(p);
+    if (terv) {
+      for (const w of terv.weapons) random.push(hely(w));
+    } else {
+      for (let i = 0; i < 40; i++) {
+        const p = this.world.randomStanding(sors, MOVE.radius, avoid, CAPTURE.bankRadius * 3);
+        if (p) random.push(p);
+      }
     }
 
     if (random.length >= 4 || spots.length) {
@@ -369,6 +394,18 @@ export class HouseScene implements GameScene {
     // FOGÓ MÓD. A sarkok a legtávolabbi két pontra kerülnek: két egymás
     // melletti sarokkal a cipelés elvész — felveszed, két lépés, letetted.
     if (session.fogo && spots.length) {
+      // A RAJZ SZERINTI CUKORKAHELYEK. A ház öt helyet hoz magával a
+      // kooperatív körhöz; a fogóban viszont az számít, melyik SZOBÁBAN
+      // terem, mert a szoba a térfél — és ehhez nyolc hely kell, nem öt.
+      if (terv && this.world instanceof VillageHouse) {
+        this.world.placeCandy(terv.candy.map(hely));
+        // A RAJZ MONDJA MEG, melyik cukorka kié. A közelebbi sarok szabálya
+        // a pálya közepén érmét dobna — a konyha épp félúton van.
+        terv.candy.forEach((c, i) => {
+          const spot = this.world.candySpots[i];
+          if (spot && c.owner !== undefined) spot.owner = c.owner;
+        });
+      }
       this.corners = new Corners(
         walkable.length >= 2 ? walkable : this.world.patrolWaypoints
       );
@@ -610,7 +647,9 @@ export class HouseScene implements GameScene {
         ? a
         : b;
       // A közelebbi sarok térfelén vagyunk → a cukorka a MÁSIK játékosé.
-      spot.owner = (near.player === 0 ? 1 : 0) as 0 | 1;
+      // Kivéve, ha a megrajzolt alaprajz már megmondta: az erősebb, mert
+      // ott ember döntött, nem távolságmérés.
+      if (spot.owner === undefined) spot.owner = (near.player === 0 ? 1 : 0) as 0 | 1;
       const colour = spot.owner === 0 ? PALETTE.p1 : PALETTE.p2;
       spot.mesh.traverse((o) => {
         const mesh = o as THREE.Mesh;

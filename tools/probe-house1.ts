@@ -1,9 +1,10 @@
+import { planFor, planToWorld } from '../src/world/HousePlan';
 import { readFileSync } from 'node:fs';
 import { baseColorTextureIndex, imageBytes, readGlb } from '../src/assets/textureRepair';
 import * as THREE from 'three';
 import { CANDY_HEIGHT, VillageHouse, HOUSE1_SCALE } from '../src/world/VillageHouse';
 import { PITCH_STEPS } from '../src/camera/Stage';
-import { CAMERA, HOUSE, MOVE, NOISE, HOMEOWNER, DOG } from '../src/core/config';
+import { CAMERA, HOUSE, MOVE, NOISE, HOMEOWNER, DOG, CAPTURE } from '../src/core/config';
 import { Dog } from '../src/ai/Dog';
 import { addOutlines } from '../src/render/Toon';
 import { Echo } from '../src/world/Echo';
@@ -937,6 +938,93 @@ const canStand = (p: THREE.Vector3, slack = 2): boolean => {
     dog.position.distanceTo(prey) > 3,
     `${dog.position.distanceTo(prey).toFixed(1)} egységre hátrált`
   ) && ok;
+}
+
+// --- A MEGRAJZOLT ALAPRAJZ ---------------------------------------------------
+//
+// A rajz képpontokból jön, a ház viszont modellből — a kettő egyeztetése az,
+// ami elromolhat, és némán: egy fél méterrel odébb tett cukorka a fal MÁSIK
+// oldalán terem, és a játékos csak annyit lát, hogy „ott van, de nem tudom
+// felvenni". Ezért nem azt nézzük, hogy a rajz szép-e, hanem hogy minden
+// pontja ODAÉR, ahova szántuk.
+{
+  const plan = planFor(HOUSE_NAME);
+  if (!plan) {
+    console.log(`(${HOUSE_NAME}: nincs megrajzolt alaprajz — sorsolás dönt)`);
+  } else {
+    const b = house.bounds;
+    const hova = (pt: { u: number; v: number }): THREE.Vector3 => {
+      const raw = planToWorld(pt, b);
+      return house.nearestStanding(raw, raw, MOVE.radius);
+    };
+
+    // 1. MINDEN PONT ÁLLHATÓ HELYRE KERÜL, és nem ugrik messzire.
+    //
+    // A „nem ugrik messzire" a lényeg: a pont MINDIG találni fog valami
+    // járható helyet, akár a ház túlsó végében is. Ha tíz méterrel odébb
+    // került, akkor a rajz azon a helyen rossz — a próba zöld lenne, a
+    // cukorka meg a szomszéd szobában.
+    const minden = [...plan.corners, ...plan.candy, ...plan.weapons];
+    const ugras = minden.map((pt) => hova(pt).distanceTo(planToWorld(pt, b)));
+    const legnagyobb = Math.max(...ugras);
+    ok = line('a rajz minden pontja a padlóra esik', legnagyobb < 4,
+      `a legnagyobb igazítás ${legnagyobb.toFixed(1)} egység`) && ok;
+
+    // 2. A KÉT SAROK TÁVOL van egymástól. Két egymás melletti sarokkal az
+    // egész cipelés elvész: felveszed, két lépés, letetted.
+    const [narancs, lila] = plan.corners.map(hova);
+    const tav = narancs.distanceTo(lila);
+    ok = line('a két gyűjtősarok átlósan áll', tav > span * 0.5,
+      `${tav.toFixed(0)} egység (a lakás ${span.toFixed(0)})`) && ok;
+
+    // 3. CUKORKA NEM TEREM A SARKOKBAN. Egy sarokban termő cukorka ingyen
+    // pont annak, aki épp hazaért.
+    const sarokban = plan.candy
+      .map(hova)
+      .filter((c) => c.distanceTo(narancs) < CAPTURE.bankRadius * 2 || c.distanceTo(lila) < CAPTURE.bankRadius * 2);
+    ok = line('cukorka nem terem a gyűjtősarokban', sarokban.length === 0,
+      `${sarokban.length} ilyen`) && ok;
+
+    // 4. FEGYVER SEM.
+    const fegyverSarokban = plan.weapons
+      .map(hova)
+      .filter((w) => w.distanceTo(narancs) < CAPTURE.bankRadius * 2 || w.distanceTo(lila) < CAPTURE.bankRadius * 2);
+    ok = line('fegyver sem terem a sarokban', fegyverSarokban.length === 0,
+      `${fegyverSarokban.length} ilyen`) && ok;
+
+    // 5. MINDKÉT TÉRFÉLEN VAN CUKORKA. A szabály szerint a MÁSIK oldaláról
+    // kell hozni: ha az egyik felén nincs, az egyik játékosnak nincs mit
+    // gyűjtenie, és a kör eldőlt, mielőtt elkezdődött.
+    const narancsE = plan.candy.filter((c) => c.owner === 0).length;
+    const lilaE = plan.candy.filter((c) => c.owner === 1).length;
+    ok = line('mindkét játékosnak van mit gyűjtenie', narancsE > 0 && lilaE > 0,
+      `${narancsE} narancssárga, ${lilaE} lila cukorka`) && ok;
+    // ...és NAGYJÁBÓL ugyanannyi. Ha az egyik ötöt gyűjt, a másik hármat,
+    // a kör azelőtt eldőlt, hogy elkezdődött volna.
+    ok = line('...és nagyjából ugyanannyi', Math.abs(narancsE - lilaE) <= 1,
+      `${narancsE} — ${lilaE}`) && ok;
+    // A CUKORKA A MÁSIK TÉRFELÉN van: ezért kell átmenni, és ezért
+    // találkoztok. Ha a sajátod a saját sarkod mellett teremne, sosem
+    // látnátok egymást.
+    const sajatOldalon = plan.candy.filter((c) => {
+      const pos = hova(c);
+      const kozelebbiSarok = pos.distanceTo(narancs) <= pos.distanceTo(lila) ? 0 : 1;
+      return c.owner === kozelebbiSarok;
+    }).length;
+    ok = line('a cukorkádért a MÁSIK oldalra kell menned', sajatOldalon === 0,
+      `${sajatOldalon} terem a saját sarkod oldalán`) && ok;
+
+    // 6. A FEGYVEREK SZÉTSZÓRVA. Két fegyver egy kupacban fél felvétel.
+    let legkozelebb = Infinity;
+    const fegyverek = plan.weapons.map(hova);
+    for (let i = 0; i < fegyverek.length; i++) {
+      for (let j = i + 1; j < fegyverek.length; j++) {
+        legkozelebb = Math.min(legkozelebb, fegyverek[i].distanceTo(fegyverek[j]));
+      }
+    }
+    ok = line('a fegyverek nem egy kupacban vannak', legkozelebb > 6,
+      `a két legközelebbi ${legkozelebb.toFixed(0)} egységre`) && ok;
+  }
 }
 
 console.log('');

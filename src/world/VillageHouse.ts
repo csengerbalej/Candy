@@ -328,6 +328,24 @@ export class VillageHouse implements HouseWorld {
    * cut the walls off at the edge of the screen and the room would read as a
    * carpet.
    */
+  /**
+   * A HÁZ BEFOGLALÓJA a világban.
+   *
+   * A megrajzolt alaprajz (`HousePlan`) 0 és 1 közötti arányokban beszél —
+   * ez fordítja le világkoordinátára. A nav fájl határaiból jön, nem a
+   * meshek befoglalójából: a tető és az eresz túlnyúlik a padlón, és egy
+   * eresz alá tett cukorka a falon kívül volna.
+   */
+  get bounds(): { minX: number; maxX: number; minZ: number; maxZ: number } {
+    return {
+      minX: this.nav.min[0] * HOUSE1_SCALE,
+      maxX: this.nav.max[0] * HOUSE1_SCALE,
+      // A Z tengely a rácsé ellen fut, tehát a két szélső érték helyet cserél.
+      minZ: -this.nav.max[1] * HOUSE1_SCALE,
+      maxZ: -this.nav.min[1] * HOUSE1_SCALE,
+    };
+  }
+
   roomBounds(id: number): THREE.Box3 | null {
     const info = this.nav.roomInfo.find((r) => r.id === id);
     if (!info) return null;
@@ -967,6 +985,41 @@ export class VillageHouse implements HouseWorld {
    * colour throws away the only thing that makes it read as a prize rather
    * than as a lump.
    */
+  /**
+   * A CUKORKÁK ÁTHELYEZÉSE a megrajzolt alaprajz szerint.
+   *
+   * A ház nav fájlja öt cukorkahelyet hoz magával, és azok a KOOPERATÍV
+   * körhöz valók: ahol a tál a lakásban állna. A fogó viszont más játék —
+   * ott az számít, melyik szobában terem, mert a szoba a térfél. A rajz
+   * nyolc helyet ad, tehát a meglévőket áthelyezzük, és amennyi hiányzik,
+   * annyit klónozunk.
+   *
+   * A klón az ELSŐ cukorka másolata, nem új modell: így ha a tök már
+   * megérkezett, a friss helyek is tököt kapnak, ha még nem, akkor mind a
+   * nyolc a helykitöltőt — de sosem lesz belőlük vegyes.
+   */
+  placeCandy(positions: readonly THREE.Vector3[]): void {
+    if (!positions.length) return;
+    const sample = this.candySpots[0];
+    while (this.candySpots.length > positions.length) {
+      const extra = this.candySpots.pop();
+      extra?.mesh.removeFromParent();
+    }
+    while (this.candySpots.length < positions.length && sample) {
+      const mesh = sample.mesh.clone(true);
+      this.group.add(mesh);
+      this.candySpots.push({ position: new THREE.Vector3(), mesh, taken: false, value: sample.value });
+    }
+    this.candySpots.forEach((spot, i) => {
+      const at = positions[i].clone();
+      at.y = CANDY_HEIGHT * 0.5;
+      spot.position.copy(at);
+      spot.mesh.position.copy(at);
+      spot.taken = false;
+      spot.mesh.visible = true;
+    });
+  }
+
   private async dressCandy(): Promise<void> {
     try {
       for (const candy of this.candySpots) {
