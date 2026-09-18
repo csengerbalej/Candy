@@ -4,6 +4,7 @@ import { WEAPON, SIM, CAPTURE, GUNS, PICKUP, MOVE, DELIVERY, FIRST_PERSON, type 
 import { Capture, type Corner } from '../src/game/Capture';
 import { Armoury } from '../src/game/Armoury';
 import { Rival, type RivalWorld } from '../src/ai/Rival';
+import { PlayerController } from '../src/player/PlayerController';
 import { Delivery } from '../src/game/Delivery';
 
 /**
@@ -580,6 +581,45 @@ for (const kind of ['shotgun', 'sniper', 'rocket'] as GunId[]) {
     new Weapon('sniper').canScope && !new Weapon('shotgun').canScope &&
       !new Weapon('rocket').canScope,
     `nagyítás ${(FIRST_PERSON.fov / GUNS.sniper.scopeFov).toFixed(1)}×`);
+}
+
+
+// --- AZ ELLÖKÉS: TÉNYLEG REPÜL-E ---------------------------------------------
+//
+// „Ha eltalál, arrébb repül." Ez nem hangulat, hanem mérhető: a testnek
+// EL KELL HAGYNIA A TALAJT, és a fegyverek szerint más-más messzire kell
+// kerülnie. Ha mind ugyanannyit lökne, a három fegyver közti különbség fele
+// elveszne.
+{
+  const forward = {
+    moveX: 0, moveY: 0, jump: false, jumpHeld: false, sprint: false,
+    interact: false, interactHeld: false, pause: false, usingGamepad: false, nitro: false,
+  };
+  const dobas = (force: number): { tav: number; magas: number } => {
+    const p = new PlayerController(0, 0xffffff, new THREE.Vector3(0, 0, 0));
+    for (let i = 0; i < 30; i++) p.update(SIM.step, forward, []); // földet érjen
+    const start = p.position.clone();
+    let magas = 0;
+    if (force > 0) p.launch(new THREE.Vector3(0, 0, 1), force * 1.6);
+    for (let t = 0; t < 2.5; t += SIM.step) {
+      p.update(SIM.step, forward, []);
+      magas = Math.max(magas, p.position.y - start.y);
+    }
+    return { tav: p.position.distanceTo(start), magas };
+  };
+
+  const soret = dobas(GUNS.shotgun.knockback);
+  const raketa = dobas(GUNS.rocket.knockback);
+  const meszter = dobas(GUNS.sniper.knockback);
+
+  ok = line('sörétes találatra elrepül', soret.tav > 8,
+    `${soret.tav.toFixed(1)} egység, ${soret.magas.toFixed(1)} magasra`) && ok;
+  ok = line('a rakéta MESSZEBB dob', raketa.tav > soret.tav + 3,
+    `${raketa.tav.toFixed(1)} vs ${soret.tav.toFixed(1)}`) && ok;
+  ok = line('a mesterlövész nem lök, csak megállít', meszter.tav < 1,
+    `${meszter.tav.toFixed(2)} egység — helyette ${GUNS.sniper.stun} mp bénulás`) && ok;
+  ok = line('a lökés fel is emel (nem csúszás)', soret.magas > 2,
+    `${soret.magas.toFixed(1)} egység magasra`) && ok;
 }
 
 console.log('');

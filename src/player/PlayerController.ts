@@ -145,6 +145,28 @@ export class PlayerController {
   }
 
   /** Comedy, not punishment (spec §9, §39): you get launched, you lose candy. */
+  /**
+   * ELLÖKÉS MEGADOTT ERŐVEL — a fegyverek ezt használják.
+   *
+   * A régi `applyKnockback` egy fix 26-os lökést ad, akárki üt meg: a lakó
+   * elkapása mindig ugyanannyit lök, és ez ott helyes is. A fegyverek
+   * viszont nem egyformák — a rakéta erősebb a sörétesnél, a mesterlövész
+   * pedig egyáltalán nem lök, mert az ő fegyvere nem a lökés, hanem a
+   * helyben tartás. Ha mind ugyanannyit lökne, a három fegyver közti
+   * különbség fele elveszne.
+   *
+   * A FÜGGŐLEGES rész az, amitől „repülés" lesz és nem csúszás: enélkül a
+   * test a padlón siklana, és a találat nem látszana.
+   */
+  launch(direction: THREE.Vector3, force: number): void {
+    const away = direction.clone().setY(0);
+    if (away.lengthSq() < 0.001) away.set(0, 0, 1);
+    away.normalize().multiplyScalar(force);
+    this.velocity.set(away.x, force * 0.5, away.z);
+    this.stun = MOVE_STUN * this.traits.stun;
+    this.grounded = false;
+  }
+
   applyKnockback(from: THREE.Vector3): void {
     const away = new THREE.Vector3().subVectors(this.position, from).setY(0);
     if (away.lengthSq() < 0.001) away.set(0, 0, 1);

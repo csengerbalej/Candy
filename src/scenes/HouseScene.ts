@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { setStageLens, stage, tiltStage, turnStage } from '../camera/Stage';
-import { FIRST_PERSON, CAMERA, PLAYER_COUNT, PALETTE, HOMEOWNER, DOG, GUNS, MOVE } from '../core/config';
+import { FIRST_PERSON, CAMERA, PLAYER_COUNT, PALETTE, HOMEOWNER, DOG, GUNS, MOVE, CAPTURE } from '../core/config';
 // The first house is a real flat now, not the greybox kitchen. Both offer the
 // same surface to this scene, so the swap is one import and one await.
 import { VillageHouse } from '../world/VillageHouse';
@@ -712,7 +712,12 @@ export class HouseScene implements GameScene {
         // hogy nagyjából merről. Egy néma ellenség nem ellenfél, hanem csapda.
         sound.gun(this.rival.weapon!.kind);
         if (fired.shot.hit) {
-          this.takeHit(this.localIndex as 0 | 1, fired.shot.from, fired.shot.strength);
+          this.takeHit(
+            this.localIndex as 0 | 1,
+            fired.shot.from,
+            fired.shot.strength,
+            this.rival.weapon!.gun.knockback
+          );
         }
       }
     }
@@ -779,7 +784,14 @@ export class HouseScene implements GameScene {
         // A TALÁLAT KÖVETKEZMÉNYE: ellökés és minden cukorka a földre. Eddig
         // a lövés elsült és zajt csapott, de a célpontnak nem történt semmi —
         // egy fegyver, aminek nincs hatása, csak egy hangeffekt.
-        if (shot.hit) this.takeHit(Number(shot.hit.id) as 0 | 1, shot.from, shot.strength);
+        if (shot.hit) {
+          this.takeHit(
+            Number(shot.hit.id) as 0 | 1,
+            shot.from,
+            shot.strength,
+            this.held.gun.knockback
+          );
+        }
         // A lövés ZAJ is: a fegyver hangja odahívja a lakót. Ez a fegyver
         // harmadik ára, a lőszer és az idő mellett.
         this.noise.emit(shot.noiseAt, this.held.gun.noiseRadius, 'lövés');
@@ -831,11 +843,16 @@ export class HouseScene implements GameScene {
    * Egy helyen, mert két lövő van (te és az AI), és két helyen írva a két
    * találat előbb-utóbb másképp viselkedne.
    */
-  private takeHit(who: 0 | 1, from: THREE.Vector3, strength = 1): void {
+  private takeHit(who: 0 | 1, from: THREE.Vector3, strength = 1, force: number = CAPTURE.knockback): void {
     if (!this.capture) return;
     const body = this.players[who];
     const { push } = this.capture.hit(who, body.position, from, strength);
-    body.applyKnockback(body.position.clone().sub(push));
+    // A LÖKÉS ereje a FEGYVERÉ, nem egy közös szám: a rakéta messzire dob, a
+    // sörétes közelről nagyot lök, a mesterlövész egyáltalán nem — az ő
+    // fegyvere a helyben tartás. Nulla erőnél nincs repülés, csak bénulás.
+    if (force > 0) {
+      body.launch(push.clone().normalize(), force * Math.max(0.35, strength) * 1.6);
+    }
     sound.thud(0.7);
     this.game.banner = who === this.localIndex ? 'ELTALÁLTAK!' : 'TALÁLAT';
   }
