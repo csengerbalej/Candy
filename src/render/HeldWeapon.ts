@@ -59,7 +59,8 @@ export class HeldWeapon {
     // −Z-je felé néz. A kamera forgatását átvéve a fegyver ezért HÁTRAFELÉ
     // állt: a tusa előre, a cső a játékos felé. Egy fél fordulat a
     // különbség — és pont ez az a fajta, amit csak a képen lehet észrevenni.
-    clone.rotation.y = Math.PI;
+    // ...plusz a fegyverenkénti kiigazítás, ha a modell fordítva jött.
+    clone.rotation.y = Math.PI + (GUNS[kind].handYaw ?? 0);
     this.art?.removeFromParent();
     this.art = clone;
     this.group.clear();

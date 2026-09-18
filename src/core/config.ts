@@ -886,6 +886,8 @@ export const GUNS = {
   shotgun: {
     name: 'SÖRÉTES',
     model: 'models/shotgun.json',
+    /** A kézben való állás kiigazítása. Nulla: a modell jól jött. */
+    handYaw: 0,
     /**
      * Egy SZOBÁN belül úr. A legnagyobb szoba kb. 29 egység széles (mérve a
      * navigációs rácsból), tehát 16 egység a fél szoba: innen még eléri az
@@ -911,6 +913,21 @@ export const GUNS = {
     name: 'MESTERLÖVÉSZ',
     model: 'models/sniper.json',
     /**
+     * A KÉZBEN VALÓ ÁLLÁSA fél fordulattal eltér a többiétől.
+     *
+     * A modellek orra a +Z felé néz — a normalizáló így süti őket, és a
+     * kézbe fogás szabálya (fél fordulat) erre épül. A mesterlövész
+     * viszont fordítva jött a generátorból, és ezt csak KÉPEN lehet
+     * észrevenni: egy 3D modellnél nincs olyan mérőszám, ami megmondaná,
+     * melyik vége a cső — a vastagabb vég heurisztikája ezen a projekten
+     * már egyszer megbukott a kétcsövű sörétesen.
+     *
+     * Ezért nem a szabályt írom át, hanem EHHEZ az egy modellhez adok egy
+     * kiigazítást. Ha egyszer újrasütöd a modellt a helyes irányba, ezt a
+     * sort ki lehet venni — és a hiánya azonnal látszani fog.
+     */
+    handYaw: Math.PI,
+    /**
      * ÁTLŐ A LAKÁSON. A lakás átlója mérve 96 egység — a mesterlövész
      * hatótávja ennél épp egy hajszállal kevesebb, tehát a leghosszabb
      * rálátást is kihasználja, de a falon túlra ő sem lát.
@@ -934,6 +951,8 @@ export const GUNS = {
   rocket: {
     name: 'RAKÉTAVETŐ',
     model: 'models/rocket.json',
+    /** A kézben való állás kiigazítása. Nulla: a modell jól jött. */
+    handYaw: 0,
     /**
      * EGY SZOBÁNYI táv. A legnagyobb szoba átlója kb. 41 egység: a rakéta
      * ezen belül bárhová elér, de a lakáson nem lő át — különben egyetlen
