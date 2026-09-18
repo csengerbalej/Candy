@@ -92,6 +92,16 @@ export class Homeowner {
   speedScale = 1;
 
   /**
+   * A TEST SZÉLESSÉGE. A lakó 2,2 egység — óriás a szörnyecskék világában.
+   *
+   * A kísértetház embermértékű: ott ez a szám 0,8, különben a szörny nem
+   * fér át egy két méteres ajtón. Mérve pont ez történt: nem akadtak el
+   * látványosan, hanem RÁNGTAK az ajtóban, amíg a mentőszabály odébb nem
+   * tette őket — kívülről ez „buggos szörny", pedig egy szám volt.
+   */
+  bodyWidth = HOMEOWNER.width;
+
+  /**
    * NEM ADJA FEL: az üldözés nem jár le magától.
    *
    * A Követő egyetlen tulajdonsága. Enélkül ugyanaz volna, mint a többi —
@@ -448,7 +458,7 @@ export class Homeowner {
     // Nem képkockánként: a keresés olcsó, de nem ingyen, és egy üldözés
     // közben amúgy is minden fél másodpercben új a cél.
     if (this.findRoute && (!this.pathGoal || this.pathGoal.distanceTo(target) > 6)) {
-      this.path = this.findRoute(this.position, target, HOMEOWNER.width * 0.5);
+      this.path = this.findRoute(this.position, target, this.bodyWidth * 0.5);
       this.pathGoal = target.clone();
     }
     // A következő szakasz felé megyünk, nem a célra. A már elért pontokat
@@ -472,7 +482,7 @@ export class Homeowner {
       this.pathGoal = null;
       // Ha a világ tud jobb helyet, oda tesszük. Ez nem falon átsétálás: a
       // legközelebbi pont, ahol a teste ELFÉR — általában fél méterre.
-      if (this.rescue) this.position.copy(this.rescue(this.position, target, HOMEOWNER.width * 0.5));
+      if (this.rescue) this.position.copy(this.rescue(this.position, target, this.bodyWidth * 0.5));
     }
     return false;
   }
@@ -489,7 +499,7 @@ export class Homeowner {
    * Ha mindhárom irány zárva, marad a helyén — nem tolakszik bele a falba.
    */
   private step(direction: THREE.Vector3, distance: number): boolean {
-    const radius = HOMEOWNER.width * 0.5;
+    const radius = this.bodyWidth * 0.5;
     if (!this.walkable) {
       this.position.addScaledVector(direction, distance);
       return true;

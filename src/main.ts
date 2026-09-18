@@ -499,6 +499,12 @@ window.addEventListener('keydown', (e) => {
   // ezt a számot, és a szög ízlés kérdése, amit fejetlen próbával nem lehet
   // eldönteni. A falak rajzolt magassága automatikusan követi.
   // NÉZETVÁLTÁS a házban: belső és külső között.
+  // A H: a kísértetház eligazítása. Aki elfelejtette, melyik szörnyre mi
+  // hat, az ne úgy tudja meg, hogy meghal.
+  if (e.code === 'KeyH' && active && 'toggleBrief' in active) {
+    (active as { toggleBrief(): void }).toggleBrief();
+  }
+
   if (e.code === 'KeyC' && active?.toggleFirstPerson) {
     active.toggleFirstPerson();
   }

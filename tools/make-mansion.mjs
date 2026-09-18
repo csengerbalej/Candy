@@ -186,7 +186,16 @@ for (let r = 0; r < ROWS; r++) {
 // Minden szobának LEGALÁBB KETTŐ. Ez nem kényelem: egyajtós szobában a
 // Követő elé sétálsz, és onnan nincs kijárat — az nem feszültség, hanem
 // csapda. Kettővel a szoba maga is kerülőút lesz.
-const DOOR = 3;
+/**
+ * AZ AJTÓ SZÉLESSÉGE: négy cella, két méter.
+ *
+ * Mérve: hárommal (1,5 m) a szörnyek NEM FÉRTEK ÁT. A testük 2,2 egység
+ * széles, a rács pedig a fél szélességgel (1,1) kérdez rá a járhatóságra —
+ * egy másfél méteres ajtón ez nem megy át. A hiba néma volt: nem akadtak
+ * el látványosan, hanem rángtak az ajtóban, aztán a mentőszabály odébb
+ * tette őket. Kívülről ez „buggos szörny", pedig egy szám volt.
+ */
+const DOOR = 4;
 const doorHere = (x0, y0, x1, y1, oldal) => {
   if (oldal === 'fent') {
     const x = Math.floor((x0 + x1) / 2) - 1;
@@ -406,7 +415,10 @@ const kozep = (id) => {
 const szobak = rooms.map((r) => r.id);
 const patrol = szobak.slice(0, 12).map((id) => kozep(id));
 const candy = szobak.slice(0, 10).map((id, i) => ({ at: kozep(id), room: id, reward: 6 + (i % 3) * 2 }));
-const pranks = szobak.slice(0, 3).map((id) => ({ at: kozep(id), room: id }));
+// A KÚRIÁBAN NINCS CSÍNY. A csínyek zöld karikaként jelennek meg a
+// padlón — a kooperatív körben ez jelzés, egy horrorházban viszont három
+// világító gyűrű, ami elárulja, hogy ez itt játék.
+const pranks = [];
 
 const kapu = [ux(kapuCella[0]), uz(H - 1)];
 const nav = {

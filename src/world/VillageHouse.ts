@@ -109,6 +109,16 @@ export const WALL_DRAW_HEIGHT = 10;
  */
 export const CANDY_HEIGHT = 3.2;
 
+/**
+ * A CUKORKA MÉRETE EMBERMÉRTÉKBEN.
+ *
+ * A 3,2 egységes tök a szörnyecskék világához való: ott te 1,7 magas vagy,
+ * tehát a tök derékig ér — és ez a poén. A kúriában viszont EMBER vagy, és
+ * egy derékig érő tököt nem zsebre tesz az ember, hanem targoncával visz
+ * el. Harmincöt centi: kézbe való.
+ */
+export const CANDY_HEIGHT_HUMAN = 0.35;
+
 /** Above this, in model units, something is a wall rather than furniture. */
 const WALL_RISE = 0.20;
 /** Below this, the floor. */
@@ -934,12 +944,12 @@ export class VillageHouse implements HouseWorld {
     for (const p of this.nav.patrol) this.patrolWaypoints.push(forBody(this.at(p)));
 
     for (const c of this.nav.candy) {
-      const position = this.at(c.at, CANDY_HEIGHT * 0.5);
+      const position = this.at(c.at, this.candyHeight * 0.5);
       // A placeholder that the real bucket replaces once it loads. It is not
       // wasted: the house can start before a 0.9 MB model has arrived, and a
       // sweet that is not there yet is a sweet the players walk past.
       const mesh = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(CANDY_HEIGHT * 0.4, 0),
+        new THREE.IcosahedronGeometry(this.candyHeight * 0.4, 0),
         new THREE.MeshStandardMaterial({
           color: 0xffc24a,
           emissive: 0xff8a1f,
@@ -998,6 +1008,9 @@ export class VillageHouse implements HouseWorld {
    * megérkezett, a friss helyek is tököt kapnak, ha még nem, akkor mind a
    * nyolc a helykitöltőt — de sosem lesz belőlük vegyes.
    */
+  /** A cukorka mérete ebben a házban. A kúria embermértékű. */
+  candyHeight: number = CANDY_HEIGHT;
+
   placeCandy(positions: readonly THREE.Vector3[]): void {
     if (!positions.length) return;
     const sample = this.candySpots[0];
@@ -1012,7 +1025,7 @@ export class VillageHouse implements HouseWorld {
     }
     this.candySpots.forEach((spot, i) => {
       const at = positions[i].clone();
-      at.y = CANDY_HEIGHT * 0.5;
+      at.y = this.candyHeight * 0.5;
       spot.position.copy(at);
       spot.mesh.position.copy(at);
       spot.taken = false;
@@ -1023,7 +1036,7 @@ export class VillageHouse implements HouseWorld {
   private async dressCandy(): Promise<void> {
     try {
       for (const candy of this.candySpots) {
-        const art = await models.instance('models/candy.json', { height: CANDY_HEIGHT });
+        const art = await models.instance('models/candy.json', { height: this.candyHeight });
         art.traverse((object) => {
           const mesh = object as THREE.Mesh;
           if (!mesh.isMesh) return;

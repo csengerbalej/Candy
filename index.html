@@ -579,6 +579,42 @@
                     pointer-events: auto; }
       .chat-field::placeholder { color: rgba(255,255,255,.35); }
       @media (prefers-reduced-motion: reduce) { .chat-log p { animation: none; } }
+/* AZ ELIGAZÍTÁS. Sötét lap, egyetlen fénykörrel — ugyanaz a kép, mint
+   amiben a játék van. */
+.haunt-brief {
+  position: fixed; inset: 0; z-index: 900;
+  display: grid; align-content: center; justify-items: center; gap: 18px;
+  padding: 6vh 6vw;
+  background:
+    radial-gradient(40rem 26rem at 50% 42%, #1a1226 0%, #07050b 72%),
+    #07050b;
+  color: #cdbfdd;
+  font: 400 14px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: center;
+}
+.haunt-brief h2 {
+  margin: 0; font-size: clamp(26px, 5vw, 42px); letter-spacing: .12em;
+  color: #fff; font-weight: 700;
+}
+.haunt-brief .mit { margin: 0; max-width: 46rem; color: #a897bd; }
+.haunt-brief .sorok {
+  display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  max-width: 62rem; width: 100%; text-align: left;
+}
+.haunt-brief .szorny {
+  border: 1px solid #2c2140; border-radius: 4px; padding: 12px 13px;
+  background: #0e0a16; display: grid; gap: 5px;
+}
+.haunt-brief .szorny b { color: #fff; letter-spacing: .1em; font-size: 15px; }
+.haunt-brief .jel { color: #7f6f96; font-size: 11.5px; letter-spacing: .06em; }
+.haunt-brief .ellen { color: #ffbe6a; font-size: 12.5px; }
+.haunt-brief .eszkoz {
+  display: grid; gap: 8px; max-width: 46rem; text-align: left;
+  color: #9d8fb4; font-size: 12.5px;
+}
+.haunt-brief .eszkoz b { color: #e6dcf2; }
+.haunt-brief .tovabb { margin: 4px 0 0; color: #6b5d80; font-size: 11.5px; letter-spacing: .14em; }
+
 /* A KÍSÉRTETHÁZ KIJELZŐJE. Halvány és kicsi: horrorban a kijelző nem
    lehet kapaszkodó, csak a legkevesebb, ami még elég. */
 .haunt-hud {

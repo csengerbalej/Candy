@@ -3,7 +3,7 @@ import { setStageLens, stage, tiltStage, turnStage } from '../camera/Stage';
 import { FIRST_PERSON, CAMERA, PLAYER_COUNT, PALETTE, HOMEOWNER, DOG, GUNS, MOVE, CAPTURE, DELIVERY } from '../core/config';
 // The first house is a real flat now, not the greybox kitchen. Both offer the
 // same surface to this scene, so the swap is one import and one await.
-import { VillageHouse } from '../world/VillageHouse';
+import { VillageHouse, CANDY_HEIGHT_HUMAN } from '../world/VillageHouse';
 import { PlayerController } from '../player/PlayerController';
 import { SplitScreenDirector } from '../camera/SplitScreenDirector';
 import { Armoury } from '../game/Armoury';
@@ -22,6 +22,7 @@ import { Homeowner } from '../ai/Homeowner';
 import { Haunt } from '../game/Haunt';
 import { Jumpscare } from '../ui/Jumpscare';
 import { HauntHud } from '../ui/HauntHud';
+import { HauntBrief } from '../ui/HauntBrief';
 import { Torch } from '../world/Torch';
 import { HAUNT, HOUSE } from '../core/config';
 import { makeRandom } from '../core/seed';
@@ -112,6 +113,7 @@ export class HouseScene implements GameScene {
   private jumpscare: Jumpscare | null = null;
   private torch: Torch | null = null;
   private hauntHud: HauntHud | null = null;
+  private hauntBrief: HauntBrief | null = null;
   /** Az AI teste. A második játékos helyén ül, ha nincs valódi társ. */
   private rivalBody: PlayerController | null = null;
 
@@ -507,9 +509,16 @@ export class HouseScene implements GameScene {
     // A harmadik mód. Nem a fogó egy beállítása: ott egymás ellen játszotok,
     // itt egymásért — és ez más szabályokat kér, nem ugyanazokat szigorúbban.
     if (session.haunt) {
+      // A TÖK IS EMBERMÉRTÉKŰ: harmincöt centi, nem derékig érő. A
+      // méretezés a világ dolga, nem a jeleneté — ezért a ház tudja.
+      if (this.world instanceof VillageHouse) {
+        this.world.candyHeight = CANDY_HEIGHT_HUMAN;
+        this.world.placeCandy(this.world.candySpots.map((c) => c.position));
+      }
       this.haunt = new Haunt();
       this.jumpscare = new Jumpscare(document.body);
       this.hauntHud = new HauntHud(document.body);
+      this.hauntBrief = new HauntBrief(document.body);
       this.torch = new Torch();
       this.scene.add(this.torch.group);
 
@@ -546,12 +555,17 @@ export class HouseScene implements GameScene {
 
         // A HÁROM TULAJDONSÁG. Nem három nehézségi fok — három KÉRDÉS,
         // amire másképp kell válaszolni.
+        // EMBERMÉRTÉKŰ TEST ÉS TEMPÓ. A lakó számai egy óriáshoz valók: 2,2
+        // egység széles test és 7,6-os üldözési sebesség. Itt a test 0,8
+        // (átfér egy ajtón), a tempó pedig a te sebességedhez mérve dől el.
+        szorny.bodyWidth = 0.8;
+
         if (faj.kind === 'vak') {
           // A VAK NEM LÁT. Nem „rosszul lát": a látása egyszerűen nem
           // létezik, mert minden útjába kerülőt falnak hisz. Ami marad, az
           // a hallása — és ettől lesz a csend maga a védelem.
           szorny.sightBlocked = () => true;
-          szorny.speedScale = 0.85;
+          szorny.speedScale = 0.5;
         } else if (faj.kind === 'koveto') {
           // A KÖVETŐ LASSÚ, ÉS NEM ADJA FEL. A kettő együtt a jelleme: ha
           // gyors volna, esélytelen lenne ellene; ha feladná, elég volna
@@ -563,7 +577,7 @@ export class HouseScene implements GameScene {
           // A LESŐ ÁLL. Amíg rá nem világítasz, nem is létezik: nem
           // járőrözik, nem hall, nem néz. Amikor viszont felébred, ő a
           // leggyorsabb a házban.
-          szorny.speedScale = 1.35;
+          szorny.speedScale = 0.64;
           szorny.state = 'IDLE';
         }
         this.lurkers.push(szorny);
@@ -582,6 +596,32 @@ export class HouseScene implements GameScene {
       // házban egy pizsamás ember.
       this.homeowner.group.visible = false;
       this.homeowner.position.set(0, -500, 0);
+
+      // MINDEN MÁS FÉNY KIALSZIK.
+      //
+      // Két okból, és mindkettő számít. Mérve harminc fényforrás égett a
+      // jelenetben: a szereplők kulcs-, derítő- és peremfénye, a lámpások,
+      // a lakó zseblámpája, a szörnyeké. Előre renderelésnél MINDEN fény
+      // MINDEN képpontra számol — harminc fény a képkockaidő legnagyobb
+      // tétele, és ettől akadozott.
+      //
+      // A másik ok a fontosabb: egy horrorházban egyetlen fénynek szabad
+      // égnie, a tiédnek. Ha a szoba magától látszik, akkor nincs sötét,
+      // és ha nincs sötét, nincs miért félni.
+      queueMicrotask(() => {
+        const kimeloek = new Set<THREE.Object3D>();
+        this.torch?.group.traverse((o) => kimeloek.add(o));
+        this.scene.traverse((o) => {
+          const l = o as THREE.Light;
+          if (!l.isLight || kimeloek.has(o)) return;
+          l.intensity = 0;
+        });
+      });
+
+      // A CSÍNYEK KARIKÁI sincsenek itt: a padlón világító zöld gyűrűk azt
+      // üzennék, hogy ez itt játék. A kúria nav fájlja nem is ad csínyt, ez
+      // csak a biztosíték.
+      for (const csiny of this.world.prankSpots) csiny.mesh.visible = false;
 
       // EMBERMÉRTÉKŰ MOZGÁS. A hatos alapsebesség itt olimpiai sprint
       // volna, a tizenkét méteres dupla ugrás pedig a falakat tenné
@@ -696,7 +736,13 @@ export class HouseScene implements GameScene {
     // A ház zenéje: lopakodós, halk. A vezetésnek szándékosan nincs zenéje —
     // ott a motor és a kürt a hang, és egy aláfestés elvenné a kontrasztot,
     // amitől a ház csendje csend.
-    sound.playMusic('audio/house.mp3');
+    //
+    // A KÍSÉRTETHÁZBAN VISZONT NINCS ZENE. Nem spórolás: a horror a
+    // CSENDEN áll. Zene alatt minden hang aláfestés lesz — egy lépés a
+    // hátad mögött összekeveredik egy hangszerrel, és pont az veszik el,
+    // amitől megfordulnál. Ráadásul a zene MEGMONDJA, mikor kell félni;
+    // csendben viszont te találod ki, és mindig rosszul.
+    if (!session.haunt) sound.playMusic('audio/house.mp3');
   }
 
   /**
@@ -1686,6 +1732,14 @@ export class HouseScene implements GameScene {
     const testem = this.players[me];
     this.jumpscare?.update(step);
 
+    // AZ ELIGAZÍTÁS. Bármelyik gomb elteszi; a H bármikor visszahozza. Amíg
+    // látszik, a ház áll — nem tisztességes menet közben olvastatni.
+    if (this.hauntBrief?.open) {
+      const b = this.input.get(me);
+      if (b.moveX || b.moveY || b.jump || b.interact || b.sprint) this.hauntBrief.toggle(false);
+      return;
+    }
+
     if (haunt.state === 'vege') {
       // VÉGE. A ház nem enged ki: ez nem az a mód, ahol ki lehet sétálni.
       this.game.banner = 'ELKAPTAK. A CUKORKA ODAVAN.';
@@ -1840,6 +1894,11 @@ export class HouseScene implements GameScene {
       this.director.firstPerson !== null ? this.director.fpPitch : 0
     );
     this.hauntHud?.update(haunt, me);
+  }
+
+  /** A H gomb: az eligazítás bármikor visszahívható. */
+  toggleBrief(): void {
+    this.hauntBrief?.toggle();
   }
 
   private cast(): PlayerController[] {
@@ -2018,6 +2077,7 @@ export class HouseScene implements GameScene {
     this.disposed = true;
     sound.stopMusic();
     this.jumpscare?.dispose();
+    this.hauntBrief?.dispose();
     this.hauntHud?.dispose();
     this.torch?.dispose();
     this.commit();

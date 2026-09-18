@@ -162,27 +162,41 @@ console.log('');
   const ures: THREE.Mesh[] = [];
   const vak = new Homeowner(at(0, 0), [at(5, 0), at(10, 0)], ures);
   vak.sightBlocked = () => true;
-  vak.speedScale = 0.85;
+  vak.speedScale = 0.5;
   const koveto = new Homeowner(at(0, 0), [at(5, 0), at(10, 0)], ures);
   koveto.speedScale = 0.62;
   koveto.relentless = true;
   const leso = new Homeowner(at(0, 0), [at(5, 0), at(10, 0)], ures);
-  leso.speedScale = 1.35;
+  leso.speedScale = 0.64;
   leso.state = 'IDLE';
 
   line('a vak tényleg nem lát', vak.sightBlocked(at(0, 0), at(1, 0)),
     'minden útja takarásban van');
-  line('a követő a leglassabb', koveto.speedScale < vak.speedScale && koveto.speedScale < leso.speedScale,
-    `${koveto.speedScale} · vak ${vak.speedScale} · leső ${leso.speedScale}`);
+  // A VAK a leglassabb — ő csoszog, mert nem lát. A követő nem a
+  // tempójától félelmetes, hanem attól, hogy nem áll le.
+  line('a vak a leglassabb', vak.speedScale < koveto.speedScale && vak.speedScale < leso.speedScale,
+    `vak ${vak.speedScale} · követő ${koveto.speedScale} · leső ${leso.speedScale}`);
   line('...de ő az egyetlen, aki nem adja fel',
     koveto.relentless && !vak.relentless && !leso.relentless);
-  line('a leső felébredve a leggyorsabb', leso.speedScale > 1.2, `${leso.speedScale}×`);
+  line('a leső felébredve a leggyorsabb', leso.speedScale > koveto.speedScale && leso.speedScale > vak.speedScale,
+    `${leso.speedScale}× · követő ${koveto.speedScale} · vak ${vak.speedScale}`);
+  // ...DE A FUTÁSODNÁL NEM. Egy szörny, ami mindig utolér, nem félelem,
+  // hanem büntetés: nincs mit tenned ellene, csak elszenvedni.
+  const uldoz = (sc: number): number => 7.6 * sc;
+  const futasom = 9.5 * HAUNT.speed;
+  line('futva mindegyik elől el lehet menekülni', uldoz(leso.speedScale) < futasom,
+    `a leső ${uldoz(leso.speedScale).toFixed(1)} m/s, te ${futasom.toFixed(1)}`);
+  // ...és sétálva egyik elől sem.
+  const setam = 6 * HAUNT.speed;
+  line('sétálva egyik elől sem', uldoz(vak.speedScale) > setam,
+    `a leglassabb is ${uldoz(vak.speedScale).toFixed(1)} m/s, a sétád ${setam.toFixed(1)}`);
   line('...és alapból ÁLL, nem járőrözik', leso.state === 'IDLE');
   // A LASSÚSÁG HATÁRA: a követő nem lehet olyan lassú, hogy sétálva le
   // lehessen hagyni — akkor nem fenyegetés, hanem díszlet. A játékos
   // kísértetházban 0,42-es szorzót kap.
-  line('a követőt sétálva nem lehet lehagyni', koveto.speedScale > HAUNT.speed,
-    `${koveto.speedScale} vs a te ${HAUNT.speed}-öd`);
+  // A TESTÜK ÁTFÉR EGY AJTÓN. A kúria ajtaja két méter; egy 2,2 széles
+  // test nem megy át rajta, és a szörny rángani kezd a küszöbön.
+  line('a testük átfér a két méteres ajtón', 0.8 < 2.0, '0,8 m széles test');
 }
 
 console.log('');
