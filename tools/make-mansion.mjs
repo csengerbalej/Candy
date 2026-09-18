@@ -206,19 +206,25 @@ for (let r = 0; r < ROWS; r++) {
  * Három méterrel mindkettő elfér, és egy kúria ajtaja amúgy is széles.
  */
 const DOOR = 6;
+/** A kivágott ajtónyílások, hogy később lapot tehessünk a tövükbe. */
+const ajtonyilasok = [];
 const doorHere = (x0, y0, x1, y1, oldal) => {
   if (oldal === 'fent') {
     const x = Math.floor((x0 + x1) / 2) - 1;
     fill(x, y0 - 1, x + DOOR - 1, y0 - 1, OPEN, 1);
+    ajtonyilasok.push({ x, y: y0 - 1, vizszintes: true });
   } else if (oldal === 'lent') {
     const x = Math.floor((x0 + x1) / 2) - 1;
     fill(x, y1 + 1, x + DOOR - 1, y1 + 1, OPEN, 1);
+    ajtonyilasok.push({ x, y: y1 + 1, vizszintes: true });
   } else if (oldal === 'bal') {
     const y = Math.floor((y0 + y1) / 2) - 1;
     fill(x0 - 1, y, x0 - 1, y + DOOR - 1, OPEN, 1);
+    ajtonyilasok.push({ x: x0 - 1, y, vizszintes: false });
   } else {
     const y = Math.floor((y0 + y1) / 2) - 1;
     fill(x1 + 1, y, x1 + 1, y + DOOR - 1, OPEN, 1);
+    ajtonyilasok.push({ x: x1 + 1, y, vizszintes: false });
   }
 };
 
@@ -270,10 +276,55 @@ const uy = (y) => -uz(y);
 // --- geometria -----------------------------------------------------------
 const positions = [];
 const normals = [];
+const colors = [];
+
+/**
+ * A FELÜLET SZÍNE — pofátlanul egyszerűen, mégis elég.
+ *
+ * A padló sötét, deszkacsíkokkal: a csíkot a világ-x koordináta adja, nem
+ * textúra. A fal fakó tapéta, LENT SÖTÉTEBB — ez a legolcsóbb kosz, ami
+ * mégis kornak látszik. A mennyezet felé néző lapok világosabbak, a lefelé
+ * nézők sötétebbek: enélkül a doboz doboz marad.
+ *
+ * És mindenen ül egy lassú, pozíciófüggő foltosság. Egy egyenletesen
+ * festett fal makettnek látszik; a foltos falnak MÚLTJA van.
+ */
+function szinez(fajta, p, ny) {
+  const [x, y, z] = p;
+  const zaj =
+    Math.sin(x * 61.1 + z * 37.7) * 0.5 + Math.sin(x * 13.3 - z * 19.9) * 0.5;
+  const folt = 1 - Math.max(0, zaj) * 0.22;
+  if (fajta === 0) {
+    // PADLÓ: sötét deszka, a csíkok 40 cm-enként.
+    const deszka = Math.sin(z * SCALE * 7.85) > 0.72 ? 0.72 : 1;
+    const t = 0.20 * folt * deszka;
+    return [t * 1.18, t * 0.92, t * 0.72];
+  }
+  if (fajta === 2) {
+    // AJTÓ: sötétebb, melegebb fa — hogy elváljon a faltól.
+    const t = 0.17 * folt;
+    return [t * 1.35, t * 0.95, t * 0.68];
+  }
+  // FAL: fakó tapéta. Lent sötétebb (lábazat és kosz), a lefelé néző lapok
+  // tompábbak.
+  const magassag = Math.min(1, Math.max(0, (y * SCALE) / 3.2));
+  const also = 0.45 + 0.55 * Math.min(1, magassag * 2.2);
+  const lap = ny < -0.5 ? 0.55 : ny > 0.5 ? 1.06 : 1;
+  const t = 0.34 * folt * also * lap;
+  return [t, t * 0.95, t * 0.88];
+}
 const indices = [];
 let vcount = 0;
 
-function box(x0, z0, x1, z1, y0, y1) {
+/**
+ * @param fajta 0 = padló, 1 = fal, 2 = ajtó. A szín ebből jön.
+ *
+ * Textúra helyett CSÚCSSZÍN: a ház generált, tehát nincs UV-kiterítése, és
+ * egy kép ráfeszítése külön munka volna. Egy vaksötét házban viszont a
+ * felület részlete úgysem látszik — ami látszik, az a FOLTOSSÁG és az,
+ * hogy a padló más, mint a fal. Ezt a csúcsszín megadja.
+ */
+function box(x0, z0, x1, z1, y0, y1, fajta = 1) {
   const v = [
     [x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0],
     [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1],
@@ -288,6 +339,7 @@ function box(x0, z0, x1, z1, y0, y1) {
     for (const idx of [a, b, c, d]) {
       positions.push(...v[idx]);
       normals.push(nx, ny, nz);
+      colors.push(...szinez(fajta, v[idx], ny));
       vcount++;
     }
     indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
@@ -297,7 +349,7 @@ function box(x0, z0, x1, z1, y0, y1) {
 // A PADLÓ egy lap az egész alaprajz alatt. Nem cellánként: egy nagy lap
 // ugyanúgy néz ki, és tízezer háromszöggel kevesebb.
 const half = { x: (W * CELL) / 2 / SCALE, z: (H * CELL) / 2 / SCALE };
-box(-half.x, -half.z, half.x, half.z, FLOOR_Z - 0.01, FLOOR_Z);
+box(-half.x, -half.z, half.x, half.z, FLOOR_Z - 0.01, FLOOR_Z, 0);
 
 // A FALAK: a szomszédos falcellák VÍZSZINTES FUTAMOKBA vonva. Cellánként
 // egy doboz húszezer háromszög volna; futamokban néhány száz.
@@ -337,6 +389,41 @@ for (let y = 0; y < H; y++) {
   }
 }
 
+// --- AJTÓK ---------------------------------------------------------------
+//
+// Nem zárnak el semmit: nyitva állnak, a keretük mégis elmondja, hogy ez
+// itt ÁTJÁRÓ, nem lyuk a falban. A lap a nyílás TÖVÉBEN áll, kifelé
+// fordulva — ahol a rács szerint is szabad a hely, tehát senki nem akad
+// el benne.
+//
+// Az első változat magából a rácsból próbálta kitalálni, hol vannak az
+// ajtók, és NULLA darabot talált: egy hat cellás nyílás közepén nincs
+// szemközti fal, amiből fel lehetne ismerni. A kivágás viszont pontosan
+// tudja, hol vágott — azóta onnan jön a lista.
+for (const ny of ajtonyilasok) {
+  const vastag = 0.1 / SCALE;
+  const lap = (CELL * 2.4) / SCALE;
+  const magas = WALL * 0.84;
+  // A LAP A FAL SÍKJÁBAN fekszik, a nyíláson KÍVÜL — vagyis úgy áll, mint
+  // egy tárva hagyott ajtó, ami nekitámaszkodik a falnak. Ha a nyílásba
+  // lógna, átsétálnál rajta: a rács szerint ott szabad a hely, a szemed
+  // szerint viszont ajtó van. Az ilyen ellentmondás rosszabb, mint ha
+  // egyáltalán nem volna ajtó.
+  if (ny.vizszintes) {
+    const cz = uz(ny.y);
+    const cx = ux(ny.x);
+    box(cx - lap, cz - vastag, cx, cz + vastag, FLOOR_Z, FLOOR_Z + magas, 2);
+    const cx2 = ux(ny.x + DOOR - 1);
+    box(cx2, cz - vastag, cx2 + lap, cz + vastag, FLOOR_Z, FLOOR_Z + magas, 2);
+  } else {
+    const cx = ux(ny.x);
+    const cz = uz(ny.y);
+    box(cx - vastag, cz - lap, cx + vastag, cz, FLOOR_Z, FLOOR_Z + magas, 2);
+    const cz2 = uz(ny.y + DOOR - 1);
+    box(cx - vastag, cz2, cx + vastag, cz2 + lap, FLOOR_Z, FLOOR_Z + magas, 2);
+  }
+}
+
 const doc = new Document();
 const buffer = doc.createBuffer();
 const mesh = doc.createMesh('mansion');
@@ -344,11 +431,12 @@ const prim = doc
   .createPrimitive()
   .setAttribute('POSITION', doc.createAccessor().setType('VEC3').setArray(new Float32Array(positions)).setBuffer(buffer))
   .setAttribute('NORMAL', doc.createAccessor().setType('VEC3').setArray(new Float32Array(normals)).setBuffer(buffer))
+  .setAttribute('COLOR_0', doc.createAccessor().setType('VEC3').setArray(new Float32Array(colors)).setBuffer(buffer))
   .setIndices(doc.createAccessor().setType('SCALAR').setArray(new Uint32Array(indices)).setBuffer(buffer))
   .setMaterial(
     doc
       .createMaterial('fal')
-      .setBaseColorFactor([0.42, 0.38, 0.36, 1])
+      .setBaseColorFactor([1, 1, 1, 1])
       .setRoughnessFactor(0.94)
       .setMetallicFactor(0)
       .setDoubleSided(true)

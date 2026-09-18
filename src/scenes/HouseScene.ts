@@ -24,7 +24,8 @@ import { Jumpscare } from '../ui/Jumpscare';
 import { HauntHud } from '../ui/HauntHud';
 import { HauntBrief } from '../ui/HauntBrief';
 import { Torch } from '../world/Torch';
-import { HAUNT, HOUSE } from '../core/config';
+import { Batteries } from '../world/Batteries';
+import { HAUNT, HOUSE, NOISE } from '../core/config';
 import { makeRandom } from '../core/seed';
 import { planFor, planToWorld } from '../world/HousePlan';
 import { Dog } from '../ai/Dog';
@@ -118,6 +119,7 @@ export class HouseScene implements GameScene {
   private readonly lurkerWindow: number[] = [];
   private jumpscare: Jumpscare | null = null;
   private torch: Torch | null = null;
+  private batteries: Batteries | null = null;
   private hauntHud: HauntHud | null = null;
   private hauntBrief: HauntBrief | null = null;
   /** A ház hangjának órája: a szívverés és a neszek ütemezéséhez. */
@@ -540,6 +542,18 @@ export class HouseScene implements GameScene {
       this.hauntBrief = new HauntBrief(document.body);
       this.torch = new Torch();
       this.scene.add(this.torch.group);
+
+      // ELEMEK: nyolc darab, szétszórva a házban, a saroktól távol. Nyolc
+      // darab plusz háromszázhatvan másodpercnyi fény — több, mint a telep
+      // maga —, de csak akkor, ha mindet megtalálod, és a keresés is
+      // fénybe kerül. Ez a mód gazdasága.
+      const elemek: THREE.Vector3[] = [];
+      for (let i = 0; i < 8 && elemek.length < 8; i++) {
+        const p = this.world.randomStanding(sors, MOVE.radius, elemek, 12);
+        if (p) elemek.push(p);
+      }
+      this.batteries = new Batteries(elemek);
+      this.scene.add(this.batteries.group);
 
       // A SZÖRNYEK ugyanaz az osztály, mint a lakó.
       //
@@ -2035,6 +2049,16 @@ export class HouseScene implements GameScene {
     //
     //   MORGÁS és RECCSENÉS: ritkán, véletlenszerűen. Ezek a hamis
     //   ijesztések; ezektől lesz hihető a valódi.
+    // A SÉTA IS HALLATSZIK — közelről.
+    //
+    // Eddig csak a FUTÁS és a földet érés keltett zajt: sétálva tökéletesen
+    // néma voltál, és a Vak — aki csak hallani tud — soha nem vett észre.
+    // Kívülről ez úgy néz ki, hogy „a szörnyek meg sem próbálnak elkapni".
+    // Hét méter: a szomszéd szobában nem hallatszik, a hátad mögött igen.
+    if (testem.moving && !haunt.down[me].down) {
+      this.noise.emit(testem.position, testem.isLoud ? NOISE.sprintRadius : 7, 'lépteid');
+    }
+
     this.hangClock += step;
     sound.loop('h-ambience', 0.22);
     sound.loop('h-steps', testem.moving && !haunt.down[me].down ? 0.5 : 0);
@@ -2063,6 +2087,14 @@ export class HouseScene implements GameScene {
     if (this.hangClock > this.kovetkezoNesz) {
       this.kovetkezoNesz = this.hangClock + 8 + this.sors() * 17;
       sound.clip(this.sors() < 0.45 ? 'h-growl' : 'h-creak', 0.18 + this.sors() * 0.16);
+    }
+
+    // ELEM FELVÉTELE: ráállsz, és kész. Egy külön gomb itt csak
+    // bosszantás volna — a sötétben amúgy is elég megtalálni.
+    if (this.batteries?.update(step, testem.position)) {
+      haunt.charge();
+      this.game.banner = `ELEM — +${HAUNT.battery} mp fény`;
+      sound.clip('reload-done', 0.7);
     }
 
     // A LÁMPA. Csak annál ég, akinél van, és csak amíg van benne telep.
