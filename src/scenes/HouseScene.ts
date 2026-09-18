@@ -19,6 +19,7 @@ import { Impact } from '../render/Impact';
 import { Weapon, type Target } from '../game/Weapon';
 
 import { Homeowner } from '../ai/Homeowner';
+import { makeRandom } from '../core/seed';
 import { Dog } from '../ai/Dog';
 import { kennelAt } from '../world/Kennel';
 import { Echo } from '../world/Echo';
@@ -262,10 +263,17 @@ export class HouseScene implements GameScene {
     //
     // Hatvan sorsolt pontból választunk; a kettő közül a legtávolabbi párt a
     // `Corners` keresi ki. Így minden kör máshol van a két sarok is.
+    // KÖZÖS SORSOLÁS. Kétfős fogóban a `Math.random` a két gépen mást ad, és
+    // a pálya kettéhasadna: a te sarkod a konyhában, a társadé a fürdőben, és
+    // mindketten meg volnátok győződve róla, hogy a másik csal. Ugyanabból a
+    // magból indulva viszont ugyanaz a sorozat jön ki mindkét gépen —
+    // üzenetváltás és várakozás nélkül.
+    const sors = this.partnered && net.seed ? makeRandom(`${net.seed}|${this.houseName}`) : Math.random;
+    this.sors = sors;
     const bowls = this.world.candySpots.map((c) => c.position);
     const walkable: THREE.Vector3[] = [];
     for (let i = 0; i < 60; i++) {
-      const p = this.world.randomStanding(Math.random, MOVE.radius, bowls, 7);
+      const p = this.world.randomStanding(sors, MOVE.radius, bowls, 7);
       if (p) walkable.push(p);
     }
     const spots = [
@@ -277,12 +285,15 @@ export class HouseScene implements GameScene {
     const avoid = this.corners ? this.corners.list.map((c) => c.position) : [];
     const random: THREE.Vector3[] = [];
     for (let i = 0; i < 40; i++) {
-      const p = this.world.randomStanding(Math.random, MOVE.radius, avoid, CAPTURE.bankRadius * 3);
+      const p = this.world.randomStanding(sors, MOVE.radius, avoid, CAPTURE.bankRadius * 3);
       if (p) random.push(p);
     }
 
     if (random.length >= 4 || spots.length) {
-      this.armoury = new Armoury(random.length >= 4 ? random : spots);
+      // A KÖZÖS SORSOLÓ a fegyvereknek is kell: melyik fegyver hol terem, és
+      // mikor jön vissza. Enélkül a te sörétesed a társad gépén mesterlövész
+      // volna, ugyanazon a helyen.
+      this.armoury = new Armoury(random.length >= 4 ? random : spots, sors);
       this.scene.add(this.pickups.group);
       void this.pickups.load();
     }
@@ -674,7 +685,9 @@ export class HouseScene implements GameScene {
   /** Új helyre teszi az éjjellátót. Véletlen, szabad pontra. */
   private placeGoggles(): void {
     if (!this.goggles) return;
-    const at = this.world.randomStanding(Math.random, MOVE.radius, [], 0);
+    // A KÖZÖS SORSOLÓ: az éjjellátó ugyanoda kerül mindkét gépen. Két külön
+    // helyen termő szemüveg azt jelentené, hogy ketten ugyanazt veszitek fel.
+    const at = this.world.randomStanding(this.sors, MOVE.radius, [], 0);
     if (!at) return;
     this.goggles.position.set(at.x, 1.1, at.z);
     this.goggles.visible = true;
@@ -941,6 +954,8 @@ export class HouseScene implements GameScene {
 
   /** Melyik ház van betöltve. A sötétség és a kutya is ebből következik. */
   private houseName = 'house1';
+  /** A közös sorsoló: kétfős fogóban mindkét gépen ugyanaz a sorozat. */
+  private sors: () => number = Math.random;
 
   /**
    * A ház nevétől függő beállítások, MIUTÁN kiderült, melyik ház ez.
@@ -1254,12 +1269,30 @@ export class HouseScene implements GameScene {
         // a lövés elsült és zajt csapott, de a célpontnak nem történt semmi —
         // egy fegyver, aminek nincs hatása, csak egy hangeffekt.
         if (shot.hit) {
-          this.takeHit(
-            Number(shot.hit.id) as 0 | 1,
-            shot.from,
-            shot.strength,
-            this.held.gun.knockback
-          );
+          const kit = Number(shot.hit.id) as 0 | 1;
+          // KÉTFŐS FOGÓ: a TALÁLATOT A LÖVŐ DÖNTI EL.
+          //
+          // Kézenfekvő volna a célpont gépére bízni („te mondd meg, hogy
+          // eltaláltak-e"), de az rossz: a lövésedet a SAJÁT gépeden látod
+          // elsülni, ott van a csövd és ott van a képed — és ha a döntés
+          // átmenne a másik gépre, a találat fél másodperccel a lövés után
+          // jönne meg. Azon a fél másodpercen a játék áll vagy bukik.
+          //
+          // Az ára, hogy a lövőnek elhisszük a találatot. Két barát között
+          // ez nem kockázat, és a nyeresége — hogy a fegyver ott sül el,
+          // ahol meghúzod — mindennél többet ér.
+          if (this.partnered && kit !== this.localIndex) {
+            this.link.sendHit(shot.from, shot.strength, this.held.gun.knockback);
+            this.game.banner = 'TALÁLAT';
+            sound.clip('hit', 0.6);
+          } else {
+            this.takeHit(kit, shot.from, shot.strength, this.held.gun.knockback);
+          }
+        }
+        // A társ gépén is legyen csík és becsapódás: enélkül ott csak annyi
+        // történne, hogy hirtelen elrepül — anélkül, hogy látná, honnan.
+        if (this.partnered) {
+          this.link.sendShot(shot.from, shot.to, this.held.kind, !!shot.hit);
         }
         // A lövés ZAJ is: a fegyver hangja odahívja a lakót. Ez a fegyver
         // harmadik ára, a lőszer és az idő mellett.
@@ -1268,7 +1301,43 @@ export class HouseScene implements GameScene {
       }
     }
 
+    // FOGÓ: a sajátomról mondok igazat — mi van a kezemben, mennyi van
+    // bevive, és mivel lövök. A társ HUD-ja ebből tudja az állást.
+    if (this.capture) {
+      this.link.fogo = {
+        carried: this.capture.carried[this.localIndex],
+        banked: this.capture.banked[this.localIndex],
+        weapon: this.held?.kind ?? '',
+        ammo: this.held?.ammo ?? 0,
+      };
+    }
+
     this.link.apply(this.peers(), this.players, this.homeowner, this.world, this.game);
+
+    if (this.partnered && this.capture) {
+      // A TÁRS ÁLLÁSA: az ő gépe mondja meg, mert az övé.
+      const other = (1 - this.localIndex) as 0 | 1;
+      this.capture.carried[other] = this.link.remoteFogo.carried;
+      this.capture.banked[other] = this.link.remoteFogo.banked;
+
+      // ELTALÁLTAK. A társ gépe döntötte el, itt csak elszenvedjük — és
+      // pontosan úgy, ahogy az AI lövésénél: ellökés és a cukorka a földre.
+      const hit = this.link.takeHit();
+      if (hit) this.takeHit(this.localIndex, hit.from, hit.strength, hit.knockback);
+
+      // A TÁRS LÖVÉSE: csík és becsapódás. Csak látvány — a következményt
+      // már a fenti találat elintézte.
+      const shot = this.link.takeShot();
+      if (shot) {
+        this.tracer.add(shot.from, shot.to, shot.hit);
+        this.impact.burst(
+          shot.kind as 'shotgun' | 'sniper' | 'rocket',
+          shot.to,
+          shot.to.clone().sub(shot.from).normalize()
+        );
+        sound.gun(shot.kind as 'shotgun' | 'sniper' | 'rocket');
+      }
+    }
 
     this.world.update(step, elapsed);
 

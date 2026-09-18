@@ -174,6 +174,10 @@ export class Frontend {
       // A FOGÓ külön bejegyzés, nem a kooperatív egy kapcsolója: teljesen más
       // játék ugyanabban a házban — cukorkát rabolni egymástól, fegyverrel.
       { id: 'fogo', label: 'FOGÓ', detail: 'cukorkarablás — egyedül AI ellen' },
+      // FOGÓ KETTEN: ugyanaz a játék, de a második helyen nem AI ül, hanem a
+      // barátod a saját eszközéről. A kooperatív KÉTFŐS megmarad mellette —
+      // két külön játék, nem egy kapcsoló két állása.
+      { id: 'fogo2', label: 'FOGÓ KETTEN', detail: 'egymás ellen — a társad másik eszközről' },
     ];
     if (save) this.menuItems.push({ id: 'continue', label: 'FOLYTATÁS', detail: save.label });
     this.menuItems.push({ id: 'settings', label: 'BEÁLLÍTÁSOK' });
@@ -183,9 +187,11 @@ export class Frontend {
   private activateMenu(): void {
     const item = this.menuItems[this.menuCursor];
     if (!item) return;
-    if (item.id === 'new' || item.id === 'solo' || item.id === 'fogo') {
-      this.solo = item.id !== 'new';
-      this.fogo = item.id === 'fogo';
+    if (item.id === 'new' || item.id === 'solo' || item.id === 'fogo' || item.id === 'fogo2') {
+      // Csak az EGYEDÜL és a sima FOGÓ megy egy eszközön; a másik kettőhöz
+      // társ kell.
+      this.solo = item.id === 'solo' || item.id === 'fogo';
+      this.fogo = item.id === 'fogo' || item.id === 'fogo2';
       this.advancePhase('names');
     }
     else if (item.id === 'continue') this.finishContinue();

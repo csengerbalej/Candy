@@ -264,5 +264,63 @@ console.log('');
   ) && ok;
 }
 
+// --- KÉTFŐS FOGÓ: UGYANAZ A PÁLYA ÉS A TALÁLAT ÁTMEGY ------------------------
+//
+// Ez a két dolog az, ami nélkül a barátod ellen játszani nem lehet. Ha a
+// sorsolás elhasad, ti KÉT KÜLÖN házban játszotok ugyanazon a néven; ha a
+// találat nem megy át, a fegyver díszlet.
+{
+  const { makeRandom } = await import('../src/core/seed');
+  const room = new Loopback();
+  const a = room.join('A');
+  const b = room.join('B');
+  const netA = new NetSession(a, 'gepA');
+  const netB = new NetSession(b, 'gepB');
+
+  ok = line('a két gép MAGJA ugyanaz', netA.seed === netB.seed && netA.seed.length > 0,
+    netA.seed === netB.seed ? netA.seed : `${netA.seed} ≠ ${netB.seed}`) && ok;
+
+  const sorsA = makeRandom(netA.seed + '|house1');
+  const sorsB = makeRandom(netB.seed + '|house1');
+  const ezerA = Array.from({ length: 1000 }, () => sorsA());
+  const ezerB = Array.from({ length: 1000 }, () => sorsB());
+  ok = line('...és ugyanazt sorsolja', ezerA.every((v, i) => v === ezerB[i]),
+    'ezer szám, egytől egyig ugyanaz') && ok;
+  // Egy generátor, ami mindig ugyanazt adja, nem véletlen: az is elrontaná a
+  // pályát, csak másképp.
+  const kulon = new Set(ezerA.map((v) => Math.floor(v * 10)));
+  ok = line('...de a számok szórnak', kulon.size >= 9, `${kulon.size} tizedből`) && ok;
+
+  const linkA = new HouseLink(a, true, 0);
+  const linkB = new HouseLink(b, false, 1);
+  const ures = { name: 'A', character: 'x' };
+  const players = [stubPlayer(0), stubPlayer(1)];
+  const homeowner = stubHomeowner();
+  const world = stubWorld();
+  const game = stubGame();
+
+  linkA.fogo = { carried: 3, banked: 2, weapon: 'sniper', ammo: 5 };
+  linkA.sendHit(new THREE.Vector3(9, 1, 9), 0.8, 7);
+  linkA.sendShot(new THREE.Vector3(9, 1, 9), new THREE.Vector3(0, 1, 0), 'sniper', true);
+  linkA.publish(players, { ...QUIET }, homeowner, world, game, ures);
+  linkB.apply(b.peers(), players, homeowner, world, game);
+
+  ok = line('a társ állása átmegy',
+    linkB.remoteFogo.carried === 3 && linkB.remoteFogo.banked === 2 &&
+      linkB.remoteFogo.weapon === 'sniper',
+    `${linkB.remoteFogo.carried} a kézben, ${linkB.remoteFogo.banked} bevive, ${linkB.remoteFogo.weapon}`) && ok;
+
+  const talalat = linkB.takeHit();
+  ok = line('a TALÁLAT átmegy', talalat !== null && talalat.knockback === 7,
+    talalat ? `${talalat.strength} erő, ${talalat.knockback} lökés` : 'nem jött meg') && ok;
+  // ...és csak EGYSZER. Egy állapot minden csomagban ott van; ha minden
+  // csomag új találatnak számítana, egy lövéstől a fal mellett végeznéd.
+  ok = line('...de csak egyszer', linkB.takeHit() === null, 'ugyanaz a sorszám nem üt kétszer') && ok;
+
+  const csik = linkB.takeShot();
+  ok = line('a lövés CSÍKJA is átmegy', csik !== null && csik.kind === 'sniper' && csik.hit,
+    csik ? `${csik.kind}, találat` : 'nem jött meg') && ok;
+}
+
 console.log(ok ? 'MIND OK — a hálózati protokoll stabil' : 'VAN BUKÓ TESZT');
 process.exit(ok ? 0 : 1);

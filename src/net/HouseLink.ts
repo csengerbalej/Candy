@@ -56,6 +56,49 @@ interface HousePresence {
   /** csak a gazdától: kijutottak-e, és hány cukorka van meg */
   he?: boolean;
   hq?: number;
+
+  // --- FOGÓ MÓD ------------------------------------------------------------
+  //
+  // Itt nem társak vagyunk, hanem ellenfelek — és ettől a szinkron
+  // kérdése is megfordul. A kooperatív részben a GAZDÁNAK van igaza
+  // mindenben. Fogóban viszont mindenki a SAJÁT dolgairól mond igazat:
+  // hány cukorka van a kezében, mi van a kezében, és kit talált el. Ez
+  // nem engedékenység, hanem az egyetlen működő felosztás: a lövésedet a
+  // te gépeden látod elsülni, és ha a döntést a másik gépre bíznánk, a
+  // találat egy fél másodperccel a lövés után jönne meg.
+
+  /** a kezemben lévő és a sarkomba bevitt cukorka */
+  fc?: number;
+  fb?: number;
+  /** mi van a kezemben, és mennyi lőszerrel */
+  fw?: string;
+  fa?: number;
+  /**
+   * AMIKOR ELTALÁLTALAK. Sorszám + honnan + mekkora erővel.
+   *
+   * Sorszám, nem esemény: egy esemény elveszhet, és egy elveszett találat
+   * úgy néz ki, mintha átmentél volna a másikon. A sorszám VÁLLALJA a
+   * veszteséget — ha egy csomag kimarad, a következő már az új számot
+   * hozza, és a találat akkor is megtörténik.
+   */
+  fh?: [number, number, number, number, number, number];
+  /** AMIT LŐTTEM: sorszám, honnan, hova, melyik fegyverrel — csak a csíkhoz. */
+  fs?: [number, number, number, number, number, number, number, string];
+}
+
+/** Egy találat, ahogy az elszenvedője megkapja. */
+export interface RemoteHit {
+  from: THREE.Vector3;
+  strength: number;
+  knockback: number;
+}
+
+/** Egy lövés nyoma, ahogy a másik gépen kirajzolódik. */
+export interface RemoteShot {
+  from: THREE.Vector3;
+  to: THREE.Vector3;
+  kind: string;
+  hit: boolean;
 }
 
 const IDLE: PlayerInput = {
@@ -79,6 +122,22 @@ export class HouseLink {
   /** A távoli játékos bemenete, ahogy a szabályok látják. */
   private readonly remoteInput: PlayerInput = { ...IDLE };
   private remoteHeldBefore = false;
+
+  /** A társ fogó-állapota, ahogy legutóbb megmondta. */
+  readonly remoteFogo: { carried: number; banked: number; weapon: string; ammo: number } = {
+    carried: 0,
+    banked: 0,
+    weapon: '',
+    ammo: 0,
+  };
+  /** A legutóbb FELDOLGOZOTT sorszámok — ezekből tudjuk, mi az új. */
+  private seenHit = 0;
+  private seenShot = 0;
+  /** A saját kimenő sorszámaink. */
+  private hitSeq = 0;
+  private shotSeq = 0;
+  private outHit: HousePresence['fh'];
+  private outShot: HousePresence['fs'];
   private lastSent = 0;
   private sentHeld = false;
 
@@ -125,6 +184,17 @@ export class HouseLink {
       hc: identity.character,
     };
 
+    // FOGÓ: a sajátomról mondok igazat. A gazdaság itt nem számít — a
+    // kezemben lévő cukorkát nem a másik gépe tartja számon.
+    if (this.fogo) {
+      patch.fc = this.fogo.carried;
+      patch.fb = this.fogo.banked;
+      patch.fw = this.fogo.weapon;
+      patch.fa = this.fogo.ammo;
+      if (this.outHit) patch.fh = this.outHit;
+      if (this.outShot) patch.fs = this.outShot;
+    }
+
     if (this.amHost) {
       patch.ho = [
         round(homeowner.position.x),
@@ -143,6 +213,65 @@ export class HouseLink {
     this.room.presence(patch as unknown as Record<string, unknown>);
   }
 
+  /**
+   * A SAJÁT fogó-állapotom, amit a következő csomag visz.
+   *
+   * A jelenet minden képkockában beállítja; a link dönti el, mikor megy el.
+   */
+  fogo: { carried: number; banked: number; weapon: string; ammo: number } | null = null;
+
+  /** ELTALÁLTAM A TÁRSAT. A találatot a LÖVŐ dönti el — lásd fent. */
+  sendHit(from: THREE.Vector3, strength: number, knockback: number): void {
+    this.hitSeq++;
+    this.outHit = [
+      this.hitSeq,
+      round(from.x),
+      round(from.y),
+      round(from.z),
+      round(strength, 100),
+      round(knockback, 100),
+    ];
+  }
+
+  /** LŐTTEM. Csak a látványért: a társ gépén is legyen csík és becsapódás. */
+  sendShot(from: THREE.Vector3, to: THREE.Vector3, kind: string, hit: boolean): void {
+    this.shotSeq++;
+    this.outShot = [
+      this.shotSeq,
+      round(from.x),
+      round(from.y),
+      round(from.z),
+      round(to.x),
+      round(to.y),
+      round(to.z),
+      hit ? `${kind}!` : kind,
+    ];
+  }
+
+  /** Az ÚJ találat, ha jött ilyen. Egyszer adja ki — utána megette. */
+  takeHit(): RemoteHit | null {
+    const h = this.lastState?.fh;
+    if (!h || h[0] === this.seenHit) return null;
+    this.seenHit = h[0];
+    return { from: new THREE.Vector3(h[1], h[2], h[3]), strength: h[4], knockback: h[5] };
+  }
+
+  /** Az ÚJ lövés, ha jött ilyen. Csak rajzolni való. */
+  takeShot(): RemoteShot | null {
+    const s = this.lastState?.fs;
+    if (!s || s[0] === this.seenShot) return null;
+    this.seenShot = s[0];
+    const kind = String(s[7]);
+    return {
+      from: new THREE.Vector3(s[1], s[2], s[3]),
+      to: new THREE.Vector3(s[4], s[5], s[6]),
+      kind: kind.endsWith('!') ? kind.slice(0, -1) : kind,
+      hit: kind.endsWith('!'),
+    };
+  }
+
+  private lastState: HousePresence | null = null;
+
   /** Amit a másiktól kaptunk, ráolvasva a saját világunkra. */
   apply(
     peers: readonly RoomPeer[],
@@ -154,6 +283,12 @@ export class HouseLink {
     const from = peers.find((p) => !p.isMe && (p.presence as HousePresence).hp);
     if (!from) return;
     const state = from.presence as HousePresence;
+    this.lastState = state;
+
+    if (typeof state.fc === 'number') this.remoteFogo.carried = state.fc;
+    if (typeof state.fb === 'number') this.remoteFogo.banked = state.fb;
+    if (typeof state.fw === 'string') this.remoteFogo.weapon = state.fw;
+    if (typeof state.fa === 'number') this.remoteFogo.ammo = state.fa;
 
     if (state.hn) this.remoteName = state.hn;
     if (state.hc) this.remoteCharacter = state.hc;

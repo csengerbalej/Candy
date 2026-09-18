@@ -60,9 +60,25 @@ export class Armoury {
     for (let i = 0; i < PICKUP.live; i++) this.spawn();
   }
 
-  /** Súlyozott sorsolás: a rakétavető a legritkább. */
+  /**
+   * Súlyozott sorsolás — de előbb GARANTÁLT VÁLTOZATOSSÁG.
+   *
+   * A súlyok magukban nem elegek, és ezt mérni lehet: négy fekvő fegyvernél
+   * a rakétavető súlya 1 a 8-ból, tehát annak az esélye, hogy a pályán
+   * EGYETLEN rakétavető sincs, (7/8)⁴ = 59 %. Több mint minden második
+   * körben. A játékos ebből csak annyit lát, hogy „rakétavető nincs a
+   * játékban" — és igaza is van, mert ami az esetek felében hiányzik, az
+   * nem ritka, hanem nem létezik.
+   *
+   * Ezért amíg egy fajtából egy sem fekszik a pályán, AZ jön. Csak utána
+   * dönt a súlyozás. A ritkaság így a MENNYISÉGBEN marad meg (a sörétesből
+   * több lesz), nem abban, hogy a fegyver egyáltalán előfordul-e.
+   */
   private pickKind(): GunId {
     const kinds = Object.keys(GUNS) as GunId[];
+    const hianyzik = kinds.filter((k) => !this.items.some((i) => i.kind === k));
+    if (hianyzik.length) return hianyzik[Math.floor(this.random() * hianyzik.length)];
+
     const total = kinds.reduce((n, k) => n + PICKUP.weights[k], 0);
     let roll = this.random() * total;
     for (const k of kinds) {

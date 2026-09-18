@@ -482,7 +482,12 @@ export class DriveScene implements GameScene {
     // Két eszközről játszva az AUTÓT az szimulálja, aki vezeti — egy autót
     // nem lehet két gépen egyszerre számolni. A másik gép megkapja, hol van,
     // és a térképét abból rajzolja.
-    const amDriver = !net.current.paired || net.current.playerIndex === session.driverIndex;
+    // FOGÓBAN MINDENKI SOFŐR. A kooperatív módban egy kocsi van, és abban
+    // az ülésrend dönti el, ki vezet. Fogóban viszont két kocsi van, és
+    // mindenki a sajátját vezeti — a szabály ugyanaz marad („egy autót egy
+    // gép számol"), csak most mindkét gépnek van mit számolnia.
+    const amDriver =
+      !net.current.paired || session.fogo || net.current.playerIndex === session.driverIndex;
     this.link = new DriveLink(netRoom, amDriver, (verb) => {
       if (verb === 'target') this.game.cycleTarget();
       else if (verb === 'ping') this.game.sendPing();

@@ -72,6 +72,25 @@ export class NetSession {
     return this.state;
   }
 
+  /**
+   * KÖZÖS MAG a sorsoláshoz.
+   *
+   * A fogó pályája sorsolással születik (hol a két sarok, hova kerülnek a
+   * fegyverek), és két gépen ugyanannak kell kijönnie — különben a társad
+   * más házban játszik, mint te. A mag a résztvevők azonosítójából jön,
+   * RENDEZVE: ugyanaz a lista, ugyanaz a sorrend, ugyanaz a szöveg mindkét
+   * gépen, üzenetváltás nélkül.
+   *
+   * Egyedül üres — ott a `Math.random` a helyes válasz, mert minden kör
+   * legyen más.
+   */
+  get seed(): string {
+    return this.order.join('|');
+  }
+
+  /** A helyek sorrendje; a mag ebből jön. */
+  private order: string[] = [];
+
   onChange(handler: (state: NetState) => void): () => void {
     this.listeners.push(handler);
     handler(this.state);
@@ -106,6 +125,7 @@ export class NetSession {
       claimed.add(dev);
       order.push(p.peer);
     }
+    this.order = order;
     const index = me ? order.indexOf(me.peer) : 0;
 
     // Kettőnél többen is benézhetnek; a játék kétfős, tehát csak az első

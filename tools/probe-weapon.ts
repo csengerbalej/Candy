@@ -681,6 +681,14 @@ for (const kind of ['shotgun', 'sniper', 'rocket'] as GunId[]) {
   ok = line('az új lövés levágja az előzőt', hang.includes('this.voices'),
     'enélkül négy mesterlövész-visszhang szólna egyszerre') && ok;
 
+  // A MESTERLÖVÉSZ HANGJA nem lehet hosszabb, mint amilyen sűrűn a fegyver
+  // elsül — a régi négy másodperces volt másfél másodperces töltésidőre, és
+  // ezért szólt gyengén: a csattanás elveszett a saját visszhangjában.
+  const sniper = existsSync(`${audio}/gun-sniper.mp3`) ? readFileSync(`${audio}/gun-sniper.mp3`) : null;
+  ok = line('a mesterlövész hangja tömör (nem elnyújtott)',
+    sniper !== null && sniper.length < 80_000,
+    sniper ? `${Math.round(sniper.length / 1024)} KB` : 'HIÁNYZIK') && ok;
+
   const haz = readFileSync('src/scenes/HouseScene.ts', 'utf8');
   const drive = readFileSync('src/game/DriveGame.ts', 'utf8');
   ok = line('a töltés két hangot ad (indul + kész)',
@@ -690,6 +698,27 @@ for (const kind of ['shotgun', 'sniper', 'rocket'] as GunId[]) {
   ok = line('a találat hangot ad', haz.includes("sound.clip('hit'"), '') && ok;
   ok = line('az üres tár kattan', haz.includes("sound.clip('empty'"), '') && ok;
   ok = line('az elütésnek is hangja van', drive.includes("sound.clip('hit'"), '') && ok;
+}
+
+// --- MINDHÁROM FEGYVER ELŐFORDUL --------------------------------------------
+//
+// A súlyozás magában hazudik: négy fekvő fegyvernél a rakétavető súlya 1 a
+// 8-ból, tehát az esetek 59 %-ában EGYETLEN rakétavető sincs a pályán. A
+// játékos ebből annyit lát, hogy a fegyver nem létezik — és igaza is van.
+{
+  let hianyzott = 0;
+  for (let kor = 0; kor < 200; kor++) {
+    let seed = kor * 7919 + 13;
+    const random = (): number => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
+    const spots = Array.from({ length: 30 }, (_, i) => at((i % 6) * 9 - 27, Math.floor(i / 6) * 9 - 18));
+    const a = new Armoury(spots, random);
+    if (!a.items.some((i) => i.kind === 'rocket')) hianyzott++;
+  }
+  ok = line('a rakétavető MINDIG ott van a pályán', hianyzott === 0,
+    `200 körből ${hianyzott}-ban hiányzott`) && ok;
 }
 
 console.log('');
