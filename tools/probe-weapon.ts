@@ -663,6 +663,24 @@ for (const kind of ['shotgun', 'sniper', 'rocket'] as GunId[]) {
       bytes ? bytes.subarray(0, 4).toString() : '—') && ok;
   }
 
+  // A HÁROM LÖVÉSHANG. MP3, mert másodperces felvételek — a mesterlövészé
+  // WAV-ban másfél megabájt volna. A hossz azért mért érték, mert a fegyver
+  // gyorsabban sül el, mint ahogy a hang elhal: ezt a kód vágja el, de a
+  // fájlnak akkor sem szabad tíz másodpercesnek lennie.
+  for (const kind of ['shotgun', 'sniper', 'rocket'] as const) {
+    const file = `${audio}/gun-${kind}.mp3`;
+    const bytes = existsSync(file) ? readFileSync(file) : null;
+    ok = line(`${GUNS[kind].name} lövéshangja megvan`, bytes !== null && bytes.length > 5000,
+      bytes ? `${Math.round(bytes.length / 1024)} KB` : 'HIÁNYZIK') && ok;
+    ok = line(`${kind}: a fájl nem óriás`, bytes !== null && bytes.length < 400_000,
+      bytes ? `${Math.round(bytes.length / 1024)} KB` : '—') && ok;
+  }
+  const hang = readFileSync('src/audio/Sound.ts', 'utf8');
+  ok = line('a lövés a FELVÉTELT szólaltatja meg', hang.includes('this.clip(`gun-${kind}`'),
+    'a szintetizált hang tartalék marad') && ok;
+  ok = line('az új lövés levágja az előzőt', hang.includes('this.voices'),
+    'enélkül négy mesterlövész-visszhang szólna egyszerre') && ok;
+
   const haz = readFileSync('src/scenes/HouseScene.ts', 'utf8');
   const drive = readFileSync('src/game/DriveGame.ts', 'utf8');
   ok = line('a töltés két hangot ad (indul + kész)',

@@ -1,3 +1,15 @@
+/** A felvett hangok. Egy helyen a lista: ebből tölt, és csak ezt engedi. */
+const CLIPS = [
+  'reload-start',
+  'reload-done',
+  'hit',
+  'empty',
+  'gun-shotgun',
+  'gun-sniper',
+  'gun-rocket',
+] as const;
+type ClipName = (typeof CLIPS)[number];
+
 /**
  * A játék hangja.
  *
@@ -193,6 +205,11 @@ export class Sound {
    *   rakéta       sziszegő indítás lefelé csúszó hanggal, mély dörrenéssel
    */
   gun(kind: 'shotgun' | 'sniper' | 'rocket'): void {
+    // A FELVÉTEL az elsődleges: egy igazi sörétes csattanását nem lehet
+    // zajjal és egy szinusszal utánozni. A szintetizált változat alatta
+    // marad tartaléknak — ha a minta még nem töltődött be (első lövés,
+    // lassú hálózat), akkor is szól valami. A néma lövés a legrosszabb.
+    if (this.clip(`gun-${kind}`, kind === 'sniper' ? 0.7 : 0.8)) return;
     const ctx = this.ctx;
     if (!ctx || !this.master || this.muted) return;
     const now = ctx.currentTime;
@@ -258,14 +275,20 @@ export class Sound {
    * megbízhatóan, és a játék iPhone-on is fut.
    */
   private readonly clips = new Map<string, AudioBuffer>();
+  /** Futó példány hangonként — egy új lövés levágja az előzőt. */
+  private readonly voices = new Map<string, AudioBufferSourceNode>();
   private clipsWanted = false;
 
   /** Betölti a mintákat. Egyszer, az első használatkor. */
   private loadClips(): void {
     if (this.clipsWanted || !this.ctx) return;
     this.clipsWanted = true;
-    for (const name of ['reload-start', 'reload-done', 'hit', 'empty']) {
-      void fetch(`audio/${name}.wav`)
+    for (const name of CLIPS) {
+      // A KITERJESZTÉS a fájlé, nem a miénk: a Kenney-kattanások WAV-ok (a
+      // tömörítés egy fél másodperces kattanáson úgysem nyerne semmit), a
+      // lövések viszont MP3-ok, mert azok másodpercesek és a mesterlövészé
+      // WAV-ban másfél megabájt volna.
+      void fetch(`audio/${name}${name.startsWith('gun-') ? '.mp3' : '.wav'}`)
         .then((r) => r.arrayBuffer())
         .then((bytes) => this.ctx!.decodeAudioData(bytes))
         .then((buffer) => this.clips.set(name, buffer))
@@ -282,18 +305,36 @@ export class Sound {
    * @param gain Hangerő. A minták nyersen hangosak — a lövéshez képest kell
    * beállítani őket, nem magukban.
    */
-  clip(name: 'reload-start' | 'reload-done' | 'hit' | 'empty', gain = 0.7): void {
+  clip(name: ClipName, gain = 0.7): boolean {
     const ctx = this.ctx;
-    if (!ctx || !this.master || this.muted) return;
+    if (!ctx || !this.master || this.muted) return false;
     this.loadClips();
     const buffer = this.clips.get(name);
-    if (!buffer) return;
+    if (!buffer) return false;
+    // ELŐZŐ PÉLDÁNY LEVÁGÁSA. A mesterlövész felvétele négy másodperces (a
+    // visszhang miatt), a fegyver viszont másfél másodpercenként elsül —
+    // levágás nélkül három-négy lövés szólna egyszerre, és a sorozatból
+    // kásás zaj lenne. Így minden lövés ELVÁGJA a sajátját: ugyanaz, amit
+    // egy igazi fegyver csinál a fülnek.
+    const running = this.voices.get(name);
+    if (running) {
+      try {
+        running.stop();
+      } catch {
+        // Már magától véget ért — nincs mit levágni.
+      }
+    }
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     const volume = ctx.createGain();
     volume.gain.value = gain;
     source.connect(volume).connect(this.master);
     source.start();
+    this.voices.set(name, source);
+    source.onended = () => {
+      if (this.voices.get(name) === source) this.voices.delete(name);
+    };
+    return true;
   }
 
   /** Újratöltés: két kattanás. A második azt mondja, hogy KÉSZ. */
