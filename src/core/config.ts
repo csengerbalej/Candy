@@ -1211,6 +1211,22 @@ export const HAUNT = {
    * A hang marad: hallod a lépteket, és hallod, ha a szívverésed gyorsul.
    * Ez az egyetlen kapaszkodód, és pont ezért lett hang a módban.
    */
+  /**
+   * AMI ÁTSZALAD A SZEMED ELŐTT.
+   *
+   * Nem szörny és nem következmény: egy sötét alak, ami messze előtted
+   * keresztbe fut, és nincs ott, mire odaérsz. A legolcsóbb ijesztés, ami
+   * tényleg működik — mert nem azt adja, hogy „valami történt", hanem azt,
+   * hogy „láttam valamit?".
+   *
+   * Huszonöt-hatvan másodpercenként: ritkábban elfelejtenéd, sűrűbben
+   * megszoknád. És a megszokás a horror ellentéte.
+   */
+  glimpseMin: 25,
+  glimpseMax: 60,
+  /** Ilyen messze fut át. Közelről kiderülne, hogy egy sötét folt. */
+  glimpseNear: 14,
+  glimpseFar: 30,
   hideReach: 2.2,
   /** Belépés és kilépés ideje. Nem azonnali: a döntésnek súlya van. */
   hideTime: 0.8,

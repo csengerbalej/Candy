@@ -265,6 +265,27 @@ console.log('');
     'hamis ijesztések, amiktől a valódi is működik') && ok;
 }
 
+// --- AMI ÁTSZALAD ELŐTTED ---------------------------------------------------
+//
+// Ez az egyetlen dolog a módban, aminek NINCS következménye — és pont ezért
+// kell mérni, hogy tényleg ritka maradjon. Ha túl sűrű, rutin lesz belőle;
+// ha túl közel fut át, kiderül, hogy egy sötét folt.
+{
+  line('ritka: fél percenként ha egy', HAUNT.glimpseMin >= 20,
+    `${HAUNT.glimpseMin}-${HAUNT.glimpseMax} másodpercenként`);
+  line('messze fut át', HAUNT.glimpseNear >= 12,
+    `${HAUNT.glimpseNear}-${HAUNT.glimpseFar} méterre`);
+  // ...és a lámpa fénykúpja NE érjen el odáig: amit megvilágítasz, azt
+  // meg is nézed, és akkor kiderül, hogy semmi nincs ott.
+  line('a lámpád nem éri el', HAUNT.glimpseNear >= 22 * 0.5,
+    `a fény ${HAUNT.beamRange} méterig ér`);
+  const haz = readFileSync('src/scenes/HouseScene.ts', 'utf8');
+  ok = line('csak járható helyen fut át', haz.includes('this.world.walkable(hol.x, hol.z, 1.2)'),
+    'egy alak, ami a falban szalad el, nem rejtély, hanem hiba') && ok;
+  ok = line('bújás közben nincs', haz.includes('!haunt.hidden && this.hangClock > this.kovetkezoAlak'),
+    'a szekrényből nem látsz ki') && ok;
+}
+
 // --- A BÚJÁS ÁRA ------------------------------------------------------------
 //
 // A szekrény az egyetlen válasz, ami mindhárom szörny ellen működik —

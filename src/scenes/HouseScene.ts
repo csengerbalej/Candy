@@ -25,6 +25,7 @@ import { HauntHud } from '../ui/HauntHud';
 import { HauntBrief } from '../ui/HauntBrief';
 import { Torch } from '../world/Torch';
 import { Batteries } from '../world/Batteries';
+import { Glimpse } from '../world/Glimpse';
 import { HAUNT, HOUSE, NOISE } from '../core/config';
 import { makeRandom } from '../core/seed';
 import { planFor, planToWorld } from '../world/HousePlan';
@@ -120,6 +121,9 @@ export class HouseScene implements GameScene {
   private jumpscare: Jumpscare | null = null;
   private torch: Torch | null = null;
   private batteries: Batteries | null = null;
+  private glimpse: Glimpse | null = null;
+  /** Mikor szaladjon át a következő alak. */
+  private kovetkezoAlak = 18;
   /** A szekrények világkoordinátában — ide lehet bebújni. */
   private readonly hideSpots: THREE.Vector3[] = [];
   private hauntHud: HauntHud | null = null;
@@ -544,6 +548,8 @@ export class HouseScene implements GameScene {
       this.hauntBrief = new HauntBrief(document.body);
       this.torch = new Torch();
       this.scene.add(this.torch.group);
+      this.glimpse = new Glimpse();
+      this.scene.add(this.glimpse.group);
 
       // ELEMEK: nyolc darab, szétszórva a házban, a saroktól távol. Nyolc
       // darab plusz háromszázhatvan másodpercnyi fény — több, mint a telep
@@ -1804,6 +1810,12 @@ export class HouseScene implements GameScene {
 
     const me = this.localIndex as 0 | 1;
     const testem = this.players[me];
+    // A NÉZÉS IRÁNYA egyetlen helyen dől el, és mindenki ezt használja: a
+    // lámpa kúpja, az égetés szöge, és az is, hogy merre szalad át valami.
+    // Ha ezek külön számolnák, előbb-utóbb elcsúsznának — és a játékos azt
+    // látná, hogy ráfogja a fényt valamire, mégsem történik semmi.
+    const nezesIrany =
+      this.director.firstPerson !== null ? stage.yaw : testem.mesh.rotation.y;
     this.jumpscare?.update(step);
 
     // AZ ELIGAZÍTÁS. Bármelyik gomb elteszi; a H bármikor visszahozza. Amíg
@@ -1849,8 +1861,7 @@ export class HouseScene implements GameScene {
       // UGYANAZ A SZÖG, amit a lámpa is használ: a kúp, amit LÁTSZ, és a
       // kúp, ami ÉGET, nem lehet két különböző irány — abból az lenne,
       // hogy ráfogod a fényt, és nem történik semmi.
-      const nezesKup = this.director.firstPerson !== null ? stage.yaw : lampasnal.mesh.rotation.y;
-      const elteres = Math.abs(((irany - nezesKup + Math.PI) % (Math.PI * 2)) - Math.PI);
+      const elteres = Math.abs(((irany - nezesIrany + Math.PI) % (Math.PI * 2)) - Math.PI);
       const fenyben = eg && tav < HAUNT.beamRange && elteres < HAUNT.beam;
 
       if (this.lurkerKind[i] === 'leso') {
@@ -1913,7 +1924,7 @@ export class HouseScene implements GameScene {
             ((Math.atan2(
               szorny.position.x - testem.position.x,
               szorny.position.z - testem.position.z
-            ) - nezesKup + Math.PI) % (Math.PI * 2)) - Math.PI
+            ) - nezesIrany + Math.PI) % (Math.PI * 2)) - Math.PI
           ) < 1.1;
 
         this.lurkerTimer[i] += step;
@@ -1931,9 +1942,9 @@ export class HouseScene implements GameScene {
           tav > HAUNT.stalkerGap
         ) {
           const moge = new THREE.Vector3(
-            testem.position.x - Math.sin(nezesKup) * HAUNT.stalkerGap,
+            testem.position.x - Math.sin(nezesIrany) * HAUNT.stalkerGap,
             0,
-            testem.position.z - Math.cos(nezesKup) * HAUNT.stalkerGap
+            testem.position.z - Math.cos(nezesIrany) * HAUNT.stalkerGap
           );
           const hely = this.world.nearestStanding(moge, testem.position, 0.5);
           if (this.world.walkable(hely.x, hely.z, 0.5)) {
@@ -2102,6 +2113,36 @@ export class HouseScene implements GameScene {
       sound.clip(this.sors() < 0.45 ? 'h-growl' : 'h-creak', 0.18 + this.sors() * 0.16);
     }
 
+    // === AMI ÁTSZALAD ELŐTTED ==============================================
+    //
+    // Nem történik semmi. Pont ez a lényeg: nem azt kapod, hogy „valami
+    // megtámadott", hanem azt, hogy „láttam valamit?". Utána minden ajtóra
+    // másképp nézel — és amikor legközelebb TÉNYLEG történik valami,
+    // elhiszed.
+    //
+    // A helye a nézésed mentén van, tizennégy és harminc méter között, ott,
+    // ahol a padló járható: így mindig egy ajtón vagy egy folyosón fut át,
+    // nem a falban. Ha nincs ilyen pont — mert falnak állsz —, kivárjuk a
+    // következőt; egy alak, ami a szemközti fal előtt szalad el, nem
+    // rejtély, hanem hiba.
+    this.glimpse?.update(step, testem.position);
+    if (!haunt.hidden && this.hangClock > this.kovetkezoAlak && !this.glimpse?.running) {
+      this.kovetkezoAlak =
+        this.hangClock + HAUNT.glimpseMin + this.sors() * (HAUNT.glimpseMax - HAUNT.glimpseMin);
+      const tav = HAUNT.glimpseNear + this.sors() * (HAUNT.glimpseFar - HAUNT.glimpseNear);
+      const hol = new THREE.Vector3(
+        testem.position.x + Math.sin(nezesIrany) * tav,
+        0,
+        testem.position.z + Math.cos(nezesIrany) * tav
+      );
+      if (this.world.walkable(hol.x, hol.z, 1.2)) {
+        this.glimpse?.start(hol, nezesIrany);
+        // Halk lépészaj hozzá — de messziről, tehát alig hallhatóan. Egy
+        // néma alak kísértet; egy hangos alak szörny; ez a kettő között van.
+        sound.clip('h-creak', 0.12);
+      }
+    }
+
     // === BÚJÁS =============================================================
     //
     // A harmadik válasz a „fuss" és az „állj meg" mellé, és az egyetlen,
@@ -2160,11 +2201,10 @@ export class HouseScene implements GameScene {
     // lámpa oldalra világít, hátrálva hátra, állva pedig ott marad, ahol
     // utoljára léptél — miközben te előre nézel a sötétbe. Kézben tartott
     // lámpánál a kéz a fejet követi, nem a lábat.
-    const nezes = this.director.firstPerson !== null ? stage.yaw : nalam.mesh.rotation.y;
     this.torch?.update(
       step,
       nalam.position,
-      nezes,
+      nezesIrany,
       haunt.torchOn && !haunt.down[haunt.torchHolder].down && !haunt.hidden,
       haunt.torch / HAUNT.torch,
       this.director.firstPerson !== null ? this.director.fpPitch : 0
@@ -2373,6 +2413,7 @@ export class HouseScene implements GameScene {
     sound.stopMusic();
     sound.stopLoops();
     this.jumpscare?.dispose();
+    this.glimpse?.dispose();
     this.hauntBrief?.dispose();
     this.hauntHud?.dispose();
     this.torch?.dispose();
