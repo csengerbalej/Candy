@@ -1714,7 +1714,11 @@ export class HouseScene implements GameScene {
       const felé = szorny.position.clone().sub(lampasnal.position);
       const tav = felé.length();
       const irany = Math.atan2(felé.x, felé.z);
-      const elteres = Math.abs(((irany - lampasnal.mesh.rotation.y + Math.PI) % (Math.PI * 2)) - Math.PI);
+      // UGYANAZ A SZÖG, amit a lámpa is használ: a kúp, amit LÁTSZ, és a
+      // kúp, ami ÉGET, nem lehet két különböző irány — abból az lenne,
+      // hogy ráfogod a fényt, és nem történik semmi.
+      const nezesKup = this.director.firstPerson !== null ? stage.yaw : lampasnal.mesh.rotation.y;
+      const elteres = Math.abs(((irany - nezesKup + Math.PI) % (Math.PI * 2)) - Math.PI);
       const fenyben = eg && tav < HAUNT.beamRange && elteres < HAUNT.beam;
 
       if (this.lurkerKind[i] === 'leso') {
@@ -1819,12 +1823,21 @@ export class HouseScene implements GameScene {
     // FÉNYBE kerül, nem ügyességbe.
     haunt.update(step * (eget ? HAUNT.burnDrain : 1), lampasE);
     const nalam = this.players[haunt.torchHolder];
+    // A LÁMPA A NÉZÉST KÖVETI, NEM A LÉPÉST.
+    //
+    // Eddig a szörny FORGÁSÁT használta, az pedig a haladási irányból jön
+    // (`facing = atan2(velocity)`). Belső nézetben ez rossz: oldalazva a
+    // lámpa oldalra világít, hátrálva hátra, állva pedig ott marad, ahol
+    // utoljára léptél — miközben te előre nézel a sötétbe. Kézben tartott
+    // lámpánál a kéz a fejet követi, nem a lábat.
+    const nezes = this.director.firstPerson !== null ? stage.yaw : nalam.mesh.rotation.y;
     this.torch?.update(
       step,
       nalam.position,
-      nalam.mesh.rotation.y,
+      nezes,
       haunt.torchOn && !haunt.down[haunt.torchHolder].down,
-      haunt.torch / HAUNT.torch
+      haunt.torch / HAUNT.torch,
+      this.director.firstPerson !== null ? this.director.fpPitch : 0
     );
     this.hauntHud?.update(haunt, me);
   }

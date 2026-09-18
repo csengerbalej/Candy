@@ -1170,6 +1170,6 @@ export const HAUNT = {
    *
    * Nem külön mozgásrendszer: ugyanaz, két szorzóval.
    */
-  speed: 0.42,
+  speed: 0.55,
   jump: 0.28,
 } as const;

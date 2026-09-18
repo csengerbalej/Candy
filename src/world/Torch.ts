@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { HAUNT } from '../core/config';
 
 /**
  * A ZSEBLÁMPA.
@@ -23,7 +24,10 @@ export class Torch {
   private clock = 0;
 
   constructor() {
-    this.light = new THREE.SpotLight(0xffd9a8, 0, 34, Math.PI / 7, 0.45, 1.4);
+    // A KÚP SZÖGE ugyanaz, mint amit a szabály használ (HAUNT.beam): a
+    // fénykör, amit LÁTSZ, és a kúp, ami ÉGET, nem lehet két különböző
+    // dolog — abból az lenne, hogy ráfogod a fényt, és nem történik semmi.
+    this.light = new THREE.SpotLight(0xffd9a8, 0, 26, HAUNT.beam, 0.35, 1.5);
     this.light.castShadow = false;
     this.group.add(this.light, this.target);
     this.light.target = this.target;
@@ -36,16 +40,30 @@ export class Torch {
    * @param fade 0…1 — mennyi van a telepben. A lámpa nem hirtelen alszik ki,
    * hanem elhalványul: a fogyó fény maga a figyelmeztetés.
    */
-  update(dt: number, at: THREE.Vector3, yaw: number, on: boolean, fade: number): void {
+  update(
+    dt: number,
+    at: THREE.Vector3,
+    yaw: number,
+    on: boolean,
+    fade: number,
+    /**
+     * A NÉZÉS DŐLÉSE. Belső nézetben fel-le is nézel, és a lámpa a fejet
+     * követi — egy vízszintesen ragadt fénykúp azt jelentené, hogy a
+     * padlóra és a plafonra nem tudsz világítani, pedig pont ott van a
+     * legtöbb keresnivaló.
+     */
+    pitch = 0
+  ): void {
     this.clock += dt;
     this.light.position.copy(at);
     this.light.position.y += 1.6;
     // A cél EGY EGYSÉGGEL a szem alatt van: a lámpát nem a plafonnak
     // tartod, hanem előre-lefelé, ahogy járás közben bárki.
+    const tav = 10;
     this.target.position.set(
-      at.x + Math.sin(yaw) * 10,
-      at.y + 0.6,
-      at.z + Math.cos(yaw) * 10
+      at.x + Math.sin(yaw) * Math.cos(pitch) * tav,
+      at.y + 1.6 + Math.sin(pitch) * tav,
+      at.z + Math.cos(yaw) * Math.cos(pitch) * tav
     );
     // Imbolygás: két különböző ütemű szinusz, hogy ne legyen felismerhető
     // ritmusa. Egy szabályos pulzálás gépnek látszik.
