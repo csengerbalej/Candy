@@ -316,7 +316,13 @@ async function runSession(selection: Selection, ready?: () => void): Promise<voi
   session = new Session(selection);
   session.fogo = fogoFlag || !!selection.fogo;
   session.haunt = hauntFlag || !!selection.haunt;
-  await enter('drive');
+  // A KÍSÉRTETHÁZ AZONNAL A HÁZBAN KEZDŐDIK.
+  //
+  // A várost a másik két mód kéri: ott a vezetés a felvezetés, a
+  // cukorkagyűjtés a bemelegítés, és a ház a tét. Itt viszont a HÁZ az
+  // egész játék — egy „szedj fel három cukorkát" a bejárat előtt csak
+  // halogatás, és pont azt a feszültséget engedi le, amiért jöttél.
+  await enter(session.haunt ? 'house' : 'drive');
   // A jelenet áll: mostantól van mit mutatni az intró sötét lapja alatt.
   ready?.();
   // Saved immediately, so even a reload during the first drive resumes the
@@ -333,6 +339,11 @@ async function advance(): Promise<void> {
     return;
   }
 
+  // A kísértetház EGY ház: ha vége, vége. Nincs következő cím, ahova
+  // átvezetne a kocsi — a lenti „utolsó ház" ág úgyis pont ezt csinálja,
+  // csak arra vár, hogy a sorozat végére érj.
+  const kisertetVege = session.haunt;
+
   // The house is over. One more, or the night is done.
   const last = session.isLastHouse;
   active.dispose();
@@ -340,7 +351,7 @@ async function advance(): Promise<void> {
   pause?.dispose();
   pause = null;
 
-  if (!last) {
+  if (!last && !kisertetVege) {
     // A section boundary is the only safe place to save: mid-chase is not a
     // resumable moment (spec §29).
     saveRun(session);
@@ -644,9 +655,21 @@ async function start(): Promise<void> {
   // kapna — ami pontosan az a hiba, amit az intrónak el kellene takarnia.
   // A modellbetöltő gyorsítótáraz, tehát a jelenet felépítése utána már a
   // kész adatból dolgozik.
-  const intro = new Intro(app);
-  const warm = VillageWorld.load().catch(() => {});
-  await Promise.all([intro.run(), warm]);
+  // A KÍSÉRTETHÁZNAK NEM EZ AZ INTRÓJA.
+  //
+  // Ez a felütés a másik két módról szól: befőttesüveg, három ház,
+  // „szedjétek össze, aztán tűnjetek el". A horror mód egyik sem — ott
+  // egyetlen ház van, és nem cukorkagyűjtés a tét. Egy intró, ami rosszul
+  // mondja meg a szabályt, rosszabb, mint ami nem mond semmit; a helyére
+  // úgyis az eligazítás jön, ami ennek a módnak a szabályait mondja el.
+  //
+  // A falu betöltését is kihagyjuk: oda be sem megyünk.
+  const horror = hauntFlag || !!selection.haunt;
+  const intro = horror ? null : new Intro(app);
+  if (intro) {
+    const warm = VillageWorld.load().catch(() => {});
+    await Promise.all([intro.run(), warm]);
+  }
 
   if (debugMode === 'house') {
     session = new Session(selection);
@@ -658,15 +681,15 @@ async function start(): Promise<void> {
     if (import.meta.env.DEV) {
       (window as unknown as Record<string, unknown>).__cp = { session, active, input, renderer };
     }
-    intro.dismiss();
+    intro?.dismiss();
   } else {
     try {
-      await runSession(selection, () => intro.dismiss());
+      await runSession(selection, () => intro?.dismiss());
     } finally {
       // Biztosíték: ha a jelenet felépítése elhasal, a sötét lap akkor sem
       // maradhat a képen. Egy hibaüzenet, amit senki nem lát, mert fekete a
       // képernyő, kétszeres hiba.
-      intro.dismiss();
+      intro?.dismiss();
     }
   }
 
