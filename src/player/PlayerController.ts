@@ -57,6 +57,18 @@ export class PlayerController {
   private grounded = false;
   /** Jumps still available in the air. Refilled on the ground. */
   private airJumpsLeft = 0;
+
+  /**
+   * AZ UGRÁS MÉRTÉKE, és hogy van-e második.
+   *
+   * A többi házban szörnyecskék vagytok: tizenkét egységet ugrotok, mert
+   * ott ez a poén — egy konyhaasztal a Mount Everest. A kísértetházban
+   * viszont embermértékű a világ, és egy ember nem szökell át egy három
+   * méteres falon. Ezért a mód átállíthatja: nem külön mozgásrendszer,
+   * csak két szám.
+   */
+  jumpScale = 1;
+  airJumpsAllowed = MOVE.airJumps;
   /** Seconds since leaving the ground, gating the second jump. */
   private airTime = 0;
   /** One frame's flag, for a puff of effect on the second jump. */
@@ -221,9 +233,9 @@ export class PlayerController {
     }
 
     if (input.jump && this.grounded) {
-      this.velocity.y = MOVE.jumpSpeed;
+      this.velocity.y = MOVE.jumpSpeed * this.jumpScale;
       this.grounded = false;
-      this.airJumpsLeft = MOVE.airJumps;
+      this.airJumpsLeft = this.airJumpsAllowed;
       this.airTime = 0;
     } else if (input.jump && this.airJumpsLeft > 0 && this.airTime >= MOVE.airJumpDelay) {
       // The second jump. Taken from wherever you are in the arc, and it

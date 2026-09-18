@@ -162,7 +162,17 @@ export class HouseScene implements GameScene {
     // éjjellátót) csak két teljes menet után lehetne megnézni — és amit
     // drága megnézni, azt előbb-utóbb nem nézi meg senki.
     const forced = new URLSearchParams(location.search).get('haz');
-    const name = forced ? `house${forced}` : VillageHouse.pickInOrder(session.visited.size);
+    // A KÍSÉRTETHÁZNAK SAJÁT HÁZA VAN.
+    //
+    // Nem a meglévők sötét változata: azok a szörnyecskék léptékében
+    // épültek (a lakó 6,4 magas, ti 1,7), és egy horrorban pont az kell,
+    // hogy a ház EMBERMÉRETŰ legyen. A kúria huszonöt szobás, folyosórácsa
+    // körökből áll, és egy egység benne egy méter.
+    const name = session.haunt
+      ? 'mansion'
+      : forced
+        ? `house${forced}`
+        : VillageHouse.pickInOrder(session.visited.size);
     const world = await VillageHouse.load(`models/${name}.json`, `models/${name}-nav.json`);
     const scene = new HouseScene(renderer, input, session, world, parent);
     scene.houseName = name;
@@ -522,6 +532,15 @@ export class HouseScene implements GameScene {
       // házban egy pizsamás ember.
       this.homeowner.group.visible = false;
       this.homeowner.position.set(0, -500, 0);
+
+      // EMBERMÉRTÉKŰ MOZGÁS. A hatos alapsebesség itt olimpiai sprint
+      // volna, a tizenkét méteres dupla ugrás pedig a falakat tenné
+      // díszletté — a szoba attól szoba, hogy nem lehet átugrani.
+      for (const p of this.players) {
+        p.jumpScale = HAUNT.jump;
+        p.airJumpsAllowed = 0;
+        p.traits = { ...p.traits, speed: p.traits.speed * HAUNT.speed };
+      }
     }
 
     if (session.fogo && this.capture) {
@@ -930,7 +949,11 @@ export class HouseScene implements GameScene {
    */
   private async dressLurker(who: Homeowner, model: string): Promise<void> {
     try {
-      const art = await models.instance(model, { height: HOMEOWNER.height * 0.92 });
+      // EMBERMÉRETŰ SZÖRNY: két méter. A lakó 6,4 egység magas, mert ő egy
+      // óriás a szörnyecskék világában — itt viszont te vagy ember, és ami
+      // elindul feléd a sötétben, az akkora, mint te. Egy kicsit magasabb:
+      // annyival, amennyitől rossz ránézni.
+      const art = await models.instance(model, { height: 2.1 });
       if (this.disposed) return;
       art.traverse((o) => {
         o.userData.cpNoOutline = true;

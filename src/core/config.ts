@@ -1132,4 +1132,16 @@ export const HAUNT = {
   reviveRadius: 3,
   /** Az ijesztés hossza — a kép és a hang. */
   scare: 1.2,
+  /**
+   * EMBERMÉRTÉK.
+   *
+   * A kísértetház nem a szörnyecskék világa: ott egy egység egy méter, a
+   * folyosó két és fél méter széles, a fal három. Ehhez a mozgásnak is
+   * emberinek kell lennie — a hatos alapsebesség olimpiai sprint, és egy
+   * tizenkét méteres dupla ugrással a falak díszletek volnának.
+   *
+   * Nem külön mozgásrendszer: ugyanaz, két szorzóval.
+   */
+  speed: 0.42,
+  jump: 0.28,
 } as const;
