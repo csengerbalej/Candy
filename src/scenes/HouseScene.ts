@@ -232,7 +232,22 @@ export class HouseScene implements GameScene {
     // cukorkahelyek ellenben tálakon vannak, vagyis bútorban: az első
     // változatban egy ilyen lett sarok, és a fizika 15,6 egységgel arrébb
     // lökte a játékost az induláskor.
-    const walkable = this.world.patrolWaypoints;
+    // A SARKOK VÉLETLEN, SZABAD HELYEKRE kerülnek — és soha nem egy tálra.
+    //
+    // A járőrpontok nem jók erre: a térképgenerátor a cukorkát pont azok
+    // MELLÉ teszi, tehát a hatból ötnél egy tál áll a sarokban (mérve
+    // 1,6 egységre). A játékos képe ezt mutatta: a gyűjtősarokban ott volt a
+    // tök. Ez nem csak zavaró — a tál elfoglalja a helyet, ahová le kell
+    // tenni, és a cukorka, amiért mennél, már eleve otthon van.
+    //
+    // Hatvan sorsolt pontból választunk; a kettő közül a legtávolabbi párt a
+    // `Corners` keresi ki. Így minden kör máshol van a két sarok is.
+    const bowls = this.world.candySpots.map((c) => c.position);
+    const walkable: THREE.Vector3[] = [];
+    for (let i = 0; i < 60; i++) {
+      const p = this.world.randomStanding(Math.random, MOVE.radius, bowls, 7);
+      if (p) walkable.push(p);
+    }
     const spots = [
       ...this.world.patrolWaypoints,
       ...this.world.candySpots.map((c) => c.position),
@@ -309,7 +324,9 @@ export class HouseScene implements GameScene {
     // FOGÓ MÓD. A sarkok a legtávolabbi két pontra kerülnek: két egymás
     // melletti sarokkal a cipelés elvész — felveszed, két lépés, letetted.
     if (session.fogo && spots.length) {
-      this.corners = new Corners(walkable.length >= 2 ? walkable : spots);
+      this.corners = new Corners(
+        walkable.length >= 2 ? walkable : this.world.patrolWaypoints
+      );
       this.scene.add(this.corners.group);
       this.capture = new Capture(this.corners.list);
       this.fogoHud = new FogoHud(document.body);

@@ -38,9 +38,18 @@ export class PickupsView {
       for (let i = 0; i < PICKUP.live; i++) {
         const copy = scene.clone(true);
         copy.visible = false;
-        // A körvonalazó a kis lebegő tárgyakat vastag fekete folttá tenné.
         copy.traverse((o) => {
+          // A körvonalazó a kis lebegő tárgyakat vastag fekete folttá tenné.
           o.userData.cpNoOutline = true;
+          // SAJÁT FÉNYŰVÉ tesszük.
+          //
+          // A második ház vaksötét: ott a fáklya az egyetlen fény, és egy
+          // megvilágításra szoruló tárgy egyszerűen NINCS — a játékos
+          // jelentette is, hogy „a többi házban miért nincs fegyver".
+          // Megvilágítatlan anyaggal a fegyver akkor is látszik, ha a szoba
+          // fekete, és pont annyira, amennyire kell: megtalálható, de nem
+          // világítja be a szobát.
+          unlit(o as THREE.Mesh);
         });
         this.group.add(copy);
         list.push(copy);
@@ -87,4 +96,25 @@ export class PickupsView {
     this.group.clear();
     this.pool.clear();
   }
+}
+
+/**
+ * Megvilágítatlan anyagra cseréli a hálót, a textúrája megtartásával.
+ *
+ * Nem trükk: a felszedhető tárgy JELZÉS, nem díszlet — ugyanúgy látszania
+ * kell a sötét házban, mint a világosban. Ugyanezt csinálja minden játék a
+ * felvehető tárgyaival.
+ */
+function unlit(mesh: THREE.Mesh): void {
+  if (!mesh.isMesh) return;
+  const from = mesh.material as THREE.MeshStandardMaterial;
+  const list = Array.isArray(from) ? from : [from];
+  const made = list.map(
+    (m) =>
+      new THREE.MeshBasicMaterial({
+        map: (m as THREE.MeshStandardMaterial).map ?? null,
+        color: (m as THREE.MeshStandardMaterial).color?.clone() ?? new THREE.Color(0xffffff),
+      })
+  );
+  mesh.material = made.length === 1 ? made[0] : made;
 }

@@ -33,6 +33,15 @@ export class LooseCandy {
       copy.visible = false;
       copy.traverse((o) => {
         o.userData.cpNoOutline = true;
+        // Saját fényű, mint a fegyverek: a sötét házban a földön fekvő
+        // zsákmánynak látszania kell, különben nincs miért futni érte.
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const from = mesh.material as THREE.MeshStandardMaterial;
+        mesh.material = new THREE.MeshBasicMaterial({
+          map: from.map ?? null,
+          color: from.color?.clone() ?? new THREE.Color(0xffffff),
+        });
       });
       this.group.add(copy);
       this.pool.push(copy);
