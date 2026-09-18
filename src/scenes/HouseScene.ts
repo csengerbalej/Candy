@@ -598,14 +598,19 @@ export class HouseScene implements GameScene {
         this.hideSpots.push(new THREE.Vector3(p[0] * 36, 0, -p[1] * 36));
       }
 
-      // A KŐFAL ÉS AZ AJTÓK. A ház geometriája már csak a padló; a falakat
-      // a letöltött kőpanelből építjük fel, a rács futamaira ültetve.
+      // A KŐFAL KÉPE. A ház geometriája generált; a falak képét a letöltött
+      // kőpanelből vesszük, és a MEGLÉVŐ anyagra tesszük rá.
+      //
+      // AJTÓ NINCS. Volt: nyíló-csukódó, kétszárnyú, a Követőt elzáró. De a
+      // vaksötét házban a lámpa fényében egyedül AZ látszott ki élesen a
+      // falból — a többi felület fekete maradt mellette —, és egy ajtó, ami
+      // fontosabbnak látszik a háznál, nem ajtó, hanem hiba. A nyílások
+      // nyitva maradnak: a Vak elől nincs hová becsukódni.
       if (nav?.wallRuns && this.world instanceof VillageHouse) {
-        this.masonry = new Masonry(nav.doors ?? [], 3.2);
+        this.masonry = new Masonry();
         this.scene.add(this.masonry.group);
         void this.masonry.load().then(() => {
-          // A KÉP A HÁZ ANYAGÁRA kerül, nem külön geometriára. A falak,
-          // a padló és az ajtók egyetlen hálóban vannak: egy kép, egy
+          // A KÉP A HÁZ ANYAGÁRA kerül, nem külön geometriára: egy kép, egy
           // anyag, egy rajzolási hívás.
           const kep = this.masonry?.wallTexture;
           if (!kep) return;
@@ -1233,15 +1238,27 @@ export class HouseScene implements GameScene {
         o.userData.cpNoOutline = true;
         const mesh = o as THREE.Mesh;
         if (!mesh.isMesh) return;
-        // SÖTÉT SZILUETT: nem a textúrát mutatjuk, hanem a formát. A
-        // lámpád fénye épp csak megcsillan rajta — ettől lesz az, hogy
-        // „valami ott van", nem az, hogy „egy vérfarkas áll ott".
+        // A HORRORFESTÉS A CSÚCSOKBAN VAN, és eddig kidobtuk.
+        //
+        // A modellekre nem lehetett textúrát tenni (a nyers hálón se kép,
+        // se UV nincs — mérve mindháromban), ezért a `bake-lurker.py`
+        // CSÚCSSZÍNRE festette őket: hullaszürke, a mélyedésekben
+        // sötétebb, foltokban piszkos. Mérve ott is van mindháromban a
+        // COLOR_0.
+        //
+        // Csak épp ez a sor cserélte le az anyagot egy olyanra, ami nem
+        // olvassa a csúcsszínt — a festés tehát végig ott volt a fájlban,
+        // és soha nem látszott. Ettől lett a szörny egyenletes agyagszobor.
+        // (Pontosan ugyanez a hiba volt a házon a toonify-jal.)
+        const eredeti = mesh.material as THREE.MeshStandardMaterial;
         mesh.material = new THREE.MeshStandardMaterial({
-          color: 0x14101c,
-          roughness: 0.92,
+          vertexColors: true,
+          map: eredeti?.map ?? null,
+          // A szín SZORZÓ a csúcsszínre: ezzel hangoljuk sötétre, nem a
+          // festés eldobásával.
+          color: 0x8a8898,
+          roughness: 0.96,
           metalness: 0,
-          emissive: new THREE.Color(0x2a0a12),
-          emissiveIntensity: 0.4,
         });
       });
       // A SZEM A JEL, amiből eldöntöd, mit csinálj.
@@ -2083,9 +2100,9 @@ export class HouseScene implements GameScene {
             szorny.position.copy(hely);
             szorny.group.position.copy(hely);
             this.lurkerTimer[i] = 0;
-            // Egy AJTÓ nyikordul mögötted. Nem magyarázat, csak annyi, hogy
+            // Valami MEGRECCSEN mögötted. Nem magyarázat, csak annyi, hogy
             // valami történt — és amikor megfordulsz, ott áll.
-            sound.clip('h-door', 0.5);
+            sound.clip('h-creak', 0.5);
           }
         }
 
@@ -2275,23 +2292,6 @@ export class HouseScene implements GameScene {
       }
     }
 
-    // === AJTÓK =============================================================
-    //
-    // Nyithatók és csukhatók, és ez nem díszlet: a csukott ajtó ELZÁRJA a
-    // cellákat, tehát a Követő nem tud átjönni rajta — kerülnie kell. A
-    // nyitás viszont ZAJ, amire a Vak elindul. Minden ajtó egy alku.
-    this.masonry?.update(step);
-    const kozeliAjto = this.masonry?.nearest(testem.position, 2.6) ?? null;
-    if (kozeliAjto && this.input.get(me).interact && !haunt.hidden) {
-      kozeliAjto.open = !kozeliAjto.open;
-      this.setDoorBlocked(kozeliAjto.spec.cells, !kozeliAjto.open);
-      sound.clip('h-door', kozeliAjto.open ? 0.6 : 0.45);
-      this.noise.emit(kozeliAjto.pivot.position, 24, 'ajtó');
-      this.game.banner = kozeliAjto.open ? 'AJTÓ NYITVA' : 'AJTÓ BECSUKVA';
-    } else if (kozeliAjto && !haunt.hidden) {
-      this.game.banner = kozeliAjto.open ? 'E — becsukod' : 'E — kinyitod';
-    }
-
     // === A MUMUS ===========================================================
     //
     // Csak akkor mozdul, amikor NEM NÉZEL RÁ — szembefordulva áll, mint egy
@@ -2400,14 +2400,14 @@ export class HouseScene implements GameScene {
         haunt.hidden = false;
         haunt.hideAt = null;
         this.game.banner = 'KIMÁSZTÁL';
-        sound.clip('h-door', 0.45);
+        sound.clip('h-creak', 0.45);
       } else if (kozeliSzekreny) {
         haunt.hidden = true;
         haunt.hideAt = kozeliSzekreny.clone();
         testem.position.copy(kozeliSzekreny);
         testem.mesh.position.copy(kozeliSzekreny);
         this.game.banner = 'BENT VAGY — E: kimászás';
-        sound.clip('h-door', 0.55);
+        sound.clip('h-creak', 0.55);
       }
     }
     if (haunt.hidden) {
@@ -2470,30 +2470,6 @@ export class HouseScene implements GameScene {
     h.torchOn = !h.torchOn;
     this.game.banner = h.torchOn ? 'LÁMPA BE' : 'LÁMPA KI';
     sound.clip('empty', 0.4);
-  }
-
-  /**
-   * EGY AJTÓ ZÁRJA VAGY NYITJA A CELLÁIT.
-   *
-   * A pontok VILÁGKOORDINÁTÁBAN jönnek, nem cellaindexben: a ház
-   * layout-rácsa és a navigációs rács két külön felbontás, és a köztük
-   * való átváltás pont az a fajta néma hiba, amiből ma már kettőt
-   * megettünk. Világkoordinátát viszont mindkettő ért.
-   *
-   * Minden pont körül a szomszédokat is elzárjuk: a nav cellája kisebb,
-   * mint az ajtó vastagsága, és egy rés az ajtó tövében ugyanannyi, mint
-   * ha ki sem nyílna.
-   */
-  private setDoorBlocked(cells: readonly [number, number][], closed: boolean): void {
-    if (!(this.world instanceof VillageHouse)) return;
-    const haz = this.world;
-    const ki: [number, number][] = [];
-    for (const [x, z] of cells) {
-      const i = haz.col(x);
-      const j = haz.row(z);
-      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) ki.push([i + a, j + b]);
-    }
-    haz.setDoorClosed(ki, closed);
   }
 
   /** A H gomb: az eligazítás bármikor visszahívható. */

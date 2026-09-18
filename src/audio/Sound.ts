@@ -12,7 +12,6 @@ const CLIPS = [
   // lehet benne valami — ehhez viszont kell, hogy néha tényleg legyen.
   'h-ambience',
   'h-steps',
-  'h-door',
   'h-heart',
   'h-growl',
   'h-creak',
