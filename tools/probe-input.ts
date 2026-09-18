@@ -569,6 +569,43 @@ let ok = true;
     `${tally.hit} kötött, ${tally.miss} elveszett`) && ok;
 }
 
+
+/**
+ * A TELEFONOS GOMBOK a bemenetre kötve.
+ *
+ * Nem a gomb rajzát mérjük, hanem a KÖTÉST: a képernyős TŰZ ugyanoda fut be,
+ * mint az egérkattintás, és a TÁVCSŐ ugyanoda, mint a jobb gomb. Ez az a
+ * pont, ahol a telefonos irányítás csendben el tud tűnni — a gomb ott van,
+ * megnyomod, és nem történik semmi.
+ */
+{
+  const man = new InputManager(2);
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  let fire = false;
+  man.touch = {
+    state: { moveX: 0, moveY: 0, jumpHeld: false, interactHeld: false, nitro: false, sprint: false, scope: false },
+    consumeFire: () => {
+      const hit = fire;
+      fire = false;
+      return hit;
+    },
+    consumeChat: () => false,
+    consumePause: () => false,
+    look: () => ({ x: 0, y: 0 }),
+  } as any;
+
+  ok = line('érintés nélkül nincs lövés', !man.consumeFire(), '') && ok;
+  fire = true;
+  ok = line('a képernyős TŰZ lő', man.consumeFire(), '') && ok;
+  ok = line('...és csak egyszer', !man.consumeFire(), '') && ok;
+
+  ok = line('távcső alapból nincs', !man.scoping, '') && ok;
+  (man.touch as any).state.scope = true;
+  ok = line('a képernyős TÁVCSŐ nagyít', man.scoping, '') && ok;
+  (man.touch as any).state.scope = false;
+  ok = line('elengedve visszaáll', !man.scoping, '') && ok;
+}
+
 console.log('');
 console.log(ok ? 'MIND OK — az irányítás rendben' : 'VAN BUKÓ TESZT');
 process.exit(ok ? 0 : 1);

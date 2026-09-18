@@ -649,6 +649,25 @@
         border: 1px solid rgba(255,210,150,.7); box-shadow: 0 0 18px rgba(255,140,40,.45);
       }
 
+      /* A TŰZ a bal oldalon, a bot fölött. A jobb hüvelykujj a képet húzza
+         (nézés), tehát a tűzgomb nem lehet ott: célozni és lőni egyszerre
+         kell tudni. */
+      .touch-fire {
+        position: absolute; left: 20px; bottom: 176px;
+        display: flex; flex-direction: column; gap: 10px; align-items: flex-start;
+        pointer-events: auto;
+      }
+      .touch-btn.fire {
+        min-width: 96px; height: 70px; border-radius: 35px;
+        color: #ffd9d0; background: rgba(255,80,50,.22); border-color: rgba(255,110,80,.5);
+      }
+      .touch-btn.fire[data-on] { background: rgba(255,90,60,.6); color: #fff; }
+      .touch-btn.scope {
+        min-width: 78px; height: 48px; font-size: 11px;
+        color: #cfe6ff; border-color: rgba(159,182,255,.4);
+      }
+      .touch-btn.scope[data-on] { background: rgba(120,170,255,.45); color: #fff; }
+
       .touch-keys {
         position: absolute; right: 20px; bottom: 26px;
         display: flex; flex-direction: column-reverse; gap: 12px; align-items: flex-end;

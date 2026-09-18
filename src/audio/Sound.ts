@@ -177,6 +177,90 @@ export class Sound {
     }
   }
 
+  /**
+   * FEGYVERHANG — fajtánként más, és a különbség INFORMÁCIÓ.
+   *
+   * Egy kétfős pályán a hangból kell megtudnod, mi történt a hátad mögött:
+   * a sörétes azt jelenti, hogy valaki KÖZEL van valakihez; a mesterlövész
+   * azt, hogy messziről figyelnek; a rakéta azt, hogy futni kell. Ha mind a
+   * három ugyanúgy szólna, ez az egész elveszne.
+   *
+   * Mindhárom ugyanabból a két alkatrészből épül — zajlöket és egy hangolt
+   * test —, csak az arányuk és a burkolójuk más:
+   *
+   *   sörétes      rövid, széles zaj, gyorsan lecsengő mély testtel
+   *   mesterlövész pattanás: nagyon rövid, magas, hosszú farokkal
+   *   rakéta       sziszegő indítás lefelé csúszó hanggal, mély dörrenéssel
+   */
+  gun(kind: 'shotgun' | 'sniper' | 'rocket'): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || this.muted) return;
+    const now = ctx.currentTime;
+
+    const shape = {
+      shotgun: { len: 0.32, cut: 2400, sweep: 260, body: 92, level: 0.55, q: 0.7 },
+      sniper: { len: 0.5, cut: 5200, sweep: 1400, body: 220, level: 0.42, q: 3.2 },
+      rocket: { len: 0.85, cut: 1200, sweep: 90, body: 48, level: 0.6, q: 1.1 },
+    }[kind];
+
+    // --- a zaj ---------------------------------------------------------------
+    const length = Math.floor(ctx.sampleRate * shape.len);
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i++) {
+      const t = i / length;
+      // A burkoló a fegyver „személyisége": a sörétes azonnal esik, a
+      // mesterlövésznek farka van, a rakéta elnyújtott.
+      const fall = kind === 'sniper' ? Math.exp(-t * 9) : Math.exp(-t * (kind === 'rocket' ? 4 : 14));
+      data[i] = (Math.random() * 2 - 1) * fall;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = shape.q;
+    filter.frequency.setValueAtTime(shape.cut, now);
+    // A szűrő LECSÚSZIK: ettől lesz a lövésnek „teste", nem sziszegése.
+    filter.frequency.exponentialRampToValueAtTime(shape.sweep, now + shape.len);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(shape.level, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + shape.len);
+    noise.connect(filter).connect(gain).connect(this.master);
+    noise.start(now);
+    noise.stop(now + shape.len);
+
+    // --- a test: egy lecsúszó szinusz ---------------------------------------
+    const osc = ctx.createOscillator();
+    osc.type = kind === 'sniper' ? 'square' : 'sine';
+    osc.frequency.setValueAtTime(shape.body * 3, now);
+    osc.frequency.exponentialRampToValueAtTime(shape.body, now + shape.len * 0.6);
+    const body = ctx.createGain();
+    body.gain.setValueAtTime(shape.level * (kind === 'sniper' ? 0.18 : 0.7), now);
+    body.gain.exponentialRampToValueAtTime(0.001, now + shape.len * 0.8);
+    osc.connect(body).connect(this.master);
+    osc.start(now);
+    osc.stop(now + shape.len);
+  }
+
+  /** Újratöltés: két kattanás. A második azt mondja, hogy KÉSZ. */
+  reloadClick(second = false): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.master || this.muted) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(second ? 1400 : 900, now);
+    osc.frequency.exponentialRampToValueAtTime(second ? 700 : 420, now + 0.05);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+    osc.connect(gain).connect(this.master);
+    osc.start(now);
+    osc.stop(now + 0.08);
+  }
+
   /** Koccanás: rövid zajlöket, mélyre szűrve. Az erő a szűrőt is nyitja. */
   thud(strength: number): void {
     const ctx = this.ctx;

@@ -277,6 +277,29 @@ for (const kind of ['shotgun', 'sniper', 'rocket'] as GunId[]) {
       a.items.length === elott, `${elott} → ${a.items.length}`);
   }
 
+  // A CSERE NEM PATTOG VISSZA.
+  //
+  // A lecserélt fegyver a lábunk elé esett, tehát a következő képkockán
+  // ráálltunk és visszavettük — élőben mérve a kézben oda-vissza váltott a
+  // két fegyver, és sosem maradt nálunk az új. A régi most arrébb esik, és
+  // egy ideig nem vehető vissza ATTÓL, aki elejtette.
+  {
+    const p = new Armoury(pontok, rnd);
+    const cel = p.items[0];
+    const kezben = new Weapon(cel.kind === 'shotgun' ? 'sniper' : 'shotgun');
+    const csere = p.tryPickUp(cel.position, kezben, 0);
+    const regi = csere?.dropped;
+    line('a lecserélt fegyver ARRÉBB esik',
+      !!regi && regi.position.distanceTo(cel.position) > 1.5,
+      `${regi?.position.distanceTo(cel.position).toFixed(1)} egység`);
+    const uj = Armoury.make(csere!.kind, csere!.ammo);
+    line('és nem lehet azonnal visszavenni',
+      p.tryPickUp(regi!.position, uj, 0) === null, `${PICKUP.graceOwn} mp türelmi idő`);
+    // A MÁSIK játékos viszont azonnal felveheti — az ő zsákmánya.
+    line('a másik viszont azonnal felveheti',
+      p.tryPickUp(regi!.position, null, 1)?.kind === regi!.kind, '');
+  }
+
   // ÜRES KÉZ: felvétel csere nélkül.
   const b = new Armoury(pontok, rnd);
   const ures = b.tryPickUp(b.items[0].position, null);

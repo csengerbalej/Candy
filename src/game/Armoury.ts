@@ -28,6 +28,10 @@ export interface Dropped {
   left: number;
   /** Ennyi lőszer van benne. Egy leejtett fegyver a saját tartalékát viszi. */
   ammo: number;
+  /** Ki ejtette el, ha csere volt. Ő egy pillanatig nem veheti vissza. */
+  droppedBy?: number;
+  /** Mióta fekszik itt. A türelmi időhöz kell. */
+  age: number;
 }
 
 export interface PickResult {
@@ -87,12 +91,14 @@ export class Armoury {
       position: spot.clone(),
       left: PICKUP.life * (0.7 + this.random() * 0.6),
       ammo: PICKUP.packs[kind],
+      age: 0,
     });
   }
 
   update(dt: number): void {
     for (let i = this.items.length - 1; i >= 0; i--) {
       this.items[i].left -= dt;
+      this.items[i].age += dt;
       if (this.items[i].left <= 0) {
         this.items.splice(i, 1);
         this.queue();
@@ -114,8 +120,15 @@ export class Armoury {
   }
 
   /** Egy leejtett fegyver visszakerül a pályára — a csere maradéka. */
-  drop(kind: GunId, position: THREE.Vector3, ammo: number): Dropped {
-    const item: Dropped = { kind, position: position.clone(), left: PICKUP.life, ammo };
+  drop(kind: GunId, position: THREE.Vector3, ammo: number, by?: number): Dropped {
+    const item: Dropped = {
+      kind,
+      position: position.clone(),
+      left: PICKUP.life,
+      ammo,
+      droppedBy: by,
+      age: 0,
+    };
     this.items.push(item);
     return item;
   }
@@ -126,8 +139,14 @@ export class Armoury {
    * @param held Ami most a kézben van, vagy `null`.
    * @returns `null`, ha nincs mit felvenni.
    */
-  tryPickUp(at: THREE.Vector3, held: Weapon | null): PickResult | null {
-    const index = this.items.findIndex((i) => i.position.distanceTo(at) <= PICKUP.reach);
+  tryPickUp(at: THREE.Vector3, held: Weapon | null, who = 0): PickResult | null {
+    const index = this.items.findIndex(
+      (i) =>
+        i.position.distanceTo(at) <= PICKUP.reach &&
+        // Amit ÉN ejtettem el az imént, azt nem veszem vissza rögtön:
+        // különben a csere oda-vissza pattogna, és sosem maradna nálam az új.
+        !(i.droppedBy === who && i.age < PICKUP.graceOwn)
+    );
     if (index < 0) return null;
     const item = this.items[index];
 
@@ -150,7 +169,13 @@ export class Armoury {
     this.queue();
     let dropped: Dropped | null = null;
     if (held) {
-      dropped = this.drop(held.kind, at, held.ammo + held.reserve);
+      // Nem a lábunk elé, hanem arrébb: egy lábnál heverő fegyver a
+      // következő képkockán már megint felvehető lenne.
+      const away = at.clone();
+      const angle = this.random() * Math.PI * 2;
+      away.x += Math.cos(angle) * PICKUP.dropAway;
+      away.z += Math.sin(angle) * PICKUP.dropAway;
+      dropped = this.drop(held.kind, away, held.ammo + held.reserve, who);
     }
     return { kind: item.kind, swapped: !!held, ammo: item.ammo, dropped };
   }

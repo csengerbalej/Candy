@@ -962,6 +962,17 @@ export const PICKUP = {
    * legritkább — különben a ház fél perc alatt kráter lenne.
    */
   weights: { shotgun: 4, sniper: 3, rocket: 1 },
+  /**
+   * Csere után ennyi ideig nem veheted vissza a SAJÁT leejtett fegyveredet.
+   *
+   * Mérve derült ki, miért kell: a régi fegyver a lábad elé esik, tehát a
+   * következő pillanatban ráállsz, és visszaveszed — a csere oda-vissza
+   * pattogott, és sosem maradt nálad az új. (Ugyanaz a hiba, amit a
+   * cukorkánál a `CAPTURE.graceOwn` old meg.)
+   */
+  graceOwn: 2.2,
+  /** Ilyen messzire esik a lecserélt fegyver, hogy ne a lábadnál heverjen. */
+  dropAway: 2.2,
   /** Ennyinél több tartalék nem fér el egy fegyverhez. */
   maxReserve: { shotgun: 12, sniper: 6, rocket: 3 },
 } as const;

@@ -158,11 +158,12 @@ export class InputManager {
   }
 
   get scoping(): boolean {
-    return this.scopeHeld || this.held.has('ShiftRight');
+    return this.scopeHeld || this.held.has('ShiftRight') || !!this.touch?.state.scope;
   }
 
   /** Igaz egyszer, ha lőttek. */
   consumeFire(): boolean {
+    if (this.touch?.consumeFire()) this.firePressed = true;
     const hit = this.firePressed;
     this.firePressed = false;
     return hit;

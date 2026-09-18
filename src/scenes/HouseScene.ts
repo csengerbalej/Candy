@@ -72,6 +72,8 @@ export class HouseScene implements GameScene {
   /** Ami a kezünkben van. Üres kézzel indulunk: a fegyvert meg kell találni. */
   private held: Weapon | null = null;
   private readonly heldView = new HeldWeapon();
+  /** Az előző képkocka töltési állapota — ebből lesz a két kattanás. */
+  private wasReloading = false;
   /** A FOGÓ mód: sarkok, szabálytábla, AI ellenfél. `null` kooperatívban. */
   private capture: Capture | null = null;
   private corners: Corners | null = null;
@@ -706,6 +708,9 @@ export class HouseScene implements GameScene {
       this.rivalBody.mesh.position.copy(this.rival.position);
       if (fired?.shot) {
         this.noise.emit(fired.shot.noiseAt, this.rival.weapon!.gun.noiseRadius, 'lövés');
+        // Az ELLENFÉL lövése is szól: ebből tudod meg, hogy fegyvere van, és
+        // hogy nagyjából merről. Egy néma ellenség nem ellenfél, hanem csapda.
+        sound.gun(this.rival.weapon!.kind);
         if (fired.shot.hit) {
           this.takeHit(this.localIndex as 0 | 1, fired.shot.from, fired.shot.strength);
         }
@@ -715,6 +720,17 @@ export class HouseScene implements GameScene {
     this.armoury?.update(step);
     // TÁVCSŐ: a jobb egérgomb (vagy a Shift) nagyít. Csak a mesterlövészen —
     // a sörétesre távcsövet tenni annyi volna, mint kalapácsra.
+    // ÚJRATÖLTÉS HANGJA: egy kattanás, amikor elindul, egy, amikor kész. A
+    // második az, ami számít — abból tudod, hogy megint lőhetsz, anélkül hogy
+    // a számlálóra néznél.
+    if (this.held) {
+      const loading = this.held.reloading > 0;
+      if (loading !== this.wasReloading) {
+        sound.reloadClick(!loading);
+        this.wasReloading = loading;
+      }
+    }
+
     if (this.held) {
       this.held.scoped = this.held.canScope && this.input.scoping;
       // A nagyítás a kamerán történik: a látószög szűkül, tehát ugyanaz a
@@ -737,7 +753,7 @@ export class HouseScene implements GameScene {
     // amit nem lehet eltalálni.
     const me = this.players[this.localIndex];
     if (this.armoury) {
-      const got = this.armoury.tryPickUp(me.position, this.held);
+      const got = this.armoury.tryPickUp(me.position, this.held, this.localIndex);
       if (got) {
         if (got.swapped || !this.held) {
           this.held = Armoury.make(got.kind, got.ammo);
@@ -767,7 +783,7 @@ export class HouseScene implements GameScene {
         // A lövés ZAJ is: a fegyver hangja odahívja a lakót. Ez a fegyver
         // harmadik ára, a lőszer és az idő mellett.
         this.noise.emit(shot.noiseAt, this.held.gun.noiseRadius, 'lövés');
-        sound.thud(0.5);
+        sound.gun(this.held.kind);
       }
     }
 

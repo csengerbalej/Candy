@@ -25,6 +25,8 @@ export interface TouchState {
   interactHeld: boolean;
   nitro: boolean;
   sprint: boolean;
+  /** Nyomva tartott távcső. Kapcsolóként a legrosszabb pillanatban maradna bent. */
+  scope: boolean;
 }
 
 /** Van-e egyáltalán érintőképernyő. Egérrel a gombok csak zavarnának. */
@@ -41,7 +43,17 @@ const STICK_RANGE = 46;
 export class TouchControls {
   readonly state: TouchState = {
     moveX: 0, moveY: 0, jumpHeld: false, interactHeld: false, nitro: false, sprint: false,
+    scope: false,
   };
+
+  /** Igaz egyszer, ha a TŰZ gombot megnyomták. */
+  private firePressed = false;
+
+  consumeFire(): boolean {
+    const hit = this.firePressed;
+    this.firePressed = false;
+    return hit;
+  }
 
   /**
    * KÖRÜLNÉZÉS húzással: sebesség képpont/másodpercben, nem elmozdulás.
@@ -80,6 +92,13 @@ export class TouchControls {
         <button class="touch-btn nitro" data-hold="nitro">NITRÓ</button>
         <button class="touch-btn act" data-hold="interactHeld">E</button>
         <button class="touch-btn jump" data-hold="jumpHeld">UGRÁS</button>
+      </div>
+      <!-- A LÖVÉS a BAL oldalon, a bot fölött: a jobb hüvelykujj a nézést
+           viszi (húzás a képen), tehát ha a tűzgomb is ott lenne, a kettő
+           kizárná egymást — célozni és lőni EGYSZERRE kell tudni. -->
+      <div class="touch-fire">
+        <button class="touch-btn scope" data-hold="scope">TÁVCSŐ</button>
+        <button class="touch-btn fire" data-tap="fire">TŰZ</button>
       </div>
       <div class="touch-top">
         <button class="touch-mini" data-tap="chat">CHAT</button>
@@ -139,7 +158,7 @@ export class TouchControls {
     // A GOMBOK. Nyomva tartva szólnak, tehát nem `click` — az csak az
     // elengedéskor sülne el, és a gáz sosem lenne folyamatos.
     for (const el of Array.from(this.root.querySelectorAll<HTMLElement>('[data-hold]'))) {
-      const key = el.dataset.hold as 'nitro' | 'interactHeld' | 'jumpHeld';
+      const key = el.dataset.hold as 'nitro' | 'interactHeld' | 'jumpHeld' | 'scope';
       const down = (e: Event) => {
         this.state[key] = true;
         el.dataset.on = '1';
@@ -157,6 +176,7 @@ export class TouchControls {
     for (const el of Array.from(this.root.querySelectorAll<HTMLElement>('[data-tap]'))) {
       el.addEventListener('touchstart', (e) => {
         if (el.dataset.tap === 'pause') this.pausePressed = true;
+        else if (el.dataset.tap === 'fire') this.firePressed = true;
         else this.chatPressed = true;
         e.preventDefault();
       }, { passive: false });
