@@ -122,6 +122,13 @@ export interface Selection {
    * átkapcsolt szabálykészlet csak vitát szülne.
    */
   fogo?: boolean;
+  /**
+   * KÍSÉRTETHÁZ mód: a harmadik játékmód.
+   *
+   * Ugyanott dől el, ugyanabból az okból: a ház szabályait írja át. Sötét,
+   * szörnyek, egy lámpa kettőtökre — és meg lehet halni.
+   */
+  haunt?: boolean;
   /** What the players called themselves, for the HUD and the end-of-run awards. */
   names: [string, string];
   characters: [CharacterId, CharacterId];

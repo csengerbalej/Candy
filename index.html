@@ -579,6 +579,58 @@
                     pointer-events: auto; }
       .chat-field::placeholder { color: rgba(255,255,255,.35); }
       @media (prefers-reduced-motion: reduce) { .chat-log p { animation: none; } }
+/* A KÍSÉRTETHÁZ KIJELZŐJE. Halvány és kicsi: horrorban a kijelző nem
+   lehet kapaszkodó, csak a legkevesebb, ami még elég. */
+.haunt-hud {
+  position: fixed; left: 14px; bottom: 96px; z-index: 40;
+  font: 600 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .06em; color: #cbb8d8; text-shadow: 0 1px 3px #000;
+  pointer-events: none; display: grid; gap: 5px;
+}
+.haunt-hud .telep {
+  position: relative; width: 190px; height: 15px;
+  border: 1px solid #ffffff2e; border-radius: 3px; overflow: hidden;
+  background: #0b0710cc;
+}
+.haunt-hud .telep i { position: absolute; inset: 0 auto 0 0; background: #ffbe6a; opacity: .55; }
+.haunt-hud .telep[data-allapot="fele"] i { background: #ff9a3c; }
+.haunt-hud .telep[data-allapot="keves"] i { background: #ff4d4d; animation: telep 1s steps(2) infinite; }
+@keyframes telep { 50% { opacity: .18; } }
+.haunt-hud .telep span { position: relative; display: block; text-align: center; font-size: 10px; line-height: 15px; color: #fff; }
+.haunt-hud .baj { color: #ff6b6b; }
+
+/* AZ IJESZTÉS. Teljes képernyő, másfél másodperc, semmi bevezetés.
+
+   A rázkódás és a villanás nem díszítés: az arc magában egy kép, amit meg
+   lehet nézni. Ami ijeszt, az a HIRTELENSÉG — ezért a legerősebb mozgás az
+   első két képkockában van, és onnan csak halkul. */
+.jumpscare {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #000 center/cover no-repeat;
+  pointer-events: none;
+}
+.jumpscare.hit { animation: scare 1.2s steps(1, end) forwards, shake .55s linear; }
+@keyframes scare {
+  0%   { opacity: 1; filter: brightness(2.4) contrast(1.6) saturate(.4); }
+  70%  { opacity: 1; filter: brightness(1) contrast(1.2); }
+  100% { opacity: 0; }
+}
+@keyframes shake {
+  0%, 100% { transform: scale(1.35) translate(0, 0); }
+  12% { transform: scale(1.5) translate(-2.5%, 1.8%); }
+  26% { transform: scale(1.42) translate(2.2%, -2.4%); }
+  41% { transform: scale(1.48) translate(-1.8%, -1.2%); }
+  58% { transform: scale(1.38) translate(1.4%, 1.6%); }
+  76% { transform: scale(1.33) translate(-0.8%, -0.6%); }
+}
+/* Aki kikapcsolta a mozgást, annak nem rázkódik — de az arc marad. A
+   horror nem lehet hozzáférhetetlen. */
+@media (prefers-reduced-motion: reduce) {
+  .jumpscare.hit { animation: scare 1.2s steps(1, end) forwards; }
+}
+
 .net-badge {
         /* BALRA, a névtábla alá. Jobb felül a MINIMAPA van — 880 képpont
            széles ablakban mérve a kettő egymásra futott, és a térkép a

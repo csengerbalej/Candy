@@ -1083,3 +1083,53 @@ export const DELIVERY = {
   /** A lerakás ideje. Nem azonnali: a hazaérkezés is pillanat legyen, ne érintés. */
   dropTime: 1.4,
 } as const;
+
+/**
+ * KÍSÉRTETHÁZ: a harmadik játékmód.
+ *
+ * Az első kettő versengés — ez EGYÜTTMŰKÖDÉS, és ez a különbség nem a
+ * szabályok díszítése, hanem a lényege. A másik két mód ugyanazt kéri:
+ * gyorsaságot és célzást. Ez mást kér — figyelmet, csendet, és azt, hogy
+ * számíthass valakire.
+ *
+ * Három szabály tartja össze, és mind a három EGYMÁSRA UTAL titeket:
+ *
+ *   EGY LÁMPA KETTŐTÖKNEK. Aki a fényt viszi, nem tud cipelni; aki cipel,
+ *   nem lát. Enélkül ez két egyszemélyes játék volna egy szobában.
+ *
+ *   A ZAJOD HÍVJA ŐKET. Nem véletlenszerűen ugranak elő — ha futottál,
+ *   ajtót csaptál, felborítottál valamit, azt meghallják. Így a félelem a
+ *   SAJÁT döntéseidből jön, és nem lehet megunni, ahogy egy időzített
+ *   ijesztgetést meg lehet.
+ *
+ *   MEG LEHET HALNI. Elkapnak: összecsuklasz, és a társadnak van ideje
+ *   felszedni téged. Ha nem ér oda, vagy őt is elkapják, a körnek vége — és
+ *   a cukorka is oda, amit addig gyűjtöttetek. Ettől számít.
+ */
+export const HAUNT = {
+  /** Hány szörny járja a házat. */
+  monsters: 3,
+  /**
+   * A lámpa TELEPE, másodpercben.
+   *
+   * Nem azért fogy, hogy siettessen, hanem hogy a fény DÖNTÉS legyen:
+   * végigvilágítod a folyosót, vagy megspórolod a következő szobára.
+   */
+  torch: 150,
+  /** Elemcsomag a pályán: ennyivel tölt. */
+  battery: 45,
+  /**
+   * ÖSSZECSUKLÁS: ennyi ideje van a társadnak felszedni.
+   *
+   * Húsz másodperc: elég ahhoz, hogy a ház túlsó végéből is odaérjen, és
+   * kevés ahhoz, hogy ne lehessen nyugodtan kivárni. Közben a szörny ott
+   * van fölötted — tehát a mentés maga is kockázat.
+   */
+  bleed: 20,
+  /** A felszedés ideje. Nem érintés: le kell guggolni melléd. */
+  revive: 2.5,
+  /** Ennyire kell megközelíteni a társadat a felszedéshez. */
+  reviveRadius: 3,
+  /** Az ijesztés hossza — a kép és a hang. */
+  scare: 1.2,
+} as const;

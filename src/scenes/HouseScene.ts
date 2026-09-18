@@ -19,6 +19,11 @@ import { Impact } from '../render/Impact';
 import { Weapon, type Target } from '../game/Weapon';
 
 import { Homeowner } from '../ai/Homeowner';
+import { Haunt } from '../game/Haunt';
+import { Jumpscare } from '../ui/Jumpscare';
+import { HauntHud } from '../ui/HauntHud';
+import { Torch } from '../world/Torch';
+import { HAUNT, HOUSE } from '../core/config';
 import { makeRandom } from '../core/seed';
 import { planFor, planToWorld } from '../world/HousePlan';
 import { Dog } from '../ai/Dog';
@@ -83,6 +88,17 @@ export class HouseScene implements GameScene {
   private capture: Capture | null = null;
   private corners: Corners | null = null;
   private rival: Rival | null = null;
+
+  // --- KÍSÉRTETHÁZ ---------------------------------------------------------
+  /** A mód szabályai: ki áll a lábán, mennyi van a telepben, vége van-e. */
+  private haunt: Haunt | null = null;
+  /** A szörnyek. Ugyanaz az osztály, mint a lakó — más hangolással. */
+  private readonly lurkers: Homeowner[] = [];
+  /** Melyik szörny melyik arccal ijeszt. */
+  private readonly lurkerFaces: string[] = [];
+  private jumpscare: Jumpscare | null = null;
+  private torch: Torch | null = null;
+  private hauntHud: HauntHud | null = null;
   /** Az AI teste. A második játékos helyén ül, ha nincs valódi társ. */
   private rivalBody: PlayerController | null = null;
 
@@ -461,6 +477,54 @@ export class HouseScene implements GameScene {
         this.homeowner.group.position.copy(tavol);
       }
 
+    }
+
+    // === KÍSÉRTETHÁZ ========================================================
+    //
+    // A harmadik mód. Nem a fogó egy beállítása: ott egymás ellen játszotok,
+    // itt egymásért — és ez más szabályokat kér, nem ugyanazokat szigorúbban.
+    if (session.haunt) {
+      this.haunt = new Haunt();
+      this.jumpscare = new Jumpscare(document.body);
+      this.hauntHud = new HauntHud(document.body);
+      this.torch = new Torch();
+      this.scene.add(this.torch.group);
+
+      // A SZÖRNYEK ugyanaz az osztály, mint a lakó.
+      //
+      // Nem lustaságból: a lakó már tud mindent, amit egy szörnynek tudnia
+      // kell — lát, hall, járőrözik, üldöz, elveszíti a nyomot. Egy külön
+      // „szörny-intelligencia" ugyanezt írná le még egyszer, és a hibái is
+      // külön hibák lennének. Ami más, az a HANGOLÁS és a KINÉZET.
+      const arcok = ['werewolf', 'zombie', 'vampire'] as const;
+      for (let i = 0; i < HAUNT.monsters; i++) {
+        // Mindegyik MÁS pontról indul és más sorrendben járja a házat:
+        // különben hárman ugyanazt a kört rónák egymás mögött.
+        const utvonal = [...this.world.patrolWaypoints];
+        for (let k = utvonal.length - 1; k > 0; k--) {
+          const j = Math.floor(this.sors() * (k + 1));
+          [utvonal[k], utvonal[j]] = [utvonal[j], utvonal[k]];
+        }
+        const start = utvonal[0] ?? this.world.homeownerSpawn;
+        const szorny = new Homeowner(start.clone(), utvonal, this.world.occluders);
+        szorny.sightBlocked = (from, to) => this.world.sightBlocked(from, to);
+        szorny.walkable = (x, z, radius) => this.world.walkable(x, z, radius);
+        szorny.rescue = (from, toward, radius) => this.world.nearestStanding(from, toward, radius);
+        szorny.findRoute = (from, to, radius) => this.world.route(from, to, radius);
+        this.lurkers.push(szorny);
+        this.lurkerFaces.push(CHARACTERS[arcok[i % arcok.length]].portrait);
+        this.scene.add(szorny.group);
+        void this.dressLurker(szorny, CHARACTERS[arcok[i % arcok.length]].model);
+      }
+
+      // A LAKÓ nincs a házban: itt nem egy dühös felnőtt a tét. A csoportját
+      // kivesszük a jelenetből, hogy ne bolyongjon egy szörnyekkel teli
+      // házban egy pizsamás ember.
+      this.homeowner.group.visible = false;
+      this.homeowner.position.set(0, -500, 0);
+    }
+
+    if (session.fogo && this.capture) {
       // A KIJUTÁS pillanatában a sarok tartalma a kocsiba kerül. A könyvelés
       // a munkameneté, nem a jeleneté: a rakománynak túl kell élnie az ajtót.
       this.game.onEscape = () => {
@@ -852,6 +916,61 @@ export class HouseScene implements GameScene {
    * próbál beazonosítani egy sötét folyosón. A körvonal viszont marad, sőt
    * VASTAGABB a szörnyekénél: ha egyvalamit észre kell venned a képen, az ő.
    */
+  /**
+   * EGY SZÖRNY KINÉZETE.
+   *
+   * A modellek a játékosokéi — vérfarkas, zombi, vámpír —, de SÖTÉTRE
+   * festve, izzó szemmel. Két oka van, és egyik sem a spórolás:
+   *
+   * Egy vaksötét házban úgyis csak a sziluettet látod, tehát a részletes
+   * modell úgyis elveszik; ami számít, az a FORMA, és azt ezek tudják.
+   *
+   * A másik meg az, hogy a szörny, ami rád hasonlít, ijesztőbb annál, ami
+   * nem. Ugyanaz a fajta vagy, mint ő — csak ő már régebben van itt.
+   */
+  private async dressLurker(who: Homeowner, model: string): Promise<void> {
+    try {
+      const art = await models.instance(model, { height: HOMEOWNER.height * 0.92 });
+      if (this.disposed) return;
+      art.traverse((o) => {
+        o.userData.cpNoOutline = true;
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        // SÖTÉT SZILUETT: nem a textúrát mutatjuk, hanem a formát. A
+        // lámpád fénye épp csak megcsillan rajta — ettől lesz az, hogy
+        // „valami ott van", nem az, hogy „egy vérfarkas áll ott".
+        mesh.material = new THREE.MeshStandardMaterial({
+          color: 0x14101c,
+          roughness: 0.92,
+          metalness: 0,
+          emissive: new THREE.Color(0x2a0a12),
+          emissiveIntensity: 0.4,
+        });
+      });
+      // A SZEME világít. Ez az egyetlen dolog, ami magától látszik a
+      // sötétben — és ez az, amit észreveszel, mielőtt bármi mást.
+      for (const oldal of [-1, 1]) {
+        const szem = new THREE.Mesh(
+          new THREE.SphereGeometry(0.075, 8, 8),
+          new THREE.MeshBasicMaterial({ color: 0xff3a2a })
+        );
+        szem.userData.cpNoOutline = true;
+        szem.position.set(oldal * 0.17, HOMEOWNER.height * 0.82, 0.3);
+        art.add(szem);
+      }
+      who.group.add(art);
+      // A tokot elrejtjük: a modell VAN ott, nem a helykitöltő.
+      for (const child of who.group.children) {
+        const mesh = child as THREE.Mesh;
+        if (mesh.isMesh) mesh.visible = false;
+      }
+    } catch (e) {
+      // Modell nélkül a tok marad — sötét kapszula a sötétben. Nem szép,
+      // de attól még ott van, és attól még elkap.
+      console.warn('a szörny modellje nem töltött be', e);
+    }
+  }
+
   private async loadHomeowner(): Promise<void> {
     try {
       const art = await models.instance('models/harold.json', { height: HOMEOWNER.height });
@@ -1009,7 +1128,9 @@ export class HouseScene implements GameScene {
     // hibakeresővel azonnal hazudott: a második házat töltöttük be, és a
     // jelenet mégis világosnak hitte magát. Egy származtatott érték, ami
     // nem a TÉNYT kérdezi, előbb-utóbb elcsúszik attól.
-    return this.houseName === 'house2';
+    // A KÍSÉRTETHÁZ MINDIG sötét, bármelyik házban játsszuk. Ott a sötét
+    // nem a ház tulajdonsága, hanem a módé.
+    return this.houseName === 'house2' || this.session.haunt;
   }
 
   /** Melyik ház van betöltve. A sötétség és a kutya is ebből következik. */
@@ -1142,6 +1263,7 @@ export class HouseScene implements GameScene {
       );
     }
 
+    this.updateHaunt(step);
     this.capture?.update(step);
     this.refillBowls(step);
     this.updateNightVision(step);
@@ -1457,6 +1579,88 @@ export class HouseScene implements GameScene {
     this.game.banner = who === this.localIndex ? 'ELTALÁLTAK!' : 'TALÁLAT';
   }
 
+  /**
+   * A KÍSÉRTETHÁZ EGY LÉPÉSE.
+   *
+   * Négy dolog történik, és a sorrendjük számít: előbb a szörnyek lépnek
+   * (mert az ő helyzetük dönti el, elkaptak-e), aztán az elkapás, aztán a
+   * mentés, végül a fény. A fény azért utolsó, mert AZT MÁR a mostani
+   * helyzetnek kell megvilágítania, nem az előzőnek — különben a lámpa egy
+   * képkockával a fejed mozgása mögött jár, és az szédít.
+   */
+  private updateHaunt(step: number): void {
+    const haunt = this.haunt;
+    if (!haunt) return;
+
+    const me = this.localIndex as 0 | 1;
+    const testem = this.players[me];
+    this.jumpscare?.update(step);
+
+    if (haunt.state === 'vege') {
+      // VÉGE. A ház nem enged ki: ez nem az a mód, ahol ki lehet sétálni.
+      this.game.banner = 'ELKAPTAK. A CUKORKA ODAVAN.';
+      return;
+    }
+
+    // A SZÖRNYEK. Csak azokat látják, akik ÁLLNAK: aki lent van, az már
+    // nem célpont — különben a földön fekve a végtelenségig ütnének, és a
+    // mentés esélytelen volna.
+    const talpon = this.players.filter((_, i) => !haunt.down[i as 0 | 1].down);
+    for (const szorny of this.lurkers) {
+      szorny.update(step, talpon, this.noise);
+    }
+
+    // ELKAPTAK. A távolság dönt, ahogy a lakónál is — de itt nem csak
+    // cukorkát veszítesz.
+    if (!haunt.down[me].down) {
+      for (let i = 0; i < this.lurkers.length; i++) {
+        const szorny = this.lurkers[i];
+        if (szorny.position.distanceTo(testem.position) > HOUSE.catchRadius) continue;
+        if (!haunt.caught(me, testem.position)) continue;
+        // AZ IJESZTÉS a becsapódás PILLANATÁBAN jön, minden bevezetés
+        // nélkül: az ijedés maga a felkészületlenség.
+        this.jumpscare?.fire(this.lurkerFaces[i] ?? '');
+        sound.clip('hit', 1);
+        testem.applyKnockback(szorny.position);
+        break;
+      }
+    }
+
+    // MENTÉS: a társad fölött guggolva, a HASZNÁLAT gombot nyomva tartva.
+    // Nem érintés — időbe telik, és amíg ott vagy, te is célpont vagy.
+    const tars = (1 - me) as 0 | 1;
+    const lent = haunt.down[tars];
+    if (lent.down && !haunt.down[me].down) {
+      const kozel = testem.position.distanceTo(lent.at) < HAUNT.reviveRadius;
+      const nyomom = this.input.get(me).interactHeld;
+      if (kozel && nyomom) {
+        if (haunt.lift(tars, step)) {
+          this.players[tars].position.copy(lent.at);
+          this.game.banner = 'TALPRA ÁLLÍTOTTAD';
+        } else {
+          this.game.banner = `FELSZEDÉS… ${Math.round((lent.lifting / HAUNT.revive) * 100)}%`;
+        }
+      } else if (lent.lifting > 0) {
+        // Elengedted: visszaesik. Félig felhúzni nem ér semmit — enélkül a
+        // mentés kockázat nélküli volna, mert be lehetne szakaszolni.
+        haunt.letGo(tars);
+      }
+    }
+
+    // A LÁMPA. Csak annál ég, akinél van, és csak amíg van benne telep.
+    const lampasE = haunt.torchHolder === me;
+    haunt.update(step, lampasE);
+    const nalam = this.players[haunt.torchHolder];
+    this.torch?.update(
+      step,
+      nalam.position,
+      nalam.mesh.rotation.y,
+      haunt.torchOn && !haunt.down[haunt.torchHolder].down,
+      haunt.torch / HAUNT.torch
+    );
+    this.hauntHud?.update(haunt, me);
+  }
+
   private cast(): PlayerController[] {
     // A LAKÓ CÉLPONTJAI.
     //
@@ -1632,6 +1836,9 @@ export class HouseScene implements GameScene {
     if (document.pointerLockElement) document.exitPointerLock();
     this.disposed = true;
     sound.stopMusic();
+    this.jumpscare?.dispose();
+    this.hauntHud?.dispose();
+    this.torch?.dispose();
     this.commit();
     this.hud.dispose();
     this.map.dispose();

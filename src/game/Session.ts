@@ -50,6 +50,15 @@ export class Session {
   fogo = false;
 
   /**
+   * KÍSÉRTETHÁZ mód: együttműködés, nem versengés.
+   *
+   * A fogó két embert egymás ellen fordít; ez összeköti őket. A ház sötét,
+   * szörnyek járják, egy lámpa van kettőtökre, és meg lehet halni. A
+   * szabályok a `Haunt`-ban laknak — ez csak a kapcsoló.
+   */
+  haunt = false;
+
+  /**
    * A SZÁLLÍTÁS könyvelése, fogó módban.
    *
    * A munkameneté, nem a jeleneté: a rakomány túléli a házból kilépést és a

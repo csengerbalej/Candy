@@ -77,6 +77,8 @@ export class Frontend {
   private solo = false;
   /** FOGÓ mód: versengés a kooperáció helyett. */
   private fogo = false;
+  /** Kísértetház mód: a harmadik játékmód kapcsolója. */
+  private haunt = false;
   private resolve: ((result: FrontendResult) => void) | null = null;
   /** Opens the settings panel; supplied by main, which owns the renderer. */
   onSettings: (() => void) | null = null;
@@ -178,6 +180,9 @@ export class Frontend {
       // barátod a saját eszközéről. A kooperatív KÉTFŐS megmarad mellette —
       // két külön játék, nem egy kapcsoló két állása.
       { id: 'fogo2', label: 'FOGÓ KETTEN', detail: 'egymás ellen — a társad másik eszközről' },
+      // A HARMADIK MÓD: nem egymás ellen, hanem egymásért. Egyedül is
+      // elindítható — úgy a legijesztőbb —, de ketten a játék.
+      { id: 'kisertet', label: 'KÍSÉRTETHÁZ', detail: 'horror — sötét, szörnyek, meg lehet halni' },
     ];
     if (save) this.menuItems.push({ id: 'continue', label: 'FOLYTATÁS', detail: save.label });
     this.menuItems.push({ id: 'settings', label: 'BEÁLLÍTÁSOK' });
@@ -187,11 +192,18 @@ export class Frontend {
   private activateMenu(): void {
     const item = this.menuItems[this.menuCursor];
     if (!item) return;
-    if (item.id === 'new' || item.id === 'solo' || item.id === 'fogo' || item.id === 'fogo2') {
+    if (
+      item.id === 'new' ||
+      item.id === 'solo' ||
+      item.id === 'fogo' ||
+      item.id === 'fogo2' ||
+      item.id === 'kisertet'
+    ) {
       // Csak az EGYEDÜL és a sima FOGÓ megy egy eszközön; a másik kettőhöz
       // társ kell.
       this.solo = item.id === 'solo' || item.id === 'fogo';
       this.fogo = item.id === 'fogo' || item.id === 'fogo2';
+      this.haunt = item.id === 'kisertet';
       this.advancePhase('names');
     }
     else if (item.id === 'continue') this.finishContinue();
@@ -317,6 +329,7 @@ export class Frontend {
         driverIndex: this.driverIndex,
         solo: this.solo,
         fogo: this.fogo,
+        haunt: this.haunt,
       },
     });
     this.resolve = null;

@@ -34,6 +34,8 @@ const debugMode = new URLSearchParams(location.search).get('mode');
  * kipróbálható anélkül, hogy a meglévő kooperatív játék bármit változna.
  */
 const fogoFlag = new URLSearchParams(location.search).has('fogo');
+/** `?kisertet` — a horror mód egy kattintás nélkül, a fejlesztéshez. */
+const hauntFlag = new URLSearchParams(location.search).has('kisertet');
 /** Stand-in players for `?mode=...`, used only when nothing is saved. */
 const DEBUG_SELECTION: Selection = {
   names: ['BALINT', 'CSENGER'],
@@ -313,6 +315,7 @@ async function enter(next: 'drive' | 'house'): Promise<void> {
 async function runSession(selection: Selection, ready?: () => void): Promise<void> {
   session = new Session(selection);
   session.fogo = fogoFlag || !!selection.fogo;
+  session.haunt = hauntFlag || !!selection.haunt;
   await enter('drive');
   // A jelenet áll: mostantól van mit mutatni az intró sötét lapja alatt.
   ready?.();
@@ -636,6 +639,7 @@ async function start(): Promise<void> {
   if (debugMode === 'house') {
     session = new Session(selection);
     session.fogo = fogoFlag;
+    session.haunt = hauntFlag;
     session.currentHouseName = 'TESZTHÁZ';
     active = await HouseScene.create(renderer, input, session, app);
     pause = makePauseMenu(active.pauseActions());
