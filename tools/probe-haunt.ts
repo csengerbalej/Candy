@@ -292,8 +292,11 @@ console.log('');
     `${HAUNT.glimpseNear}-${HAUNT.glimpseFar} méterre`);
   // ...és a lámpa fénykúpja NE érjen el odáig: amit megvilágítasz, azt
   // meg is nézed, és akkor kiderül, hogy semmi nincs ott.
-  line('a lámpád nem éri el', HAUNT.glimpseNear >= 22 * 0.5,
-    `a fény ${HAUNT.beamRange} méterig ér`);
+  // A LÁMPÁD NE ÉRJEN ODÁIG. Amit megvilágítasz, azt meg is nézed — és
+  // akkor kiderül, hogy nincs ott semmi. A kettő együtt mozog: ha a lámpa
+  // erősebb lesz, az alaknak is messzebb kell átszaladnia.
+  line('a lámpád nem éri el', HAUNT.glimpseNear >= HAUNT.beamRange * 0.7,
+    `az alak ${HAUNT.glimpseNear} m-től, a fény ${HAUNT.beamRange} m-ig`);
   const haz = readFileSync('src/scenes/HouseScene.ts', 'utf8');
   ok = line('csak járható helyen fut át', haz.includes('this.world.walkable(hol.x, hol.z, 1.2)'),
     'egy alak, ami a falban szalad el, nem rejtély, hanem hiba') && ok;

@@ -33,7 +33,20 @@ export class Torch {
     // álló szörny fehér foltként töltötte be a képet, és pont az veszett el,
     // ami ijesztő benne — a forma. A fényerő harmadára, a lecsengés
     // laposabbra: közel nem világít agyon, messze viszont még elér.
-    this.light = new THREE.SpotLight(0xffd9a8, 0, 24, HAUNT.beam, 0.4, 1.15);
+    // ERŐSEBB LÁMPA — de nem a fényerő emelésével.
+    //
+    // A fényerő magában rossz kapcsoló: ha feltekerem, a KÖZELI felület ég
+    // ki tőle (ez volt a 240-es változat: egy méterre álló szörny fehér
+    // folt), a folyosó vége meg attól még sötét marad. Ami messzire visz, az
+    // a LECSENGÉS: 1,15-ről 0,8-ra véve a fény lassabban fogy a távolsággal.
+    //
+    // A kettő együtt (120-as fényerő, 0,8-as lecsengés, 32 méteres hatótáv):
+    //   egy méterre    120 helyett 95 volt   — alig világosabb
+    //   tíz méterre     19 helyett 6,7       — háromszor annyi
+    //   húsz méterre    11 helyett 3,0       — közel négyszer annyi
+    //
+    // Vagyis pont ott lett erősebb, ahol hiányzott: a folyosó túlsó végén.
+    this.light = new THREE.SpotLight(0xffd9a8, 0, 32, HAUNT.beam, 0.4, 0.8);
     this.light.castShadow = false;
     this.group.add(this.light, this.target);
     this.light.target = this.target;
@@ -75,7 +88,7 @@ export class Torch {
     // ritmusa. Egy szabályos pulzálás gépnek látszik.
     const flicker = 1 + Math.sin(this.clock * 11) * 0.04 + Math.sin(this.clock * 3.3) * 0.05;
     const low = fade < 0.2 ? 0.45 + Math.sin(this.clock * 24) * 0.35 : 1;
-    this.light.intensity = on ? 95 * flicker * Math.min(1, fade * 4) * low : 0;
+    this.light.intensity = on ? 120 * flicker * Math.min(1, fade * 4) * low : 0;
   }
 
   dispose(): void {

@@ -1156,7 +1156,14 @@ export const HAUNT = {
   /** A lámpa kúpjának fél szöge: ekkorában „ráfogtad". */
   beam: 0.42,
   /** És eddig a távolságig ér el. */
-  beamRange: 22,
+  /**
+   * Eddig a távolságig ér el — és a LÁTHATÓ fénykúppal együtt nőtt.
+   *
+   * Ha a szabály hatótávja kisebb volna, mint ameddig a fény ellátszik,
+   * akkor ráfognád a lámpát a Lesőre, látnád rajta a fényt, és mégsem
+   * történne semmi. A kettőnek együtt kell mozognia.
+   */
+  beamRange: 28,
   /** A Leső ennyi mozdulatlan, sötét másodperc után nyugszik meg. */
   calm: 4,
 
@@ -1225,8 +1232,8 @@ export const HAUNT = {
   glimpseMin: 25,
   glimpseMax: 60,
   /** Ilyen messze fut át. Közelről kiderülne, hogy egy sötét folt. */
-  glimpseNear: 14,
-  glimpseFar: 30,
+  glimpseNear: 20,
+  glimpseFar: 34,
   hideReach: 2.2,
   /** Belépés és kilépés ideje. Nem azonnali: a döntésnek súlya van. */
   hideTime: 0.8,
