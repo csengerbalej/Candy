@@ -1054,6 +1054,16 @@ export const DELIVERY = {
   bowlRefill: 14,
   /** Az újraéledés ára: ennyi ideig nem mozdulsz, miután visszakerültél. */
   respawnStun: 1.1,
+  /**
+   * ÉJJELLÁTÓ a vaksötét házban.
+   *
+   * A második ház azon a szabályon áll, hogy a látás maga az erőforrás. Az
+   * éjjellátó ezt nem törli el, hanem IDŐRE ADJA VISSZA: húsz másodpercig
+   * látsz, aztán megint a fáklyád van. Ettől lesz a keresése is döntés —
+   * érte mész, vagy cukorkáért.
+   */
+  nightVision: 20,
+  nightVisionRespawn: 25,
   /** A bázis sugara: ezen belül lehet lerakni. */
   radius: 9,
   /** A lerakás ideje. Nem azonnali: a hazaérkezés is pillanat legyen, ne érintés. */

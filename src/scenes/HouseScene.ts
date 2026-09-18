@@ -15,6 +15,7 @@ import { Rival } from '../ai/Rival';
 import { PickupsView } from '../world/PickupsView';
 import { HeldWeapon } from '../render/HeldWeapon';
 import { Tracer } from '../render/Tracer';
+import { Impact } from '../render/Impact';
 import { Weapon, type Target } from '../game/Weapon';
 
 import { Homeowner } from '../ai/Homeowner';
@@ -138,9 +139,17 @@ export class HouseScene implements GameScene {
   ): Promise<HouseScene> {
     // MELYIK ház ez? A SORREND dönti el: az első házad a lakás, a második a
     // folyosós, a harmadik a gyűrűs. A telek sorszáma nem szól bele.
-    const name = VillageHouse.pickInOrder(session.visited.size);
+    // A `?haz=2` a fejlesztéshez: egy adott ház betöltése anélkül, hogy
+    // végig kellene játszani odáig. Enélkül a második ház vaksötétjét (és az
+    // éjjellátót) csak két teljes menet után lehetne megnézni — és amit
+    // drága megnézni, azt előbb-utóbb nem nézi meg senki.
+    const forced = new URLSearchParams(location.search).get('haz');
+    const name = forced ? `house${forced}` : VillageHouse.pickInOrder(session.visited.size);
     const world = await VillageHouse.load(`models/${name}.json`, `models/${name}-nav.json`);
-    return new HouseScene(renderer, input, session, world, parent);
+    const scene = new HouseScene(renderer, input, session, world, parent);
+    scene.houseName = name;
+    scene.applyHouseName();
+    return scene;
   }
 
   private constructor(
@@ -185,7 +194,18 @@ export class HouseScene implements GameScene {
     this.homeowner.sightBlocked = (from, to) => this.world.sightBlocked(from, to);
     // ...és a falak MEGÁLLÍTJÁK. A játékosnak volt ütközése, a lakónak nem —
     // átsétált a falon, ami pont a szakasz ígéretét vonta vissza.
-    this.homeowner.walkable = (x, z, radius) => this.world.walkable(x, z, radius);
+    // A LAKÓ NEM MEHET BE A GYŰJTŐSZOBÁKBA.
+    //
+    // A két sarok BIZTONSÁGOS: a felnőtt nem lép be. Enélkül a hazaút utolsó
+    // két métere a legveszélyesebb pont a pályán — pont ott, ahol már nem
+    // tudsz kitérni, mert a sarokban állsz. Egy menedék nélkül a mód
+    // egyetlen tanulsága az volna, hogy sose vigyél haza semmit.
+    //
+    // A járhatóságba kötve, nem külön szabályként: így az útkeresése, a
+    // járőrözése és a kergetése MIND tudja — egy helyen kimondva nem tud
+    // kimaradni az egyikből.
+    this.homeowner.walkable = (x, z, radius) =>
+      this.world.walkable(x, z, radius) && !this.inSafeRoom(x, z);
     // ...és ha mégis sarokba szorul, a világ megmondja, hol fér el.
     this.homeowner.rescue = (from, toward, radius) => this.world.nearestStanding(from, toward, radius);
     // ...és megkerüli a falakat ahelyett, hogy nekifeszülne.
@@ -268,6 +288,7 @@ export class HouseScene implements GameScene {
     }
     this.scene.add(this.heldView.group);
     this.scene.add(this.tracer.mesh);
+    this.scene.add(this.impact.group);
 
     // BELSŐ NÉZET ALAPBÓL. A ház a lopakodás és a keresés helye, és mindkettő
     // arról szól, MIT LÁTSZ: felülről a fáklyakúp egy rajz a padlón, a
@@ -285,10 +306,20 @@ export class HouseScene implements GameScene {
       // amelyik köztünk és a szoba között áll. Forgatás (Q) után a bontott fal
       // magától átvált a másik oldalra.
       clipFor: (at) =>
-        this.world.roomClipPlanes(
-          this.world.roomNear(at.x, at.z),
-          new THREE.Vector3(Math.sin(stage.yaw), 0, Math.cos(stage.yaw))
-        ),
+        // A SZOBAVÁGÁS KIKAPCSOLVA: az egész ház látszik.
+        //
+        // A vágás a FELÜLNÉZET miatt kellett — ott a szomszéd szoba
+        // tartalma a te szobád elé került volna. Belső nézetben viszont a
+        // falak maguk takarnak, tehát a vágás már csak elvesz: a nyitott
+        // ajtón át nem látni be a másik szobába, pedig a valóságban látni
+        // lehetne. Egy verseny, amiben nem látod, hol jár az ellenfél,
+        // szegényebb.
+        this.director.firstPerson !== null
+          ? []
+          : this.world.roomClipPlanes(
+              this.world.roomNear(at.x, at.z),
+              new THREE.Vector3(Math.sin(stage.yaw), 0, Math.cos(stage.yaw))
+            ),
     };
     // A kennel: a lakó járőrpontjai közül a LEGTÁVOLABBI a bejárattól. A
     // kutya ne az ajtóban aludjon — onnan minden belépés felriasztaná, és a
@@ -298,7 +329,10 @@ export class HouseScene implements GameScene {
         b.distanceTo(this.world.exitZone) > a.distanceTo(this.world.exitZone) ? b : a
       );
       this.dog = new Dog(far);
-      this.dog.walkable = (x, z, radius) => this.world.walkable(x, z, radius);
+      // A kutya sem mehet a menedékbe: egy biztonságos szoba, ahová a kutya
+      // bemehet, nem biztonságos — csak kisebb.
+      this.dog.walkable = (x, z, radius) =>
+        this.world.walkable(x, z, radius) && !this.inSafeRoom(x, z);
       this.dog.rescue = (from, toward, radius) => this.world.nearestStanding(from, toward, radius);
       this.dog.findRoute = (from, to, radius) => this.world.route(from, to, radius);
       // A kóborlása a lakó járőrpontjain megy, csak fordított sorrendben:
@@ -330,6 +364,8 @@ export class HouseScene implements GameScene {
       this.scene.add(this.corners.group);
       this.capture = new Capture(this.corners.list);
       this.fogoHud = new FogoHud(document.body);
+      this.splitSides();
+
       this.looseView = new LooseCandy();
       this.scene.add(this.looseView.group);
       void this.looseView.load();
@@ -377,14 +413,21 @@ export class HouseScene implements GameScene {
           this.rivalBody.position.clone(),
           {
             bowls: () =>
-              this.world.candySpots.filter((c) => !c.taken).map((c) => c.position),
+              this.world.candySpots
+                // Az AI is csak a SAJÁT SZÍNŰ cukorkáját viheti — ugyanaz a
+                // szabály vonatkozik rá, mint rád.
+                .filter((c) => !c.taken && (c.owner === undefined || c.owner === this.rival?.index))
+                .map((c) => c.position),
             walkable: (x, z, r) => this.world.walkable(x, z, r),
             route: (from, to, r) => this.world.route(from, to, r) ?? [],
             dangers: () => [this.homeowner.position, ...(this.dog ? [this.dog.position] : [])],
             sightBlocked: (a, b) => this.world.sightBlocked(a, b),
             takeBowl: (at) => {
               const bowl = this.world.candySpots.find(
-                (c) => !c.taken && c.position.distanceTo(at) < 2.4
+                (c) =>
+                  !c.taken &&
+                  (c.owner === undefined || c.owner === this.rival?.index) &&
+                  c.position.distanceTo(at) < 2.4
               );
               if (!bowl) return false;
               bowl.taken = true;
@@ -536,6 +579,119 @@ export class HouseScene implements GameScene {
    * Kooperatívban ez a szabály KI VAN KAPCSOLVA: ott a kvóta a felemelt
    * tálak száma, és egy újratelő tál visszazárná a már kinyílt ajtót.
    */
+  /**
+   * A HÁZ KÉT TÉRFÉLRE OSZTÁSA, és a cukorka kiosztása.
+   *
+   * A választóvonal a két sarok FELEZŐ MERŐLEGESE: minden pont ahhoz a
+   * térfélhez tartozik, amelyik sarok közelebb van hozzá. Nem kell hozzá
+   * külön geometria, és bármilyen alaprajzon értelmes marad.
+   *
+   * A csavar: a cukorka annak a játékosnak a színét kapja, akinek a sarka
+   * TÁVOLABB van tőle — vagyis mindenki a MÁSIK térfelén gyűjt. Ettől lesz a
+   * házból két egymásba fonódó útvonal: aki gyűjt, az ellenfél otthonában
+   * jár, és közben a sajátja őrizetlen marad.
+   */
+  private splitSides(): void {
+    if (!this.corners) return;
+    const [a, b] = this.corners.list;
+    for (const spot of this.world.candySpots) {
+      const near = spot.position.distanceTo(a.position) <= spot.position.distanceTo(b.position)
+        ? a
+        : b;
+      // A közelebbi sarok térfelén vagyunk → a cukorka a MÁSIK játékosé.
+      spot.owner = (near.player === 0 ? 1 : 0) as 0 | 1;
+      const colour = spot.owner === 0 ? PALETTE.p1 : PALETTE.p2;
+      spot.mesh.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const material = (mesh.material as THREE.MeshStandardMaterial).clone();
+        material.color = new THREE.Color(colour);
+        // Enyhén világít: a sötét házban a színnek is látszania kell,
+        // különben a tulajdonos megkülönböztetése csak elmélet.
+        material.emissive = new THREE.Color(colour).multiplyScalar(0.35);
+        mesh.material = material;
+      });
+    }
+  }
+
+  /**
+   * Biztonságos-e ez a pont: a gyűjtősarkok körüli menedék.
+   *
+   * A sugár nagyobb a lerakás sugaránál (2,4): a menedék nem lehet pont
+   * akkora, mint a cél, különben a lakó az orrod előtt állva vár.
+   */
+  private inSafeRoom(x: number, z: number): boolean {
+    if (!this.corners) return false;
+    return this.corners.list.some(
+      (c) => Math.hypot(c.position.x - x, c.position.z - z) < CAPTURE.bankRadius * 2.4
+    );
+  }
+
+  /**
+   * AZ ÉJJELLÁTÓ a vaksötét házban.
+   *
+   * Nem a fegyverek közé raktam, mert nem fegyver: nem lőni lehet vele,
+   * hanem LÁTNI — és a második ház egész játéka a látáson áll. Ráállásra
+   * veszed fel (mint mindent), húsz másodpercig tart, aztán a pálya
+   * máshol adja vissza.
+   */
+  private updateNightVision(step: number): void {
+    if (!this.goggles) return;
+
+    if (this.nightVisionLeft > 0) {
+      this.nightVisionLeft -= step;
+      if (this.nightVisionLeft <= 0) {
+        this.nightLight.intensity = 0;
+        this.nightTint.hidden = true;
+        this.game.banner = 'AZ ÉJJELLÁTÓ KIFOGYOTT';
+      }
+    }
+
+    if (!this.goggles.visible) {
+      this.gogglesWait -= step;
+      if (this.gogglesWait <= 0) this.placeGoggles();
+      return;
+    }
+
+    this.goggles.rotation.y += step * 1.4;
+    this.goggles.position.y = 1.1 + Math.sin(performance.now() / 500) * 0.12;
+
+    const me = this.players[this.localIndex];
+    if (me.position.distanceTo(this.goggles.position) < 2) {
+      this.goggles.visible = false;
+      this.gogglesWait = DELIVERY.nightVisionRespawn;
+      this.nightVisionLeft = DELIVERY.nightVision;
+      // A fény a SAJÁT szemedé: egy környezeti fény, ami csak neked világít.
+      // Nem a szobát kapcsolja fel — a lakó és az ellenfél ugyanolyan
+      // sötétben marad, mint eddig.
+      this.nightLight.intensity = 1.5;
+      this.nightTint.hidden = false;
+      sound.pickup();
+      this.game.banner = `ÉJJELLÁTÓ — ${DELIVERY.nightVision} mp`;
+    }
+  }
+
+  /** Új helyre teszi az éjjellátót. Véletlen, szabad pontra. */
+  private placeGoggles(): void {
+    if (!this.goggles) return;
+    const at = this.world.randomStanding(Math.random, MOVE.radius, [], 0);
+    if (!at) return;
+    this.goggles.position.set(at.x, 1.1, at.z);
+    this.goggles.visible = true;
+  }
+
+  private goggles: THREE.Object3D | null = null;
+  private gogglesWait = 0;
+  private nightVisionLeft = 0;
+  private readonly nightLight = new THREE.AmbientLight(0x9fffc9, 0);
+  private readonly nightTint = (() => {
+    const el = document.createElement('div');
+    el.className = 'nightvision';
+    el.hidden = true;
+    document.body.appendChild(el);
+    return el;
+  })();
+
   private refillBowls(step: number): void {
     if (!this.capture) return;
     for (const spot of this.world.candySpots) {
@@ -558,6 +714,8 @@ export class HouseScene implements GameScene {
   private spawnPlaced = false;
   /** A lövések nyomjelző csíkja. Minden lövés látható, a sajátom és az AI-é is. */
   private readonly tracer = new Tracer();
+  /** A becsapódás: szikrák és a rakéta robbanásgyűrűje. */
+  private readonly impact = new Impact();
 
   /**
    * ÚJRAÉLEDÉS a saját sarokban (R gomb).
@@ -772,7 +930,42 @@ export class HouseScene implements GameScene {
    * maga a feladat.
    */
   private get dark(): boolean {
-    return VillageHouse.pickInOrder(this.session.visited.size) === 'house2';
+    // A BETÖLTÖTT ház számít, nem a sorrend.
+    //
+    // Eddig a látogatások számából következtetett rá — ami a `?haz=2`
+    // hibakeresővel azonnal hazudott: a második házat töltöttük be, és a
+    // jelenet mégis világosnak hitte magát. Egy származtatott érték, ami
+    // nem a TÉNYT kérdezi, előbb-utóbb elcsúszik attól.
+    return this.houseName === 'house2';
+  }
+
+  /** Melyik ház van betöltve. A sötétség és a kutya is ebből következik. */
+  private houseName = 'house1';
+
+  /**
+   * A ház nevétől függő beállítások, MIUTÁN kiderült, melyik ház ez.
+   *
+   * A konstruktor még nem tudja (a nevet a betöltő adja), a `dark` viszont
+   * innentől igaz — tehát a sötétséghez kötött dolgokat itt kell elővenni.
+   */
+  private applyHouseName(): void {
+    if (!this.dark || this.goggles) return;
+    const shell = new THREE.Mesh(
+      new THREE.BoxGeometry(1.4, 0.7, 0.5),
+      new THREE.MeshBasicMaterial({ color: 0x6effc0 })
+    );
+    const lens = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.28, 0.28, 0.7, 12),
+      new THREE.MeshBasicMaterial({ color: 0x0b2a1c })
+    );
+    lens.rotation.x = Math.PI / 2;
+    lens.position.z = 0.3;
+    shell.add(lens);
+    shell.userData.cpNoOutline = true;
+    this.goggles = shell;
+    this.scene.add(shell);
+    this.scene.add(this.nightLight);
+    this.placeGoggles();
   }
 
   private addLighting(): void {
@@ -858,6 +1051,7 @@ export class HouseScene implements GameScene {
 
     this.capture?.update(step);
     this.refillBowls(step);
+    this.updateNightVision(step);
 
     // A FÖLDÖN HEVERŐ CUKORKA FELSZEDÉSE.
     //
@@ -932,6 +1126,11 @@ export class HouseScene implements GameScene {
         sound.gun(this.rival.weapon!.kind);
         // Az ELLENFÉL lövése is hagy nyomot: ebből látod, honnan lőttek rád.
         this.tracer.add(fired.shot.from, fired.shot.to, !!fired.shot.hit);
+        this.impact.burst(
+          this.rival.weapon!.kind,
+          fired.shot.to,
+          fired.shot.to.clone().sub(fired.shot.from).normalize()
+        );
         if (fired.shot.hit) {
           this.takeHit(
             this.localIndex as 0 | 1,
@@ -1005,6 +1204,24 @@ export class HouseScene implements GameScene {
         // A CSÍK a csővégtől a becsapódásig. A színe mondja meg, hogy
         // találtál-e — ez gyorsabb, mint bármilyen felirat.
         this.tracer.add(shot.from, shot.to, !!shot.hit);
+        // A SÖRÉTES sok apró szemet lő: több vékony csík egy kúpban, nem egy
+        // vonal. A fegyver jellegét a KÉP mondja el, nem a leírás.
+        if (this.held.kind === 'shotgun') {
+          for (let i = 0; i < 5; i++) {
+            const spread = this.held.gun.spread * 0.8;
+            const off = new THREE.Vector3(
+              (Math.random() - 0.5) * spread * shot.to.distanceTo(shot.from),
+              (Math.random() - 0.5) * spread * 4,
+              (Math.random() - 0.5) * spread * shot.to.distanceTo(shot.from)
+            );
+            this.tracer.add(shot.from, shot.to.clone().add(off), !!shot.hit);
+          }
+        }
+        this.impact.burst(
+          this.held.kind,
+          shot.to,
+          shot.to.clone().sub(shot.from).normalize()
+        );
         // A TALÁLAT KÖVETKEZMÉNYE: ellökés és minden cukorka a földre. Eddig
         // a lövés elsült és zajt csapott, de a célpontnak nem történt semmi —
         // egy fegyver, aminek nincs hatása, csak egy hangeffekt.
@@ -1102,6 +1319,7 @@ export class HouseScene implements GameScene {
   render(frameTime: number, width: number, height: number): void {
     this.corners?.update(frameTime);
     this.tracer.update(frameTime);
+    this.impact.update(frameTime);
     if (this.capture) {
       this.looseView?.update(frameTime, this.capture, this.localIndex as 0 | 1);
     }
@@ -1233,10 +1451,12 @@ export class HouseScene implements GameScene {
 
   dispose(): void {
     this.crosshair.remove();
+    this.nightTint.remove();
     this.fogoHud?.dispose();
     this.pickups.dispose();
     this.looseView?.dispose();
     this.tracer.dispose();
+    this.impact.dispose();
     this.heldView.dispose();
     this.input.lookLock = false;
     if (document.pointerLockElement) document.exitPointerLock();

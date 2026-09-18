@@ -21,6 +21,17 @@ export interface CandySpot {
   mesh: THREE.Mesh;
   taken: boolean;
   value: number;
+  /**
+   * KIÉ ez a cukorka — fogó módban.
+   *
+   * A pálya két térfélre oszlik, és mindenki a SAJÁT SZÍNŰ cukorkáját
+   * gyűjti, ami a MÁSIK térfelén fekszik. Ettől lesz a ház egyetlen közös
+   * terepből két egymásba fonódó útvonal: aki gyűjt, az ellenfél otthonában
+   * jár, és közben a sajátja üresen marad.
+   *
+   * `undefined` kooperatívban: ott minden cukorka mindenkié.
+   */
+  owner?: 0 | 1;
 }
 
 export interface PrankSpot {

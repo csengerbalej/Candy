@@ -141,7 +141,7 @@ export class HouseGame {
       this.status[i].grabProgress = 0;
 
       const prank = this.nearestPrank(p.position);
-      const candy = this.nearestCandy(p.position);
+      const candy = this.nearestCandy(p.position, i as 0 | 1);
 
       // Whichever is actually closer wins the button. Preferring the prank
       // unconditionally meant a candy bowl within eight metres of a prank
@@ -182,10 +182,19 @@ export class HouseGame {
     return this.house.prankSpots.find((s) => s.position.distanceTo(at) < INTERACT_RADIUS) ?? null;
   }
 
-  private nearestCandy(at: THREE.Vector3): CandySpot | null {
+  /**
+   * @param who Ki nyúl érte. Fogó módban CSAK A SAJÁT SZÍNŰ cukorka emelhető
+   * fel — a másiké ott marad, hiába állsz rajta. Ez a szabály teszi a házat
+   * két térfélből álló pályává: a tiéd az ellenfél otthonában terem.
+   */
+  private nearestCandy(at: THREE.Vector3, who?: 0 | 1): CandySpot | null {
     return (
-      this.house.candySpots.find((c) => !c.taken && c.position.distanceTo(at) < INTERACT_RADIUS) ??
-      null
+      this.house.candySpots.find(
+        (c) =>
+          !c.taken &&
+          c.position.distanceTo(at) < INTERACT_RADIUS &&
+          (c.owner === undefined || who === undefined || c.owner === who)
+      ) ?? null
     );
   }
 
