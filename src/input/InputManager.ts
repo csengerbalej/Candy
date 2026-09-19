@@ -59,7 +59,11 @@ const KEYMAPS: KeyMap[] = [
     left: ['KeyA'],
     right: ['KeyD'],
     jump: ['Space'],
-    sprint: ['ShiftLeft'],
+    // A JOBB SHIFT IS FUTTAT. A bal alatt a bal kéz a WASD-on van, és a
+    // kisujjal nyomva tartani a futást egy hosszú folyosón kényelmetlen —
+    // a jobb kéz viszont a kamerán (nyilak) amúgy is ott van mellette.
+    // Mindkettő él: nem elvenni kell egy megszokást, hanem adni mellé.
+    sprint: ['ShiftRight', 'ShiftLeft'],
     interact: ['KeyE'],
     nitro: ['KeyF'],
   },

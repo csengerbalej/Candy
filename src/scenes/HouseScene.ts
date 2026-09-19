@@ -683,7 +683,18 @@ export class HouseScene implements GameScene {
         // EMBERMÉRTÉKŰ TEST ÉS TEMPÓ. A lakó számai egy óriáshoz valók: 2,2
         // egység széles test és 7,6-os üldözési sebesség. Itt a test 0,8
         // (átfér egy ajtón), a tempó pedig a te sebességedhez mérve dől el.
-        szorny.bodyWidth = 0.8;
+        // A TEST SZÉLESEBB, MINT A LÁBNYOMA — ezért lógott bele a falba.
+        //
+        // Mérve: a szörnyek SOHA nem álltak nem járható cellán (hatvan
+        // mintából nulla), tehát az útkeresés jó volt. Csak épp a 0,8-es
+        // ütközőtest egy kétméteres, széttárt karú modellt visz: a lény
+        // szabályosan állt a nyílás közepén, a karja viszont átment a
+        // falon. Ez látszott „bebuggolt" szörnynek.
+        //
+        // 1,2 még bőven átfér a három méteres nyílásokon (a korábbi 2,2
+        // volt az, ami beragadt és vibrált a küszöbökön), de a falaktól
+        // már fél méterrel távolabb tartja.
+        szorny.bodyWidth = 1.2;
         // A SZÖRNYEK NEM VILÁGÍTANAK. A lakó zseblámpája 900 candela — ez
         // a házban a legerősebb fény, és háromszor is szerepelne. Egy
         // szörny, aki maga elé világít, ráadásul elárulná magát: sötétben
@@ -731,7 +742,14 @@ export class HouseScene implements GameScene {
         this.lurkerShake.push(0);
         this.lurkerLast.push(Infinity);
         this.lurkerWindow.push(0);
-        this.lurkerFaces.push(CHARACTERS[faj.arc].portrait);
+        // AZ IJESZTÉS KÉPE A SZÖRNYÉ, NEM EGY JÁTÉKOS KARAKTERÉ.
+        //
+        // Eddig a választóképernyő portréi ugrottak rád: a Vak elkapásánál
+        // egy mosolygó plüss vérfarkas. A házban járkáló lényeknek
+        // egyszerűen nem volt képük. Most van: a `render-face.py` a
+        // modellből rendereli, alulról jövő kemény fénnyel — azzal a
+        // szöggel, amivel épp ráfogtad a lámpát.
+        this.lurkerFaces.push(`art/monsters/lurker-${faj.kind}.webp`);
         this.scene.add(szorny.group);
         void this.dressLurker(szorny, faj.model, faj.kind);
       }
@@ -1315,6 +1333,19 @@ export class HouseScene implements GameScene {
           color: 0xffffff,
           roughness: 1,
           metalness: 0,
+          // ALIG ÉRZÉKELHETŐ SAJÁT DERENGÉS — hogy a TEST is ott legyen.
+          //
+          // „Hol a szörny?" — a képen két piros pont lebegett a sötétben,
+          // test nélkül. Mérve a test ott volt, látszott is, csak éppen
+          // koromsötét: a szemek fénytől FÜGGETLEN anyagból vannak (ez a
+          // dolguk: a Lesőé árulja el, hogy ébren van), a test viszont a
+          // lámpától függ, és a lámpa hatótávja tizenhat méter.
+          //
+          // Négy százalék derengés nem világít — annyit tesz, hogy a
+          // sziluett elválik a fekete faltól. A szem így jelzés marad, nem
+          // az EGYETLEN dolog, ami látszik.
+          emissive: new THREE.Color(0x0a0b0e),
+          emissiveIntensity: 1,
         });
         // A FESTÉS SÖTÉT, ÉS AZ IS MARAD.
         //
@@ -1346,7 +1377,9 @@ export class HouseScene implements GameScene {
           // A LESŐ SZEME VILÁGOS ÉS FÉNYLŐ — ez az a jel, amiből tudod,
           // hogy nem szabad ráfognod a lámpát. A követőé tompa vörös:
           // rajta úgysem segít semmi.
-          new THREE.MeshBasicMaterial({ color: fajta === 'leso' ? 0xfff0b0 : 0x8a1a12 })
+          // A KÖVETŐ SZEME TOMPÁBB. Az élénk vörös messziről neonpontnak
+          // látszott; a lényeg, hogy ott VAN, nem az, hogy világít.
+          new THREE.MeshBasicMaterial({ color: fajta === 'leso' ? 0xffe89a : 0x5e120d })
         );
         szem.userData.cpNoOutline = true;
         szem.position.set(oldal * 0.085, 1.82, 0.2);
