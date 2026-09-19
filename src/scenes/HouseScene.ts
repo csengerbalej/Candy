@@ -673,7 +673,32 @@ export class HouseScene implements GameScene {
           [utvonal[k], utvonal[j]] = [utvonal[j], utvonal[k]];
         }
         const faj = fajok[i % fajok.length];
-        const start = utvonal[0] ?? this.world.homeownerSpawn;
+        // A LESŐ OTT ÁLL, AHOVÁ ÚGYIS MENNED KELL.
+        //
+        // Ő az egyetlen, aki nem járőrözik: áll a sötétben, amíg rá nem
+        // világítasz. Egy véletlen járőrpontra téve ez azt jelentette, hogy
+        // a huszonöt szobából egybe került, és ha nem sétáltál be pont oda,
+        // SOHA nem találkoztál vele — játszva pontosan ez jött vissza:
+        // „egy szörny látszik a játékban, és az a Vak".
+        //
+        // Cukorka mellé állítva viszont biztosan összefuttok: oda menned
+        // kell. Két méterrel odébb, hogy ne a zsákmányon álljon — a
+        // lámpáddal kell megtalálnod, nem belebotlanod.
+        let start = utvonal[0] ?? this.world.homeownerSpawn;
+        if (faj.kind === 'leso' && this.world.candySpots.length) {
+          const hol = this.world.candySpots[
+            Math.floor(this.sors() * this.world.candySpots.length)
+          ].position;
+          const szog = this.sors() * Math.PI * 2;
+          const mellette = new THREE.Vector3(
+            hol.x + Math.sin(szog) * 2,
+            0,
+            hol.z + Math.cos(szog) * 2
+          );
+          start = this.world.walkable(mellette.x, mellette.z, MOVE.radius)
+            ? mellette
+            : this.world.nearestStanding(mellette, hol, MOVE.radius);
+        }
         const szorny = new Homeowner(start.clone(), utvonal, this.world.occluders);
         szorny.sightBlocked = (from, to) => this.world.sightBlocked(from, to);
         szorny.walkable = (x, z, radius) => this.world.walkable(x, z, radius);
