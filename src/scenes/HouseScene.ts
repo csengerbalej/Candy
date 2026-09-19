@@ -2221,7 +2221,8 @@ export class HouseScene implements GameScene {
         szorny.poseIdle(step);
         this.lurkerFled[i] = 0;
       }
-      this.game.banner = 'SZEMLE — a szörnyek nem bántanak';
+      this.szemleJelek(step);
+      this.game.banner = `SZEMLE — ${this.lurkers.length} szörny áll előtted`;
     }
 
     for (let i = 0; i < this.lurkers.length && !this.szemle; i++) {
@@ -2832,10 +2833,46 @@ export class HouseScene implements GameScene {
     sound.clip('empty', 0.4);
   }
 
+  private szemleJel: THREE.Mesh[] = [];
+
+  /**
+   * EGY JELZÉS, AMI NEM TUD LÁTHATATLAN LENNI.
+   *
+   * A szörnyek a játékos gépén nem jelentek meg, az enyémen igen —
+   * ugyanabból a kiadásból. Ilyenkor az első kérdés nem az, hogy „miért
+   * nem látszik a modell", hanem hogy „fut-e egyáltalán a szemle".
+   *
+   * Ez a kocka a legegyszerűbb dolog, amit egy motor ki tud rajzolni:
+   * nincs csontja, nincs textúrája, nem függ fénytől. Ha a kocka LÁTSZIK
+   * és a szörny nem, akkor a modell a hibás. Ha a kocka sem látszik,
+   * akkor a szemle nem is indult el. Egy mérés, két kérdésre.
+   */
+  private szemleJelek(step: number): void {
+    void step;
+    if (!this.szemleJel.length) {
+      const geo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
+      for (let i = 0; i < this.lurkers.length; i++) {
+        const szin = [0x00ff88, 0xffcc00, 0xff3355][i % 3];
+        const kocka = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: szin }));
+        kocka.userData.cpNoOutline = true;
+        kocka.frustumCulled = false;
+        this.scene.add(kocka);
+        this.szemleJel.push(kocka);
+      }
+    }
+    for (let i = 0; i < this.szemleJel.length; i++) {
+      const hely = this.szemleHelyek[i];
+      if (!hely) continue;
+      this.szemleJel[i].visible = true;
+      this.szemleJel[i].position.set(hely.x, 0.22, hely.z);
+    }
+  }
+
   /** A 0 gomb: szemle be/ki. A helyeket újraszámoljuk, ahol épp állsz. */
   toggleSzemle(): boolean {
     this.szemle = !this.szemle;
     this.szemleHelyek = [];
+    if (!this.szemle) for (const k of this.szemleJel) k.visible = false;
     this.game.banner = this.szemle ? 'SZEMLE BE' : 'SZEMLE KI';
     return this.szemle;
   }
@@ -3023,6 +3060,12 @@ export class HouseScene implements GameScene {
     sound.stopLoops();
     delete document.body.dataset.mode;
     delete document.body.dataset.solo;
+    for (const k of this.szemleJel) {
+      k.geometry.dispose();
+      (k.material as THREE.Material).dispose();
+      k.removeFromParent();
+    }
+    this.szemleJel = [];
     this.jumpscare?.dispose();
     this.glimpse?.dispose();
     this.mumus?.dispose();
