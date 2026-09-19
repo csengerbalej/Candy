@@ -1327,14 +1327,17 @@ export class HouseScene implements GameScene {
       // kört, attól függően, mit látsz.
       for (const oldal of fajta === 'vak' ? [] : [-1, 1]) {
         const szem = new THREE.Mesh(
-          new THREE.SphereGeometry(0.075, 8, 8),
+          // KISEBB SZEM. A 0,075-ös gömb egy két méteres testen pingponglabda
+          // volt — játszva ez volt a „borzalmas" fele: nem fénylő szem,
+          // hanem két fehér golyó az arc helyén.
+          new THREE.SphereGeometry(0.042, 10, 10),
           // A LESŐ SZEME VILÁGOS ÉS FÉNYLŐ — ez az a jel, amiből tudod,
           // hogy nem szabad ráfognod a lámpát. A követőé tompa vörös:
           // rajta úgysem segít semmi.
           new THREE.MeshBasicMaterial({ color: fajta === 'leso' ? 0xfff0b0 : 0x8a1a12 })
         );
         szem.userData.cpNoOutline = true;
-        szem.position.set(oldal * 0.14, 1.75, 0.25);
+        szem.position.set(oldal * 0.085, 1.82, 0.2);
         art.add(szem);
       }
       // A `setArt` maga teszi be a csoportba, és el is takarítja a tokot —
