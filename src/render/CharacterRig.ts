@@ -88,11 +88,15 @@ export const VAK_CLIPS: ClipMap = {
  * Ezért nála az üldözés klipje is a séta.
  */
 export const KOVETO_CLIPS: ClipMap = {
-  idle: 'Idle_5',
-  walk: 'Walking',
-  sneak: 'Walking',
-  run: 'Walking',
-  grab: 'Kick_a_Soccer_Ball',
+  // SAJÁT KLIPEK, ÖT DARAB. Ez az egyetlen szörny, ami készen hozza a
+  // mozgását: a letöltés öt külön fájlban adta (Alert, Casual_Walk,
+  // Run_03, Running, Walking), a `merge-monster.py` egybefűzte őket.
+  // Ezért itt nincs szükség a lakó csomagjára.
+  idle: 'Alert',
+  walk: 'Casual_Walk',
+  sneak: 'Casual_Walk',
+  run: 'Casual_Walk',
+  grab: 'Run_03',
 };
 
 /**

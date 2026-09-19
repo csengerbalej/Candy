@@ -1288,8 +1288,12 @@ export class HouseScene implements GameScene {
         // és soha nem látszott. Ettől lett a szörny egyenletes agyagszobor.
         // (Pontosan ugyanez a hiba volt a házon a toonify-jal.)
         const eredeti = mesh.material as THREE.MeshStandardMaterial;
+        // VAN-E EGYÁLTALÁN CSÚCSSZÍN? Az új szörny TEXTÚRÁVAL érkezik, és
+        // azon nincs festés — ha ilyenkor is csúcsszínt kérnénk, a shader
+        // egy nem létező attribútumot olvasna.
+        const vanFestes = !!mesh.geometry?.attributes?.color;
         const anyag = new THREE.MeshStandardMaterial({
-          vertexColors: true,
+          vertexColors: vanFestes,
           map: eredeti?.map ?? null,
           // A FESTÉS MOST MÁR MAGA HORDOZZA A SÖTÉTET.
           //
@@ -2172,9 +2176,10 @@ export class HouseScene implements GameScene {
             szorny.position.copy(hely);
             szorny.group.position.copy(hely);
             this.lurkerTimer[i] = 0;
-            // Valami MEGRECCSEN mögötted. Nem magyarázat, csak annyi, hogy
-            // valami történt — és amikor megfordulsz, ott áll.
-            sound.clip('h-creak', 0.5);
+            // NÉMÁN. A reccsenés-hangmintánk ajtónyikorgásnak hallatszik,
+            // és a házban nincsenek ajtók — a Követő megjelenése így nem
+            // jelzést adott, hanem hazudott. Aki mögéd lép, az nem
+            // jelentkezik be; azt attól veszed észre, hogy megfordulsz.
           }
         }
 
@@ -2400,9 +2405,6 @@ export class HouseScene implements GameScene {
       }
       if (hol) {
         this.glimpse?.start(hol, nezesIrany, felszeles);
-        // Halk lépészaj hozzá — de messziről, tehát alig hallhatóan. Egy
-        // néma alak kísértet; egy hangos alak szörny; ez a kettő között van.
-        sound.clip('h-creak', 0.12);
       } else {
         // NEM TALÁLT HELYET (falnak állsz): ne várjon egy teljes kört a
         // következő próbáig, csak pár másodpercet. A ritkaságot az adja,

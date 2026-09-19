@@ -399,7 +399,14 @@ console.log('');
   ok =
     line(
       'a követő üldözve is SÉTÁL',
-      /KOVETO_CLIPS[^}]*run: 'Walking'/s.test(rig),
+      // A klip NEVE változhat (az új szörny saját készlettel érkezett), a
+      // szabály nem: az üldözés klipje ugyanaz, mint a sétáé.
+      (() => {
+        const blokk = /export const KOVETO_CLIPS[^}]*}/s.exec(rig)?.[0] ?? '';
+        const jaras = /walk: '([^']+)'/.exec(blokk)?.[1];
+        const futas = /run: '([^']+)'/.exec(blokk)?.[1];
+        return !!jaras && jaras === futas;
+      })(),
       'aki ugyanabban a tempóban jön, amikor te rohansz, rosszabb, mint aki fut'
     ) && ok;
   // ...és aki megállt, az ÁLL.
