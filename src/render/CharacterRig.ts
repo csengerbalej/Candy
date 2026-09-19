@@ -88,15 +88,20 @@ export const VAK_CLIPS: ClipMap = {
  * Ezért nála az üldözés klipje is a séta.
  */
 export const KOVETO_CLIPS: ClipMap = {
-  // SAJÁT KLIPEK, ÖT DARAB. Ez az egyetlen szörny, ami készen hozza a
-  // mozgását: a letöltés öt külön fájlban adta (Alert, Casual_Walk,
-  // Run_03, Running, Walking), a `merge-monster.py` egybefűzte őket.
-  // Ezért itt nincs szükség a lakó csomagjára.
+  // KILENC KLIPPEL ÉRKEZETT, és kettő közülük mintha neki készült volna.
+  //
+  // A `Slow_Orc_Walk` egy súlyos, lassú, megállíthatatlan lépés — pontosan
+  // az, amiért a Követő ijesztő: nem rohan utánad, csak JÖN. Ezért ez a
+  // járása ÉS az „üldözése" is: ő soha nem fut. Aki ugyanabban a tempóban
+  // jön, amikor te rohansz, rosszabb, mint aki fut.
+  //
+  // Az `Unsteady_Walk` a bizonytalan, támolygó változata: ez megy akkor,
+  // amikor még csak keres.
   idle: 'Alert',
-  walk: 'Casual_Walk',
-  sneak: 'Casual_Walk',
-  run: 'Casual_Walk',
-  grab: 'Run_03',
+  walk: 'Slow_Orc_Walk',
+  sneak: 'Unsteady_Walk',
+  run: 'Slow_Orc_Walk',
+  grab: 'Skill_01',
 };
 
 /**

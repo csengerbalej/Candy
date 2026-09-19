@@ -18,6 +18,12 @@ from mathutils import Vector
 
 argv = sys.argv[sys.argv.index('--') + 1:]
 src, dst = argv[0], argv[1]
+# Hányad résznél van a FEJ a sziluett tetejétől, és mekkora a fény. Nem
+# minden szörny sziluettjének a teteje a feje: az agancsos skin-walkernél a
+# csúcs az agancs, a fej jóval alatta van. A fényerőt pedig a bőr színe
+# dönti el — egy világos testet ugyanaz a lámpa kiéget.
+fej_arany = float(argv[2]) if len(argv) > 2 else 0.14
+fenyero = float(argv[3]) if len(argv) > 3 else 260.0
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=src)
@@ -37,7 +43,7 @@ magas = hi.z - lo.z
 # A FEJ KÖZEPE, nem a teteje: a koponya teteje a sziluett csúcsa, az arc
 # egy kicsivel alatta van. A tizennégy százalék méréssel jött ki: feljebb a
 # kamera a fejtetőt nézi, lejjebb a nyakat.
-fej = Vector(((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, hi.z - magas * 0.14))
+fej = Vector(((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, hi.z - magas * fej_arany))
 # TÁVOLABBRÓL. Az első keret olyan közel volt, hogy egy fül töltötte ki a
 # képet — egy ijesztéshez a FEJ kell, nem egy felület.
 tav = magas * 0.85
@@ -55,7 +61,7 @@ bpy.context.scene.camera = kamera
 # EGYETLEN KEMÉNY FÉNY, ALULRÓL. Ez a zseblámpa: a szemgödör és az állkapocs
 # árnyéka fölfelé esik, és ettől lesz egy arcból maszk.
 feny_adat = bpy.data.lights.new('lampa', type='SPOT')
-feny_adat.energy = 260
+feny_adat.energy = fenyero
 feny_adat.spot_size = math.radians(70)
 feny_adat.spot_blend = 0.45
 feny_adat.shadow_soft_size = 0.08
