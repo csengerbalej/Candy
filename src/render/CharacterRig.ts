@@ -88,20 +88,11 @@ export const VAK_CLIPS: ClipMap = {
  * Ezért nála az üldözés klipje is a séta.
  */
 export const KOVETO_CLIPS: ClipMap = {
-  // KILENC KLIPPEL ÉRKEZETT, és kettő közülük mintha neki készült volna.
-  //
-  // A `Slow_Orc_Walk` egy súlyos, lassú, megállíthatatlan lépés — pontosan
-  // az, amiért a Követő ijesztő: nem rohan utánad, csak JÖN. Ezért ez a
-  // járása ÉS az „üldözése" is: ő soha nem fut. Aki ugyanabban a tempóban
-  // jön, amikor te rohansz, rosszabb, mint aki fut.
-  //
-  // Az `Unsteady_Walk` a bizonytalan, támolygó változata: ez megy akkor,
-  // amikor még csak keres.
-  idle: 'Alert',
-  walk: 'Slow_Orc_Walk',
-  sneak: 'Unsteady_Walk',
-  run: 'Slow_Orc_Walk',
-  grab: 'Skill_01',
+  idle: 'Idle_5',
+  walk: 'Walking',
+  sneak: 'Walking',
+  run: 'Walking',
+  grab: 'Kick_a_Soccer_Ball',
 };
 
 /**
@@ -112,18 +103,11 @@ export const KOVETO_CLIPS: ClipMap = {
  * „gyanakvó séta" közte, mert nem gyanakszik, hanem tud.
  */
 export const LESO_CLIPS: ClipMap = {
-  // A FIGYELŐ SAJÁT KÉSZLETE. Négy klippel érkezett, riggelve — a
-  // klipnevek az exportálótól jönnek („Armature|…|baselayer"), ezért
-  // néznek ki így.
-  //
-  // Az ÁLLÁSA a `Skill_01`: ez az egyetlen klipje, ami nem helyváltoztatás
-  // — ő az, aki a sötétben ÁLL és figyel, amíg rá nem világítasz.
-  // Ébredés után a leggyorsabb a házban, ezért a futása a `RunFast`.
-  idle: 'Armature|Skill_01|baselayer',
-  walk: 'Armature|walking_man|baselayer',
-  sneak: 'Armature|Skill_01|baselayer',
-  run: 'Armature|RunFast|baselayer',
-  grab: 'Armature|running|baselayer',
+  idle: 'Idle_5',
+  walk: 'Running',
+  sneak: 'Idle_5',
+  run: 'Running',
+  grab: 'Kick_a_Soccer_Ball',
 };
 
 /** Visszafelé kompatibilis alapértelmezés. */

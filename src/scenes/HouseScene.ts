@@ -1314,7 +1314,14 @@ export class HouseScene implements GameScene {
       // A Leső és a Követő is a SAJÁT fájljából mozog (mindkettő négy-öt
       // klippel érkezett); csak a Vaknak kell a lakó közös csomagja, mert
       // az ő fájljában egyetlen járás van.
-      const kozosFajl = fajta === 'vak' ? 'models/harold.clips.json' : null;
+      // MINDHÁRMAN A LAKÓ KÖZÖS CSOMAGJÁBÓL MOZOGNAK.
+      //
+      // Az új modellek saját klipekkel érkeztek, és ez elvileg jobb volt —
+      // csak épp azokat a testeket a motor egyszerűen nem rajzolta ki
+      // (rajta voltak a rajzolási listán, a képernyő közepére estek, és
+      // mégsem látszottak). Amíg ennek nem járok a végére, az számít, hogy
+      // a szörnyek LÁTSZANAK.
+      const kozosFajl = 'models/harold.clips.json';
       const [sajat, kozos] = await Promise.all([
         models.ownClips(model),
         kozosFajl ? models.clips(kozosFajl) : Promise.resolve([]),
@@ -1388,36 +1395,14 @@ export class HouseScene implements GameScene {
           emissive: new THREE.Color(0x05060a),
           emissiveIntensity: 1,
         });
-        // PEREMFÉNY — MERT NEM A SÖTÉTSÉG VOLT A BAJ, HANEM A KONTRASZT.
+        // A PEREMFÉNY EGYELŐRE KINT VAN.
         //
-        // Mérve, a szörny fejének képpontjai és a mögötte lévő fal, négy
-        // távolságon: 73 és 78, 72 és 77, 73 és 80, 71 és 78. Vagyis a
-        // lény pontosan olyan világos volt, mint a fal mögötte — ezért
-        // „állt előttem, és nem láttam". Se nem sötét sziluett, se nem
-        // világos alak: beleolvadt.
-        //
-        // A perem a test SZÉLÉT emeli ki: ahol a felület elfordul a
-        // nézéstől, ott világosabb. Ettől a forma akkor is kirajzolódik, ha
-        // a háttér ugyanolyan fényes — és sötétben is látszik egy kontúr,
-        // ami nem árulja el a részleteket. Ez a legrégebbi trükk a
-        // sziluettre, és pont ezért működik.
-        anyag.onBeforeCompile = (sh) => {
-          sh.fragmentShader = sh.fragmentShader.replace(
-            '#include <emissivemap_fragment>',
-            '#include <emissivemap_fragment>\n' +
-              '  float perem = pow(1.0 - saturate(dot(normalize(normal), normalize(vViewPosition))), 2.2);\n' +
-              '  totalEmissiveRadiance += vec3(0.20, 0.19, 0.24) * perem;'
-          );
-        };
-        // A FESTÉS SÖTÉT, ÉS AZ IS MARAD.
-        //
-        // Kipróbáltam visszaszámolni egy gamma-lépést (a Blender sRGB-ként
-        // értelmezi a beírt színt, és lineárisan exportálja, így a 0,42-es
-        // hullaszürkéből 0,13 lesz) — csakhogy a hatványozás a SÖTÉT
-        // pontokat emeli a legjobban: a 0,011-ből 0,107 lett, és a szörny
-        // ettől lett VILÁGOSABB, nem hihetőbb. A fehérséget nem a festés
-        // okozta, hanem a lámpa közeli túlereje; azt a Torch lecsengése
-        // javítja. A festés marad annak, aminek készült.
+        // Egy saját GLSL-betoldás emelte ki a test szélét, hogy a sziluett
+        // elváljon a faltól. Ezután viszont a szörnyek egyáltalán nem
+        // látszottak — rajta voltak a rajzolási listán, a képernyő közepére
+        // estek, a csúcsaik a helyükön voltak, mégsem jelentek meg. Egy
+        // shaderbe nyúló javítás a legvalószínűbb ok, amíg az ellenkezőjét
+        // nem mérem. Előbb LÁTSZANAK, aztán szépek.
         mesh.material = anyag;
       });
       // A SZEM A JEL, amiből eldöntöd, mit csinálj.
