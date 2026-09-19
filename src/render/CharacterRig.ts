@@ -107,18 +107,18 @@ export const KOVETO_CLIPS: ClipMap = {
  * „gyanakvó séta" közte, mert nem gyanakszik, hanem tud.
  */
 export const LESO_CLIPS: ClipMap = {
-  // AZ ÚJ TESTHEZ AZ ÚJ KÉSZLET. A Leső modellje szobor volt — se
-  // csontváz, se animáció —, ezért a `rig-transfer.py` ráültette a másik
-  // szörny csontvázát (mindkettő ugyanaz a Mixamo-rig). A klipek is onnan
-  // jönnek; a nevek ezért egyeznek a Követőével.
+  // A FIGYELŐ SAJÁT KÉSZLETE. Négy klippel érkezett, riggelve — a
+  // klipnevek az exportálótól jönnek („Armature|…|baselayer"), ezért
+  // néznek ki így.
   //
-  // Az ÁLLÁS itt `Alert`: ő az, aki a sötétben áll és figyel — és ez
-  // pontosan az a póz.
-  idle: 'Alert',
-  walk: 'Running',
-  sneak: 'Alert',
-  run: 'Running',
-  grab: 'Run_03',
+  // Az ÁLLÁSA a `Skill_01`: ez az egyetlen klipje, ami nem helyváltoztatás
+  // — ő az, aki a sötétben ÁLL és figyel, amíg rá nem világítasz.
+  // Ébredés után a leggyorsabb a házban, ezért a futása a `RunFast`.
+  idle: 'Armature|Skill_01|baselayer',
+  walk: 'Armature|walking_man|baselayer',
+  sneak: 'Armature|Skill_01|baselayer',
+  run: 'Armature|RunFast|baselayer',
+  grab: 'Armature|running|baselayer',
 };
 
 /** Visszafelé kompatibilis alapértelmezés. */

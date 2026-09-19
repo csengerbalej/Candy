@@ -1286,11 +1286,13 @@ export class HouseScene implements GameScene {
       // járás van). A Követő és a Leső viszont az ÚJ szörny csomagját
       // használja: a Követő hozta magával (öt klip), a Leső pedig ugyanazt
       // a csontvázat kapta a `rig-transfer.py`-tól, tehát ráülnek.
-      const kozosFajl =
-        fajta === 'vak' ? 'models/harold.clips.json' : 'models/lurker-koveto.json';
+      // A Leső és a Követő is a SAJÁT fájljából mozog (mindkettő négy-öt
+      // klippel érkezett); csak a Vaknak kell a lakó közös csomagja, mert
+      // az ő fájljában egyetlen járás van.
+      const kozosFajl = fajta === 'vak' ? 'models/harold.clips.json' : null;
       const [sajat, kozos] = await Promise.all([
         models.ownClips(model),
-        models.clips(kozosFajl),
+        kozosFajl ? models.clips(kozosFajl) : Promise.resolve([]),
       ]);
       if (this.disposed) return;
       // A SAJÁT KLIP HÁTUL VAN, ÉS EZ SZÁNDÉKOS.
