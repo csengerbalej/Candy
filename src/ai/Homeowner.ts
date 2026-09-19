@@ -600,7 +600,21 @@ export class Homeowner {
           2.2
         )
       );
-      if (this.grabLeft <= 0) this.rig.play(Homeowner.motionFor(this.state));
+      // AKI MEGÁLLT, AZ ÁLL — NEM LÉPKED HELYBEN.
+      //
+      // Az ütemnek van egy alsó korlátja (0,35), különben a lassan haladó
+      // test dermedten csúszna. Csakhogy ez a korlát akkor is dolgozik,
+      // amikor a szörny SEMMIT nem halad: a Vak például keresés közben
+      // megáll hallgatózni, és eddig ilyenkor a lopakodó ciklus tovább
+      // pörgött alatta. Mérve: 0 m/s haladás, 0,35-ös lépésütem — ez a
+      // helyben menetelés, és ránézésre pontosan az, amit „buggos"-nak
+      // hív az ember.
+      //
+      // Tíz centiméter per másodperc alatt tehát az ÁLLÁS a klip, akármit
+      // mond az állapot. A küszöb szándékosan ilyen alacsony: aki tényleg
+      // lépked, az ennél gyorsabb, és a fordulás helyben nem mozgás.
+      const all = this.lastSpeed < 0.1;
+      if (this.grabLeft <= 0) this.rig.play(all ? 'idle' : Homeowner.motionFor(this.state));
       this.rig.update(dt);
     }
 

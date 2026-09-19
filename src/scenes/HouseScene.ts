@@ -58,7 +58,14 @@ import { studioEnvironment, applyEnvironment } from '../render/Environment';
  * the players are dimmer than the furniture.
  */
 const CHARACTER_KEY = 60;
-import { CharacterRig, HOMEOWNER_CLIPS, LURKER_CLIPS, type Rig } from '../render/CharacterRig';
+import {
+  CharacterRig,
+  HOMEOWNER_CLIPS,
+  KOVETO_CLIPS,
+  LESO_CLIPS,
+  VAK_CLIPS,
+  type Rig,
+} from '../render/CharacterRig';
 import { ProceduralRig } from '../render/ProceduralRig';
 import { CHARACTERS } from '../game/Characters';
 import type { InputManager } from '../input/InputManager';
@@ -1247,8 +1254,23 @@ export class HouseScene implements GameScene {
       // A MOZGÁS. A modell magával hozza a járásciklusát — ugyanaz a rig,
       // mint a lakóé, csak egyetlen klippel: ezek a lények nem ácsorognak
       // és nem tétováznak, csak jönnek.
-      const clips = await models.ownClips(model);
+      // A SAJÁT JÁRÁS ÉS A KÖZÖS KÉSZLET EGYÜTT.
+      //
+      // A modell egyetlen klipet hoz magával, a járását — azt megtartjuk,
+      // mert az a SAJÁT teste (a Követő cammogása nem a lakóé). Minden
+      // mást a közös csomagból veszünk: állás, futás, lopakodás. A két
+      // csontváz huszonhét csontban azonos, tehát a klipek ráülnek.
+      const [sajat, kozos] = await Promise.all([
+        models.ownClips(model),
+        models.clips('models/harold.clips.json'),
+      ]);
       if (this.disposed) return;
+      // A SAJÁT KLIP HÁTUL VAN, ÉS EZ SZÁNDÉKOS.
+      //
+      // A rig egy névből → klip térképet épít, és abban a KÉSŐBBI nyer.
+      // Mindkét csomagban van „Walking", és a szörnyé a jobb: az az ő
+      // testére készült. Ezért a közös csomag megy elöl, a sajátja hátul.
+      const clips = [...kozos, ...sajat];
       art.traverse((o) => {
         o.userData.cpNoOutline = true;
         const mesh = o as THREE.Mesh;
@@ -1269,12 +1291,16 @@ export class HouseScene implements GameScene {
         const anyag = new THREE.MeshStandardMaterial({
           vertexColors: true,
           map: eredeti?.map ?? null,
-          // SÖTÉTEBBRE HANGOLVA, MÉRÉSSEL. Teljes fényerőn a szörny 75/255
-          // volt, miközben a fal mögötte 19 — fehér szobor egy sötét
-          // szobában. 0,35-tel 61, és ott már nem világít, hanem VAN.
-          // (Lejjebb nincs értelme: 0,16-nál és 0,08-nál is 61 marad, mert
-          // onnantól nem a festés adja a fényét.)
-          color: new THREE.Color().setScalar(0.35),
+          // A FESTÉS MOST MÁR MAGA HORDOZZA A SÖTÉTET.
+          //
+          // Amíg a csúcsszín egyetlen szürke volt (0,011–0,133), egy külön
+          // szorzóval kellett lenyomni, hogy ne fehér szoborként álljon a
+          // sötétben. A `paint-lurker.py` óta a festés CSONTSÚLY szerint
+          // megy — a kabát sötét kékesszürke, a kéz, a lábfej és az arc
+          // halvány —, és a tartománya 0,03–0,38. Ezt már nem kell
+          // tompítani: ha tompítanánk, pont a különbség veszne el
+          // kabát és bőr között, ami az egészet adja.
+          color: 0xffffff,
           roughness: 1,
           metalness: 0,
         });
@@ -1313,7 +1339,15 @@ export class HouseScene implements GameScene {
       }
       // A `setArt` maga teszi be a csoportba, és el is takarítja a tokot —
       // ugyanaz az út, amin a lakó modellje is érkezik.
-      who.setArt(art, new CharacterRig(art, clips, LURKER_CLIPS));
+      const keszlet = fajta === 'vak' ? VAK_CLIPS : fajta === 'leso' ? LESO_CLIPS : KOVETO_CLIPS;
+      const rig = new CharacterRig(art, clips, keszlet);
+      // MÉRJÜK, HOGY TÉNYLEG RÁÜLT-E. A retargetelés némán is elmehet
+      // mellé: ha a klip csontnevei nem találnak, a szörny mozdulatlan
+      // marad, és ez ránézésre „nem mozog"-nak látszik, nem hibának.
+      if (rig.bound.miss > rig.bound.hit) {
+        console.warn(`a(z) ${fajta} mozgása nem ült rá a csontvázra`, rig.bound);
+      }
+      who.setArt(art, rig);
     } catch (e) {
       // Modell nélkül a tok marad — sötét kapszula a sötétben. Nem szép,
       // de attól még ott van, és attól még elkap.
@@ -2534,7 +2568,29 @@ export class HouseScene implements GameScene {
       nezesIrany,
       haunt.torchOn && !haunt.down[haunt.torchHolder].down && !haunt.hidden,
       haunt.torch / HAUNT.torch,
-      this.director.firstPerson !== null ? this.director.fpPitch : 0
+      // A DŐLÉS IS A KAMERÁÉ, KÜLSŐ NÉZETBEN IS.
+      //
+      // A forgást már a kamerától vettük, a dőlést viszont csak belső
+      // nézetben — kívülről nullát kapott, tehát a fénykúp MINDIG
+      // vízszintes volt. Ezért volt az, hogy „a földre nézek, de nem
+      // világít oda": a kamera lefelé fordult, a lámpa maradt egyenesen.
+      //
+      // A külső kamera dőlése lefelé pozitív (`stage.pitch`), a lámpa
+      // dőlése felfelé — innen az előjel.
+      this.director.firstPerson !== null
+        ? this.director.fpPitch
+        : // A KÜLSŐ KAMERA DŐLÉSE, AZ ALAPÁLLÁSHOZ MÉRVE.
+          //
+          // Nem a kamera szögét vesszük át egy az egyben: a házban a kamera
+          // alapból 1,22 radiánnal (hetven fokkal) néz le, és egy ennyire
+          // lebillentett fénykúp csak a saját lábadat világítaná meg. Azt
+          // vesszük át, amennyivel te BILLENTED — alapállásban a kúp
+          // vízszintes, lefelé döntve a padlóra néz, felfelé a plafonra.
+          //
+          // A másfélszeres szorzó azért kell, mert a kamera dőlése a
+          // vízszintestől csak 0,28 radiánt tud lefelé menni; anélkül a
+          // lefelé nézés alig látszana a fényen.
+          THREE.MathUtils.clamp((CAMERA.housePitch - stage.pitch) * 1.6, -0.9, 0.9)
     );
     this.hauntHud?.update(haunt, me, this.partnered);
   }

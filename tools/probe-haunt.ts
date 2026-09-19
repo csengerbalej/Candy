@@ -372,6 +372,46 @@ console.log('');
     'a szekrényből nem látsz ki') && ok;
 }
 
+// --- A SZÖRNYEK MOZGÁSA ----------------------------------------------------
+//
+// Mindhárom modellben EGYETLEN használható klip van (1,08 mp séta), és eddig
+// ez vitt mindent: az álló szörny helyben lépkedett, a rohanó ugyanolyan
+// ütemben, az elkapás is ez volt. A lakó klipcsomagja viszont ugyanarra a
+// Mixamo-csontvázra készült — mérve 27 csont egyezik —, tehát ráhúzható.
+{
+  const rig = readFileSync('src/render/CharacterRig.ts', 'utf8');
+  const haz = readFileSync('src/scenes/HouseScene.ts', 'utf8');
+  ok =
+    line(
+      'mindhárom szörnynek SAJÁT mozgáskészlete van',
+      rig.includes('export const VAK_CLIPS') &&
+        rig.includes('export const KOVETO_CLIPS') &&
+        rig.includes('export const LESO_CLIPS'),
+      'a mozgás a jellemük, nem díszlet'
+    ) && ok;
+  ok =
+    line(
+      '...és a közös klipcsomagot is megkapják',
+      haz.includes("models.clips('models/harold.clips.json')"),
+      'saját fájljukban csak a séta van'
+    ) && ok;
+  // A KÖVETŐ SOHA NEM FUT — ez a jelleme, és látszania is kell.
+  ok =
+    line(
+      'a követő üldözve is SÉTÁL',
+      /KOVETO_CLIPS[^}]*run: 'Walking'/s.test(rig),
+      'aki ugyanabban a tempóban jön, amikor te rohansz, rosszabb, mint aki fut'
+    ) && ok;
+  // ...és aki megállt, az ÁLL.
+  const lako = readFileSync('src/ai/Homeowner.ts', 'utf8');
+  ok =
+    line(
+      'aki megállt, nem lépked helyben',
+      lako.includes('this.lastSpeed < 0.1'),
+      'az ütem alsó korlátja 0 haladásnál is dolgozott'
+    ) && ok;
+}
+
 // --- A BÚJÁS ÁRA ------------------------------------------------------------
 //
 // A szekrény az egyetlen válasz, ami mindhárom szörny ellen működik —

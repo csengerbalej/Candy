@@ -46,13 +46,72 @@ const CLIP_FOR: ClipMap = {
  * A futás ugyanaz a ciklus gyorsabban — a rig `rate`-je intézi —, és pont
  * ettől lesz rossz nézni: nem vált testtartást, csak GYORSUL.
  */
-export const LURKER_CLIPS: ClipMap = {
-  idle: 'Walking',
-  walk: 'Walking',
-  run: 'Walking',
-  sneak: 'Walking',
-  grab: 'Walking',
+/**
+ * A SZÖRNYEK MOZGÁSA — a közös csomagból, szörnyenként másként.
+ *
+ * A három letöltött modell mindegyikében EGYETLEN használható klip van: egy
+ * 1,08 másodperces járásciklus (a másik nevű klip 0,08 mp, két képkocka
+ * törmelék). Eddig ez az egy klip vitt mindent: az álló szörny helyben
+ * lépkedett, a rohanó ugyanolyan ütemben rakta a lábát, mint a sétáló, és
+ * az elkapás is ugyanaz a séta volt.
+ *
+ * Mérve viszont a szörnyek csontváza és a lakó klipcsomagja HUSZONHÉT
+ * csontban azonos (mindkettő ugyanaz a Mixamo-rig; a szörnyön egy plusz
+ * `headfront` csont van, ami a klipekben nem szerepel). Tehát a lakó teljes
+ * mozgáskészlete ráhúzható — állás, futás, lopakodás —, és nem kell új
+ * animációt szerezni hozzá.
+ *
+ * A HÁROM SZÖRNY HÁROM KÉSZLETET KAP, mert a mozgás a jellemük:
+ */
+
+/**
+ * A VAK: TAPOGATÓZIK, AMÍG KERES.
+ *
+ * Nincs szeme, tehát nem járőrözik magabiztosan — óvatosan lép, előretartott
+ * kézzel. Amikor meghall valamit, ELINDUL: akkor fut. A kettő között nincs
+ * átmenet, és pont ez benne a rossz: amíg tapogat, addig van időd.
+ */
+export const VAK_CLIPS: ClipMap = {
+  idle: 'Idle_5',
+  walk: 'Cautious_Crouch_Walk_Forward',
+  sneak: 'Cautious_Crouch_Walk_Forward',
+  run: 'Running',
+  grab: 'Kick_a_Soccer_Ball',
 };
+
+/**
+ * A KÖVETŐ: SOHA NEM FUT.
+ *
+ * Ő az, aki elől nem elbújni kell, hanem lehagyni — és ez csak akkor igaz,
+ * ha LÁTSZIK is rajta. Egy szörny, aki fut, fenyegetés; egy szörny, aki
+ * ugyanabban a tempóban jön akkor is, amikor te rohansz, sokkal rosszabb.
+ * Ezért nála az üldözés klipje is a séta.
+ */
+export const KOVETO_CLIPS: ClipMap = {
+  idle: 'Idle_5',
+  walk: 'Walking',
+  sneak: 'Walking',
+  run: 'Walking',
+  grab: 'Kick_a_Soccer_Ball',
+};
+
+/**
+ * A LESŐ: ÁLL, AZTÁN ROBBAN.
+ *
+ * Amíg alszik, nem mozog — nem lopakodik, nem tapogat, csak ÁLL. Amikor
+ * felébred, ő a leggyorsabb a házban, és azonnal futásra vált: nincs
+ * „gyanakvó séta" közte, mert nem gyanakszik, hanem tud.
+ */
+export const LESO_CLIPS: ClipMap = {
+  idle: 'Idle_5',
+  walk: 'Running',
+  sneak: 'Idle_5',
+  run: 'Running',
+  grab: 'Kick_a_Soccer_Ball',
+};
+
+/** Visszafelé kompatibilis alapértelmezés. */
+export const LURKER_CLIPS: ClipMap = KOVETO_CLIPS;
 
 export const HOMEOWNER_CLIPS: ClipMap = {
   idle: 'Idle_5',
