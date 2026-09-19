@@ -117,37 +117,20 @@ export class ModelLoader {
 
     // Measure AFTER the yaw, so `length` always means "along the model's nose".
     //
-    // A CSONTOZOTT HÁLÓT A CSONTVÁZÁVAL EGYÜTT KELL MÉRNI.
+    // A KÖTÉSI PÓZ BEFOGLALÓJÁT MÉRJÜK — ÉS EZ SZÁNDÉKOS.
     //
-    // A `Box3.setFromObject` a geometria nyers befoglalóját veszi, és a
-    // háló saját mátrixával szorozza — a csontok méretezéséről viszont nem
-    // tud. A letöltött rigekben az armatúra gyakran visz egy szorzót, és
-    // ilyenkor a mért magasság sokszorosa vagy törtrésze a valódinak. A
-    // következménye pontosan az volt, amit a képen látni: háznyi szörny.
+    // Próbáltam okosabbat: a `SkinnedMesh.computeBoundingBox` a csontok
+    // állását is beleszámolja, tehát azt méri, ami tényleg megjelenik.
+    // Betöltéskor viszont a csontok még a kötési pózban állnak, a keverő
+    // órája nem ketyeg — az eredmény ezért nem pontosabb, csak MÁS. És a
+    // leszállítás (`position.y -= min.y`) ebből a másból számolt: a szörny
+    // három méterrel a padló ALÁ került, ahol nem látszik. A szemei nem
+    // csontozott gyerekek, azok a helyükön maradtak — innen a „két szem
+    // lebeg a sötétben, test nélkül".
     //
-    // A `SkinnedMesh.computeBoundingBox` a CSONTOK állását is beleszámolja,
-    // tehát azt méri, ami tényleg megjelenik.
-    model.updateWorldMatrix(true, true);
-    const box = new THREE.Box3();
-    let volt = false;
-    model.traverse((o) => {
-      const mesh = o as THREE.SkinnedMesh;
-      if (!mesh.isMesh) return;
-      if (mesh.isSkinnedMesh && typeof mesh.computeBoundingBox === 'function') {
-        mesh.computeBoundingBox();
-        if (mesh.boundingBox) {
-          box.union(mesh.boundingBox.clone().applyMatrix4(mesh.matrixWorld));
-          volt = true;
-          return;
-        }
-      }
-      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
-      if (mesh.geometry.boundingBox) {
-        box.union(mesh.geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld));
-        volt = true;
-      }
-    });
-    if (!volt) box.setFromObject(model);
+    // A mértékegység-hibát (a rig centiméterben állt) ott javítjuk, ahol
+    // keletkezik: a `merge-monster.py`-ban. Itt elég a kötési póz.
+    const box = new THREE.Box3().setFromObject(model);
     const size = new THREE.Vector3();
     box.getSize(size);
     const scale =
@@ -156,12 +139,8 @@ export class ModelLoader {
         : (fit.length ?? 1) / Math.max(size.x, size.z);
     model.scale.setScalar(scale);
 
-    // Re-measure and re-centre: scaling moves the box. Ugyanazzal a
-    // módszerrel, különben a középre igazítás mást mérne, mint a méretezés.
-    model.updateWorldMatrix(true, true);
-    const scaled = box.clone().applyMatrix4(
-      new THREE.Matrix4().makeScale(scale, scale, scale)
-    );
+    // Re-measure and re-centre: scaling moves the box.
+    const scaled = new THREE.Box3().setFromObject(model);
     const centre = new THREE.Vector3();
     scaled.getCenter(centre);
     model.position.x -= centre.x;
