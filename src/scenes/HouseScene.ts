@@ -1037,6 +1037,53 @@ export class HouseScene implements GameScene {
    */
   /** Akarjuk-e a belső nézetet. A C gomb kikapcsolja, és akkor tiszteletben tartjuk. */
   private belsotAkar = false;
+  /**
+   * Szemle mód: a szörnyek sorba állnak és nem bántanak.
+   *
+   * Címsorból (`?szemle` vagy `#szemle`) és a 0 gombbal is. A gomb azért
+   * kell, mert a kiadott lap egy kereten belül fut, és oda a címsor
+   * paramétere nem feltétlenül jut el — egy mérőeszköz, amit nem lehet
+   * bekapcsolni, nem mérőeszköz.
+   */
+  private szemle =
+    typeof location !== 'undefined' &&
+    (location.search.includes('szemle') || location.hash.includes('szemle'));
+  private szemleHelyek: THREE.Vector3[] = [];
+
+  /**
+   * A SZEMLE HELYEI: a legszabadabb irány, ami a játékos előtt van.
+   *
+   * Hatvannégy irányt mérünk körbe, és azt választjuk, amerre a legtovább
+   * lehet menni fal nélkül — mert a ház tele van két méteres zsákutcákkal,
+   * és egy falba állított szörny pontosan úgy néz ki, mint egy hibás.
+   */
+  private szemletHelyez(at: THREE.Vector3): void {
+    let legjobb = { yaw: 0, tav: 0 };
+    for (let k = 0; k < 64; k++) {
+      const yaw = (k / 64) * Math.PI * 2;
+      let d = 1;
+      for (; d < 12; d += 0.5) {
+        if (!this.world.walkable(at.x + Math.sin(yaw) * d, at.z + Math.cos(yaw) * d, 1)) break;
+      }
+      if (d > legjobb.tav) legjobb = { yaw, tav: d };
+    }
+    // ...ÉS A KAMERA IS ARRA NÉZ. A szemle akkor ér valamit, ha nem kell
+    // megkeresni őket: a ház sötét, és egy rossz irányba néző kamera pont
+    // azt a kérdést hagyja nyitva, amit el akarunk dönteni.
+    stage.yaw = legjobb.yaw;
+    const oldalX = Math.cos(legjobb.yaw);
+    const oldalZ = -Math.sin(legjobb.yaw);
+    const tav = Math.max(3, Math.min(6, legjobb.tav - 1));
+    this.szemleHelyek = this.lurkers.map((_, i) => {
+      const oldal = (i - (this.lurkers.length - 1) / 2) * 1.6;
+      const p = new THREE.Vector3(
+        at.x + Math.sin(legjobb.yaw) * tav + oldalX * oldal,
+        0,
+        at.z + Math.cos(legjobb.yaw) * tav + oldalZ * oldal
+      );
+      return this.world.walkable(p.x, p.z, 0.6) ? p : this.world.nearestStanding(p, at, 0.6);
+    });
+  }
 
   toggleFirstPerson(): boolean {
     const on = this.director.firstPerson === null;
@@ -2152,7 +2199,32 @@ export class HouseScene implements GameScene {
     const eg = haunt.torchOn && !haunt.down[haunt.torchHolder].down;
     let eget = false;
 
-    for (let i = 0; i < this.lurkers.length; i++) {
+    // SZEMLE MÓD (?szemle): a szörnyek egy sorban eléd állnak, mozdulatlanul,
+    // és nem bántanak.
+    //
+    // Nem játékmód, hanem MÉRŐESZKÖZ. Egy vaksötét házban, ahol a szörnyek
+    // kiszámíthatatlanul mozognak, órákba telt eldönteni, hogy egy alak
+    // „nem látszik" vagy „nincs ott" — és a legtöbb kísérletem azon bukott
+    // el, hogy a szörnyet egy falba tettem. Itt kiszámolt, szabad helyre
+    // állnak, szemben veled: ha nem látod őket, az a rajzolás hibája.
+    if (this.szemle) {
+      if (!this.szemleHelyek.length) this.szemletHelyez(testem.position);
+      for (let i = 0; i < this.lurkers.length; i++) {
+        const hely = this.szemleHelyek[i];
+        if (!hely) continue;
+        const szorny = this.lurkers[i];
+        szorny.position.copy(hely);
+        szorny.group.position.copy(hely);
+        szorny.group.visible = true;
+        szorny.group.lookAt(testem.position.x, 0, testem.position.z);
+        szorny.state = 'IDLE';
+        szorny.poseIdle(step);
+        this.lurkerFled[i] = 0;
+      }
+      this.game.banner = 'SZEMLE — a szörnyek nem bántanak';
+    }
+
+    for (let i = 0; i < this.lurkers.length && !this.szemle; i++) {
       const szorny = this.lurkers[i];
 
       // ELIJESZTVE: távol van, és nem is számít. Enélkül a menekülés csak
@@ -2352,6 +2424,7 @@ export class HouseScene implements GameScene {
         // A KÖVETŐ NEM BÁNT. Ő csak jön, és közben zajt kelt — a baj nem ő,
         // hanem amit MIATTA hallanak meg a többiek.
         if (this.lurkerKind[i] === 'koveto') continue;
+        if (this.szemle) continue;
         if (szorny.position.distanceTo(testem.position) > HOUSE.catchRadius) continue;
         if (!haunt.caught(me, testem.position)) continue;
         // AZ IJESZTÉS a becsapódás PILLANATÁBAN jön, minden bevezetés
@@ -2757,6 +2830,14 @@ export class HouseScene implements GameScene {
     h.torchOn = !h.torchOn;
     this.game.banner = h.torchOn ? 'LÁMPA BE' : 'LÁMPA KI';
     sound.clip('empty', 0.4);
+  }
+
+  /** A 0 gomb: szemle be/ki. A helyeket újraszámoljuk, ahol épp állsz. */
+  toggleSzemle(): boolean {
+    this.szemle = !this.szemle;
+    this.szemleHelyek = [];
+    this.game.banner = this.szemle ? 'SZEMLE BE' : 'SZEMLE KI';
+    return this.szemle;
   }
 
   /** A H gomb: az eligazítás bármikor visszahívható. */

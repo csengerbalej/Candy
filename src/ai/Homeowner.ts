@@ -123,6 +123,19 @@ export class Homeowner {
     this.cone.visible = on;
   }
 
+  /**
+   * ÁLLJ ÉS LÉLEGEZZ — a szemléhez.
+   *
+   * A szemle kihagyja a teljes léptetést (nem járőröznek, nem üldöznek),
+   * és ezzel az animációt is kihagyta: a szörnyek kitárt karral, kötési
+   * pózban álltak. Egy T-póz pont azt a kérdést hagyja nyitva, amire a
+   * szemle válaszolni hivatott — hogy rendben van-e a modell.
+   */
+  poseIdle(dt: number): void {
+    this.rig?.play('idle');
+    this.rig?.update(dt);
+  }
+
   setArt(art: THREE.Object3D, rig: Rig): void {
     this.group.remove(this.blockout);
     this.blockout.geometry.dispose();

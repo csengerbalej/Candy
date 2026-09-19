@@ -540,6 +540,12 @@ window.addEventListener('keydown', (e) => {
     }
   }
 
+  // A 0: SZEMLE. A szörnyek eléd állnak és nem bántanak — hogy meg lehessen
+  // nézni őket úgy, ahogy különben soha.
+  if (e.code === 'Digit0' && active && 'toggleSzemle' in active) {
+    (active as { toggleSzemle(): boolean }).toggleSzemle();
+  }
+
   if (e.code === 'KeyC' && active?.toggleFirstPerson) {
     active.toggleFirstPerson();
   }
