@@ -6,7 +6,14 @@ import { defineConfig } from 'vite';
 // böngésző egy RÉGEBBI kiadást szolgált ki — és erről semmi nem árulkodik
 // a képernyőn. Egy szám a sarokban eldönti a kérdést, mielőtt bárki
 // keresni kezdene egy hibát, ami már nincs.
-const KIADAS = new Date().toISOString().slice(5, 16).replace('T', ' ');
+const KIADAS = (() => {
+  // HELYI IDŐ, nem UTC. Az első változat `toISOString`-et használt, és a
+  // játékos azt látta, hogy a bélyeg két órával korábbi az órájánál —
+  // vagyis pont azt hitte róla, amit ki akartunk zárni: hogy régi.
+  const most = new Date();
+  const ket = (n: number): string => String(n).padStart(2, '0');
+  return `${ket(most.getMonth() + 1)}-${ket(most.getDate())} ${ket(most.getHours())}:${ket(most.getMinutes())}`;
+})();
 
 export default defineConfig({
   define: { __KIADAS__: JSON.stringify(KIADAS) },
