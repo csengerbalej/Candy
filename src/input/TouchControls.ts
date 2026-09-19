@@ -90,7 +90,7 @@ export class TouchControls {
       <div class="touch-pad"><div class="touch-knob"></div></div>
       <div class="touch-keys">
         <button class="touch-btn nitro" data-hold="nitro">NITRÓ</button>
-        <button class="touch-btn act" data-hold="interactHeld">E</button>
+        <button class="touch-btn act" data-hold="interactHeld">FELVESZ</button>
         <button class="touch-btn jump" data-hold="jumpHeld">UGRÁS</button>
       </div>
       <!-- A LÖVÉS a BAL oldalon, a bot fölött: a jobb hüvelykujj a nézést
@@ -205,6 +205,15 @@ export class TouchControls {
     window.addEventListener('touchstart', (e) => {
       if (!onCanvas(e)) return;
       const t = e.changedTouches[0];
+      // A KAMERA A JOBB OLDALÉ, A MOZGÁS A BALÉ.
+      //
+      // Eddig a nézést a képernyő BÁRMELY pontján lehetett húzni, csak a
+      // botkormány korongján nem. A bot viszont oda ugrik, ahová leteszed
+      // az ujjad — tehát a bal alsó negyedben a két gesztus egymás hegyén
+      // volt, és attól függött, melyik elemre esett az ujjad, hogy léptél
+      // vagy néztél. Két hüvelykujjnak két fele kell: bal = merre mész,
+      // jobb = merre nézel.
+      if (t.clientX < window.innerWidth / 2) return;
       id = t.identifier;
       lastX = t.clientX;
       lastY = t.clientY;

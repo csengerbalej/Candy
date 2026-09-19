@@ -861,6 +861,18 @@
          van hely a sarkokban. Érintőn a sarkok a hüvelykujjaké. */
       body[data-touch] .haunt-hud { bottom: calc(210px + var(--lent)); }
       body[data-mode="haunt"] .touch-fire { display: none; }
+      /* NITRÓ SINCS A HÁZBAN: nincs mit gyorsítani, és egy gomb, ami nem
+         csinál semmit, elveszi a helyet attól, ami igen. */
+      body[data-mode="haunt"] .touch-btn.nitro { display: none; }
+
+      /* A KÍSÉRTETHÁZBAN A MÁSIK MÓD KIJELZŐJE FUTOTT.
+         Játszva mérve, egyszerre a képernyőn: a `SUSPICIOUS · 0 csíny ·
+         0 lebukás` sáv (a házban nincs lakó, nincs csíny, nincs lebukás)
+         és egyedül játszva a szobakód (nincs kit meghívni). Horrorban ez
+         különösen sokat ront: a feszültséget az tartja, hogy minden, amit
+         látsz, erről a házról szól. */
+      body[data-mode="haunt"] .hud-watch { display: none; }
+      body[data-mode="haunt"][data-solo] .net-badge { display: none; }
 
       /* A KÓD-JELVÉNY SZŰK KÉPERNYŐN ALULRA MEGY.
 

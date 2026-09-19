@@ -553,6 +553,9 @@ export class HouseScene implements GameScene {
       // A TŰZ ÉS A TÁVCSŐ GOMB nem kell ide: ebben a módban nincs fegyver.
       // Az érintőgombokat a CSS veszi ki, ebből a jelzésből.
       document.body.dataset.mode = 'haunt';
+      // EGYEDÜL a szobakód és a társ-sor nem jelenhet meg: nincs kit
+      // meghívni, és nincs kinek a talpon létét jelenteni.
+      if (!this.partnered) document.body.dataset.solo = '1';
       this.haunt = new Haunt();
       this.jumpscare = new Jumpscare(document.body);
       this.hauntHud = new HauntHud(document.body);
@@ -562,13 +565,21 @@ export class HouseScene implements GameScene {
       this.glimpse = new Glimpse();
       this.scene.add(this.glimpse.group);
 
-      // A MUMUS a TÁRSAD alakját viseli — egyedül a tiédet. Ugyanaz a
-      // karaktermodell, amit a választóképernyőn láttál: ettől hiszed el
-      // egy pillanatra, hogy tényleg ő az.
+      // A MUMUS EGYELŐRE KIMARAD (HAUNT.mumusOn).
+      //
+      // Az ötlet áll: a társad alakjában jön, és csak akkor mozdul, amikor
+      // nem nézel rá. A kivitel viszont játszva nem az volt: ÁTJÖTT A
+      // FALON, nekiment a játékosnak, és egy villanással beugrott egy
+      // karakter — ez nem félelmetes, hanem olcsó. Két dolog hiányzik
+      // hozzá: ütközés a házzal (a mumus most a rács nélkül közelít), és
+      // egy találkozás, ami nem egyetlen villanás.
+      //
+      // A kód marad, mert a hibái javíthatók, és a felépítés jó.
       this.mumus = new Mumus();
       this.scene.add(this.mumus.group);
       const kie = this.partnered ? 1 - this.localIndex : this.localIndex;
-      void this.mumus.load(CHARACTERS[session.selection.characters[kie]].model);
+      const alak = CHARACTERS[session.selection.characters[kie]];
+      void this.mumus.load(alak.model, alak.clips);
 
       // ELEMEK: nyolc darab, szétszórva a házban, a saroktól távol. Nyolc
       // darab plusz háromszázhatvan másodpercnyi fény — több, mint a telep
@@ -1258,7 +1269,12 @@ export class HouseScene implements GameScene {
         const anyag = new THREE.MeshStandardMaterial({
           vertexColors: true,
           map: eredeti?.map ?? null,
-          color: 0xffffff,
+          // SÖTÉTEBBRE HANGOLVA, MÉRÉSSEL. Teljes fényerőn a szörny 75/255
+          // volt, miközben a fal mögötte 19 — fehér szobor egy sötét
+          // szobában. 0,35-tel 61, és ott már nem világít, hanem VAN.
+          // (Lejjebb nincs értelme: 0,16-nál és 0,08-nál is 61 marad, mert
+          // onnantól nem a festés adja a fényét.)
+          color: new THREE.Color().setScalar(0.35),
           roughness: 1,
           metalness: 0,
         });
@@ -2280,13 +2296,16 @@ export class HouseScene implements GameScene {
       }
     }
 
-    // A HÁZ MAGÁTÓL IS HANGOT AD. Nyolc-huszonöt másodpercenként egy
-    // reccsenés vagy egy távoli morgás — semmi nem történik utána. Pont ez
-    // a lényeg: megtanulod, hogy nem minden zaj jelent szörnyet, és akkor
-    // egyszer mégis.
+    // A HÁZ MAGÁTÓL IS HANGOT AD. Nyolc-huszonöt másodpercenként egy távoli
+    // morgás — semmi nem történik utána. Pont ez a lényeg: megtanulod, hogy
+    // nem minden zaj jelent szörnyet, és akkor egyszer mégis.
+    //
+    // AJTÓNYIKORGÁS NINCS BENNE TÖBBÉ. A reccsenés-hangmintánk ajtónak
+    // hallatszik, és a házban már nincsenek ajtók: egy hang, ami olyasmit
+    // ígér, ami nincs, nem hangulat, hanem félrevezetés.
     if (this.hangClock > this.kovetkezoNesz) {
       this.kovetkezoNesz = this.hangClock + 8 + this.sors() * 17;
-      sound.clip(this.sors() < 0.45 ? 'h-growl' : 'h-creak', 0.18 + this.sors() * 0.16);
+      sound.clip('h-growl', 0.18 + this.sors() * 0.16);
     }
 
     // === AMI ÁTSZALAD ELŐTTED ==============================================
@@ -2385,7 +2404,7 @@ export class HouseScene implements GameScene {
 
       // FELBUKKANÁS. Csak akkor, ha nem bújsz, és van hova: a pontnak
       // járhatónak kell lennie, különben a falban állna.
-      if (!this.mumus.active && !haunt.hidden && this.hangClock > this.kovetkezoMumus) {
+      if (HAUNT.mumusOn && !this.mumus.active && !haunt.hidden && this.hangClock > this.kovetkezoMumus) {
         const tav = HAUNT.mumusNear + this.sors() * (HAUNT.mumusFar - HAUNT.mumusNear);
         const szog = nezesIrany + (this.sors() - 0.5) * 1.2;
         const hol = new THREE.Vector3(
@@ -2517,7 +2536,7 @@ export class HouseScene implements GameScene {
       haunt.torch / HAUNT.torch,
       this.director.firstPerson !== null ? this.director.fpPitch : 0
     );
-    this.hauntHud?.update(haunt, me);
+    this.hauntHud?.update(haunt, me, this.partnered);
   }
 
   /**
@@ -2721,6 +2740,7 @@ export class HouseScene implements GameScene {
     sound.stopMusic();
     sound.stopLoops();
     delete document.body.dataset.mode;
+    delete document.body.dataset.solo;
     this.jumpscare?.dispose();
     this.glimpse?.dispose();
     this.mumus?.dispose();

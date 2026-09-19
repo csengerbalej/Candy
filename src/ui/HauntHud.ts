@@ -23,15 +23,23 @@ export class HauntHud {
     parent.appendChild(this.el);
   }
 
-  update(haunt: Haunt, me: 0 | 1): void {
+  /**
+   * @param ketten Ketten játsszátok-e. Egyedül a TÁRSAD-sor nem jelenhet
+   * meg: egy kijelző, ami egy nem létező társ állapotát jelenti, nem
+   * információ, hanem zaj — és elárulja, hogy a mód egy másik módból
+   * örökölte a felületét.
+   */
+  update(haunt: Haunt, me: 0 | 1, ketten = true): void {
     const other = (1 - me) as 0 | 1;
     const telep = Math.round((haunt.torch / HAUNT.torch) * 100);
     // A TELEP SZÍNE a saját figyelmeztetése: húsz százalék alatt vörös. Egy
     // szám, amit el kell olvasni, késő; egy szín, ami megváltozik, nem.
     const allapot = telep <= 20 ? 'keves' : telep <= 50 ? 'fele' : 'jo';
-    const tars = haunt.down[other].down
-      ? `<b class="baj">A TÁRSAD LENT VAN — ${Math.ceil(haunt.down[other].left)} mp</b>`
-      : '<span>a társad talpon</span>';
+    const tars = !ketten
+      ? ''
+      : haunt.down[other].down
+        ? `<b class="baj">A TÁRSAD LENT VAN — ${Math.ceil(haunt.down[other].left)} mp</b>`
+        : '<span>a társad talpon</span>';
     const en = haunt.down[me].down
       ? `<b class="baj">LENT VAGY — ${Math.ceil(haunt.down[me].left)} mp</b>`
       : '';

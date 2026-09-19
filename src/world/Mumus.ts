@@ -65,11 +65,22 @@ export class Mumus {
 
   /**
    * @param model A társad (egyedül: a saját) karaktermodellje.
+   * @param clipPack A KÖZÖS klipcsomag. Enélkül T-PÓZBAN ÁLLT.
+   *
+   * A karakterek saját fájljában nincs animáció: minden riggelt szereplő
+   * ugyanazon a csontvázon ül, és egyetlen közös csomag mozgatja mindet
+   * (ezért kerül egy új szereplő egy hálóba, nem egy könyvtárba). A mumus
+   * eddig csak a saját fájlját kérte, abban nem volt klip, és a
+   * csontváznak nem volt mit lejátszania.
    */
-  async load(model: string): Promise<void> {
+  async load(model: string, clipPack?: string): Promise<void> {
     try {
       const art = await models.instance(model, { height: MOVE.height });
-      const clips = await models.ownClips(model);
+      const [own, kozos] = await Promise.all([
+        models.ownClips(model),
+        clipPack ? models.clips(clipPack) : Promise.resolve([]),
+      ]);
+      const clips = [...own, ...kozos];
       art.traverse((o) => {
         o.userData.cpNoOutline = true;
         const mesh = o as THREE.Mesh;

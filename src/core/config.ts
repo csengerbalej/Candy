@@ -1303,6 +1303,15 @@ export const HAUNT = {
    * kész, ez visszakapcsol, és visszajön a kapzsiság-döntés is.
    */
   exitOpen: false,
+  /**
+   * JÖN-E EGYÁLTALÁN A MUMUS.
+   *
+   * Most nem. Játszva átjött a falon, nekiment a játékosnak, és egy
+   * villanással beugrott egy karakter — az ötlet jó, a kivitel olcsó. Két
+   * dolog hiányzik hozzá: hogy a házzal is ütközzön, és hogy a találkozás
+   * több legyen egyetlen villanásnál.
+   */
+  mumusOn: false,
   /** Ennyi ideig kell az ajtóban állni. A kijutás se legyen véletlen. */
   exitHold: 1.4,
   /**

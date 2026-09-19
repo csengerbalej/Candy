@@ -182,7 +182,14 @@ export class Hud {
         hint('move', i, pad, 'mozgás') +
         hint('sprint', i, pad, 'futás') +
         hint('jump', i, pad, 'ugrás ×2') +
-        hint('action', i, pad, 'csíny / cukorka') +
+        // A CÍMKE A MÓDHOZ IGAZODIK. A kísértetházban nincs csíny — egy
+        // súgó, ami nem létező igét kínál, nem segít, hanem téveszt.
+        hint(
+          'action',
+          i,
+          pad,
+          document.body.dataset.mode === 'haunt' ? 'cukorka / bújás' : 'csíny / cukorka'
+        ) +
         // A kamera: egy eszközön egy ember nézi, tehát a sajátja. A nyilak
         // forgatják, a Q negyedfordulót lép, a T szöget vált.
         (f.soloActive === i ? '<kbd>↑↓←→</kbd>vagy <kbd>húzás</kbd>kamera' : '');

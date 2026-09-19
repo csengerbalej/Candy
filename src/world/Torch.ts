@@ -126,7 +126,12 @@ export class Torch {
     // negyedére esik, a távoli szinte változatlan. Egy zseblámpa amúgy is
     // így viselkedik: nem a közeli fal ragyog tőle, hanem a folyosó vége
     // sötétedik el.
-    this.light.intensity = on ? 8.2 * flicker * Math.min(1, fade * 4) * low : 0;
+    // TIZENNYOLC, NEM NYOLC. A lapos lecsengéssel a nyolcas érték
+    // játszva túl kevésnek bizonyult: „a zseblámpával a falra világítok és
+    // sötét". Mérve ugyanazon a helyen: nyolccal a fal 4/255, tizennyolccal
+    // 6, harmincöttel 10 — a szörny viszont 58-ról 92-re ugrik, tehát
+    // feljebb már ő ég ki. Tizennyolc a kettő között áll meg.
+    this.light.intensity = on ? 18 * flicker * Math.min(1, fade * 4) * low : 0;
   }
 
   dispose(): void {
