@@ -247,9 +247,17 @@ export class CharacterRig implements Rig {
  */
 function stripRootTranslation(clip: THREE.AnimationClip): THREE.AnimationClip {
   const stripped = clip.clone();
+  // Csak a GYÖKÉR vízszintes elmozdulása esik ki: a testet a világban a
+  // játék mozgatja, a függőleges ringás viszont a járás fele.
+  //
+  // (Egy ideig itt MINDEN helyzetsáv ki volt szűrve, mert az új szörnyek
+  // az animáció elindulásakor százszorosra nőttek. A hiba nem itt volt:
+  // a letöltött rigek csontjai CENTIMÉTERBEN álltak — mérve a csípő
+  // csontja 126 méteren —, és ezt a `merge-monster.py` rendezi el, ahol
+  // a hiba keletkezik. Itt elég a régi, finomabb szabály.)
   for (const track of stripped.tracks) {
     if (!/\.position$/.test(track.name)) continue;
-    if (!/(^|\.)(Hips|hips|mixamorig:Hips)\./.test(`.${track.name}`)) continue;
+    if (!/(^|\.)(Hips|hips|mixamorig:?Hips)\./.test(`.${track.name}`)) continue;
     const values = track.values as Float32Array;
     for (let i = 0; i < values.length; i += 3) {
       values[i] = 0;

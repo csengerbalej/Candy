@@ -13,6 +13,7 @@ másolatokat kidobja.
   blender -b -P tools/merge-monster.py -- konyvtar ki.glb
 """
 import bpy, sys, os, glob
+from mathutils import Vector
 
 argv = sys.argv[sys.argv.index('--') + 1:]
 konyvtar, ki = argv[0], argv[1]
@@ -54,6 +55,33 @@ for a in akciok:
     sav = alap_armature.animation_data.nla_tracks.new()
     sav.name = a.name
     sav.strips.new(a.name, 0, a)
+
+# A RIG MÉRTÉKEGYSÉGÉT ITT TESSZÜK RENDBE.
+#
+# A letöltött rigek csontjai CENTIMÉTERBEN állnak: mérve a csípő csontja
+# 126 méteren volt, a fej 182-n. A háló ettől még jónak látszik (a kötési
+# mátrixok kiegyenlítik), a JÁTÉK viszont a csontok világbeli helyére
+# épít — a testszélességre, a fej magasságára, a méretezésre —, és ott már
+# százszoros hibát kapunk: háznyi szörnyet.
+#
+# Ezért a teljes hierarchiát átskálázzuk úgy, hogy a háló pontosan két
+# méter magas legyen, és BEÉGETJÜK a transzformációt. Innentől minden —
+# csont, háló, animáció — méterben van.
+meshek = [o for o in bpy.data.objects if o.type == 'MESH']
+lo = min((o.matrix_world @ Vector(c)).z for o in meshek for c in o.bound_box)
+hi = max((o.matrix_world @ Vector(c)).z for o in meshek for c in o.bound_box)
+magas = max(1e-6, hi - lo)
+arany = 2.0 / magas
+print(f'MERET {magas:.3f} -> 2.000 (szorzo {arany:.5f})')
+
+bpy.ops.object.select_all(action='DESELECT')
+alap_armature.select_set(True)
+bpy.context.view_layer.objects.active = alap_armature
+alap_armature.scale = (alap_armature.scale[0] * arany,) * 3
+bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+for o in meshek:
+    o.select_set(True)
+bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
 
 bpy.ops.export_scene.gltf(
     filepath=ki,
