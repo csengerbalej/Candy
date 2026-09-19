@@ -419,6 +419,14 @@ export class HouseScene implements GameScene {
     queueMicrotask(() => {
       if (this.director.firstPerson === null) this.toggleFirstPerson();
     });
+    // ...ÉS OTT IS MARAD.
+    //
+    // Egy egyszeri bekapcsolás kevés volt: játszva felülnézetben indult a
+    // kör. A rendezőt a kör alatt más is állíthatja (ablakméret, szünet,
+    // szobavágás), és ha közben visszaáll külsőre, a játékos egy
+    // alaprajzot néz egy horrorjáték helyett. Amíg a C-vel KI nem kéri,
+    // minden képkockán visszatérünk a szemhez.
+    this.belsotAkar = true;
 
     this.director.soloActive = this.localIndex;
     this.director.framing = {
@@ -1027,8 +1035,12 @@ export class HouseScene implements GameScene {
    * és onnan a saját koponya belseje látszana. A TÁRSÉ viszont marad: őt
    * látni kell, különben egy láthatatlan ellenfél ellen játszol.
    */
+  /** Akarjuk-e a belső nézetet. A C gomb kikapcsolja, és akkor tiszteletben tartjuk. */
+  private belsotAkar = false;
+
   toggleFirstPerson(): boolean {
     const on = this.director.firstPerson === null;
+    this.belsotAkar = on;
     this.director.firstPerson = on ? this.localIndex : null;
     this.director.fpPitch = 0;
     const mine = this.players[this.localIndex];
@@ -2084,6 +2096,8 @@ export class HouseScene implements GameScene {
   private updateHaunt(step: number): void {
     const haunt = this.haunt;
     if (!haunt) return;
+    // A NÉZET A SZEMBŐL VAN, amíg a játékos mást nem kér.
+    if (this.belsotAkar && this.director.firstPerson === null) this.toggleFirstPerson();
 
     const me = this.localIndex as 0 | 1;
     const testem = this.players[me];

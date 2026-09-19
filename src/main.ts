@@ -5,6 +5,7 @@ import { TouchControls, hasTouch } from './input/TouchControls';
 import { InputManager } from './input/InputManager';
 import { Frontend, type FrontendPhase, type FrontendResult } from './ui/Frontend';
 import { PauseMenu, type PauseActions } from './ui/PauseMenu';
+import { sound } from './audio/Sound';
 import { ResultsScreen } from './ui/ResultsScreen';
 import { loadSettings, applySettings, saveSettings, settings, DEFAULTS } from './game/Settings';
 import { Session } from './game/Session';
@@ -520,6 +521,23 @@ window.addEventListener('keydown', (e) => {
   // hat, az ne úgy tudja meg, hogy meghal.
   if (e.code === 'KeyH' && active && 'toggleBrief' in active) {
     (active as { toggleBrief(): void }).toggleBrief();
+  }
+
+  // AZ M: NÉMÍTÁS. Nem beállítás, hanem egy gomb — mert a játékos nem
+  // akkor akarja lehalkítani, amikor a menüben van, hanem amikor épp
+  // szól. A választás megmarad a következő indulásig is.
+  if (e.code === 'KeyM') {
+    const nema = localStorage.getItem('cp-nema') === '1';
+    sound.setMuted(!nema);
+    try {
+      localStorage.setItem('cp-nema', nema ? '0' : '1');
+    } catch {
+      // Privát ablakban nincs tárolás — a némítás akkor is él, csak nem marad meg.
+    }
+    if (active && 'game' in active) {
+      const g = (active as { game?: { banner: string } }).game;
+      if (g) g.banner = nema ? 'HANG BE' : 'NÉMA';
+    }
   }
 
   if (e.code === 'KeyC' && active?.toggleFirstPerson) {
