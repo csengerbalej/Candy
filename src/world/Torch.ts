@@ -54,7 +54,7 @@ export class Torch {
     // elmossa a korong szélét, az 1,35-ös lecsengés pedig a közeli
     // túlvilágítást veszi vissza — a távoli fényt nem, mert azt a tágabb
     // kúp bőven pótolja (mérve: a kép átlaga 13-ról 24-re nőtt).
-    this.light = new THREE.SpotLight(0xffd9a8, 0, 32, HAUNT.beamLight, 0.7, 1.35);
+    this.light = new THREE.SpotLight(0xffd9a8, 0, 32, HAUNT.beamLight, 0.7, 0.4);
     // A LÁMPA ÁRNYÉKOT VET — és ez a mód legnagyobb látványbeli nyeresége.
     //
     // Enélkül a szörny egy világos folt a sötétben; árnyékkal viszont
@@ -113,7 +113,20 @@ export class Torch {
     // ritmusa. Egy szabályos pulzálás gépnek látszik.
     const flicker = 1 + Math.sin(this.clock * 11) * 0.04 + Math.sin(this.clock * 3.3) * 0.05;
     const low = fade < 0.2 ? 0.45 + Math.sin(this.clock * 24) * 0.35 : 1;
-    this.light.intensity = on ? 120 * flicker * Math.min(1, fade * 4) * low : 0;
+    // A LECSENGÉS LAPOS, AZ ERŐSSÉG KICSI — és ez a kettő együtt jár.
+    //
+    // Mérve: a régi görbével (120 erősség, 1,35 lecsengés) a lámpa 3,5
+    // méteren 22 egységnyi fényt adott, 15 méteren 3,1-et. A közeli érték
+    // annyira sok, hogy a képfeldolgozás TELÍTŐDIK: onnantól sem a festés,
+    // sem a tükröződés nem számít, minden egyforma fehér lesz. Pontosan
+    // ezért látszott a szörny fehér szobornak (mérve 123/255, miközben a
+    // fal mellette 16) és ezért égett ki a fal, ha nekimentél.
+    //
+    // A 0,4-es lecsengés LAPOS: 3,5 méteren 5,0, 15 méteren 2,8 — a közeli
+    // negyedére esik, a távoli szinte változatlan. Egy zseblámpa amúgy is
+    // így viselkedik: nem a közeli fal ragyog tőle, hanem a folyosó vége
+    // sötétedik el.
+    this.light.intensity = on ? 8.2 * flicker * Math.min(1, fade * 4) * low : 0;
   }
 
   dispose(): void {

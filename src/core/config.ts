@@ -1295,6 +1295,14 @@ export const HAUNT = {
    * döntés, ami elviszi a kört.
    */
   quota: 8,
+  /**
+   * NYITVA VAN-E EGYÁLTALÁN A KIJÁRAT.
+   *
+   * Most nincs: a tesztelés alatt a kör ne tudjon véletlenül véget érni,
+   * mert a küszöbhöz érve egy gombnyomás kivinne. Amikor a ház tartalma
+   * kész, ez visszakapcsol, és visszajön a kapzsiság-döntés is.
+   */
+  exitOpen: false,
   /** Ennyi ideig kell az ajtóban állni. A kijutás se legyen véletlen. */
   exitHold: 1.4,
   /**

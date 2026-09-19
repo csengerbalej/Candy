@@ -575,7 +575,11 @@ export class HouseScene implements GameScene {
       // maga —, de csak akkor, ha mindet megtalálod, és a keresés is
       // fénybe kerül. Ez a mód gazdasága.
       const elemek: THREE.Vector3[] = [];
-      for (let i = 0; i < 8 && elemek.length < 8; i++) {
+      // ÖT ELEM, NEM NYOLC. Játszva úgy jött ki, hogy „egy picit túl
+      // gyakori a lámpa": ha minden sarokban van pót, akkor a fény nem
+      // erőforrás, hanem adottság — és a sötétség, amire az egész mód
+      // épül, sosem következik be.
+      for (let i = 0; i < 5 && elemek.length < 5; i++) {
         const p = this.world.randomStanding(sors, MOVE.radius, elemek, 12);
         if (p) elemek.push(p);
       }
@@ -1251,15 +1255,23 @@ export class HouseScene implements GameScene {
         // és soha nem látszott. Ettől lett a szörny egyenletes agyagszobor.
         // (Pontosan ugyanez a hiba volt a házon a toonify-jal.)
         const eredeti = mesh.material as THREE.MeshStandardMaterial;
-        mesh.material = new THREE.MeshStandardMaterial({
+        const anyag = new THREE.MeshStandardMaterial({
           vertexColors: true,
           map: eredeti?.map ?? null,
-          // A szín SZORZÓ a csúcsszínre: ezzel hangoljuk sötétre, nem a
-          // festés eldobásával.
-          color: 0x8a8898,
-          roughness: 0.96,
+          color: 0xffffff,
+          roughness: 1,
           metalness: 0,
         });
+        // A FESTÉS SÖTÉT, ÉS AZ IS MARAD.
+        //
+        // Kipróbáltam visszaszámolni egy gamma-lépést (a Blender sRGB-ként
+        // értelmezi a beírt színt, és lineárisan exportálja, így a 0,42-es
+        // hullaszürkéből 0,13 lesz) — csakhogy a hatványozás a SÖTÉT
+        // pontokat emeli a legjobban: a 0,011-ből 0,107 lett, és a szörny
+        // ettől lett VILÁGOSABB, nem hihetőbb. A fehérséget nem a festés
+        // okozta, hanem a lámpa közeli túlereje; azt a Torch lecsengése
+        // javítja. A festés marad annak, aminek készült.
+        mesh.material = anyag;
       });
       // A SZEM A JEL, amiből eldöntöd, mit csinálj.
       //
@@ -1934,8 +1946,15 @@ export class HouseScene implements GameScene {
     // lámpa kúpja, az égetés szöge, és az is, hogy merre szalad át valami.
     // Ha ezek külön számolnák, előbb-utóbb elcsúsznának — és a játékos azt
     // látná, hogy ráfogja a fényt valamire, mégsem történik semmi.
-    const nezesIrany =
-      this.director.firstPerson !== null ? stage.yaw : testem.mesh.rotation.y;
+    // MINDIG A KAMERA, KÜLSŐ NÉZETBEN IS.
+    //
+    // Eddig csak belső nézetben követte a kamerát; kívülről a szörny
+    // FORGÁSÁT használta, az pedig a haladási irányból jön. Így oldalazva
+    // oldalra világított, hátrálva hátra, megállva pedig ott maradt, ahol
+    // utoljára léptél — miközben a kamera (és te) máshová néztél. Egy
+    // kézben tartott lámpa a TEKINTETET követi, nem a lábat, és ez külső
+    // nézetben ugyanúgy igaz.
+    const nezesIrany = stage.yaw;
     this.jumpscare?.update(step);
 
     // AZ ELIGAZÍTÁS. Bármelyik gomb elteszi; a H bármikor visszahozza. Amíg
@@ -2229,7 +2248,15 @@ export class HouseScene implements GameScene {
     // Kívülről ez úgy néz ki, hogy „a szörnyek meg sem próbálnak elkapni".
     // Hét méter: a szomszéd szobában nem hallatszik, a hátad mögött igen.
     if (testem.moving && !haunt.down[me].down) {
-      this.noise.emit(testem.position, testem.isLoud ? NOISE.sprintRadius : 7, 'lépteid');
+      // A VAK MESSZEBBRŐL HALL.
+      //
+      // Hét méter volt, és játszva ez azt jelentette, hogy a szörnyekkel
+      // szinte soha nem találkozol: a ház 78×64 méter, három szörny jár
+      // benne, és hét méteren belülre kerülni ritka véletlen. Egy
+      // horrorjáték, amiben nem történik semmi, nem félelmetes, hanem
+      // üres. Tizennégy méterrel a Vak tényleg KERES — és ettől lesz
+      // értelme a megállásnak is, ami az ellenszere.
+      this.noise.emit(testem.position, testem.isLoud ? NOISE.sprintRadius : 14, 'lépteid');
     }
 
     this.hangClock += step;
@@ -2404,7 +2431,7 @@ export class HouseScene implements GameScene {
     // egyes darab után újra eldöntöd, hogy kimész-e most, vagy maradsz még
     // egyért.
     const ajtoban = testem.position.distanceTo(this.world.exitZone) < this.world.exitRadius;
-    if (ajtoban && !haunt.hidden) {
+    if (ajtoban && !haunt.hidden && HAUNT.exitOpen) {
       if (this.input.get(me).interactHeld) {
         this.kijutas += step;
         this.game.banner = `KIFELÉ… ${Math.round((this.kijutas / HAUNT.exitHold) * 100)}%`;
@@ -2416,6 +2443,10 @@ export class HouseScene implements GameScene {
             ? `E — KIFELÉ (${haunt.candy} cukorkával, ELÉG)`
             : `E — KIFELÉ (${haunt.candy} / ${HAUNT.quota} — maradsz még egyért?)`;
       }
+    } else if (ajtoban && !haunt.hidden) {
+      // A KIJÁRAT MOST BE VAN ZÁRVA (lásd HAUNT.exitOpen). Nem hallgatunk
+      // róla: egy küszöb, ami néma, hibának látszik.
+      this.game.banner = 'A KIJÁRAT ZÁRVA — a ház még nem enged ki';
     } else {
       this.kijutas = 0;
     }

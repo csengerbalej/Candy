@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { models } from '../assets/ModelLoader';
+import { CharacterRig } from '../render/CharacterRig';
 import { MOVE, HAUNT } from '../core/config';
 
 /**
@@ -30,6 +31,19 @@ import { MOVE, HAUNT } from '../core/config';
 export class Mumus {
   readonly group = new THREE.Group();
   private art: THREE.Object3D | null = null;
+  /**
+   * A CSONTVÁZ — enélkül T-PÓZBAN ÁLLT, kitárt karokkal.
+   *
+   * Ez mindent elrontott, amire a mumus épül: a lényeg, hogy a TÁRSADNAK
+   * nézd egy pillanatra. Egy T-pózban álló alak nem társ, hanem egy
+   * betöltetlen modell — azonnal látszik rajta, hogy a játék hibázott, és
+   * onnantól nem félsz tőle, hanem nézed.
+   *
+   * Áll: `idle`. Amíg közelít (tehát amikor NEM nézel rá): `walk`. Sosem
+   * fogod látni járni — de amikor visszafordulsz, nem egy szobor áll ott,
+   * hanem valaki, aki épp megállt.
+   */
+  private rig: CharacterRig | null = null;
   /** Amíg fut, itt áll valahol. */
   private left = 0;
   /** Hányadik felbukkanás. Az első nem bánt. */
@@ -55,6 +69,7 @@ export class Mumus {
   async load(model: string): Promise<void> {
     try {
       const art = await models.instance(model, { height: MOVE.height });
+      const clips = await models.ownClips(model);
       art.traverse((o) => {
         o.userData.cpNoOutline = true;
         const mesh = o as THREE.Mesh;
@@ -69,6 +84,7 @@ export class Mumus {
         mesh.material = made;
       });
       this.art = art;
+      this.rig = new CharacterRig(art, clips);
       this.group.add(art);
       this.group.visible = false;
     } catch (e) {
@@ -85,6 +101,8 @@ export class Mumus {
     this.left = HAUNT.mumusStay;
     this.group.position.copy(at);
     this.group.visible = true;
+    // Szembefordulva ÁLL — nem T-pózban lebeg.
+    this.rig?.play('idle', 0);
     this.face(nez);
   }
 
@@ -98,6 +116,7 @@ export class Mumus {
    */
   update(dt: number, cel: THREE.Vector3, nezik: boolean): 'semmi' | 'elkapott' | 'eltunt' {
     if (this.left <= 0) return 'semmi';
+    this.rig?.update(dt);
     this.left -= dt;
     if (this.left <= 0) {
       this.hide();
@@ -109,9 +128,11 @@ export class Mumus {
     this.face(cel);
 
     const tav = this.group.position.distanceTo(cel);
+    if (nezik) this.rig?.play('idle');
     if (!nezik) {
       // Csak amíg nem nézel rá. A sebessége a SÉTÁDHOZ van mérve: futva
       // mindig lerázod, sétálva épphogy nem.
+      this.rig?.play('walk');
       const lep = MOVE.walkSpeed * HAUNT.speed * HAUNT.mumusSpeed * dt;
       if (tav > 0.001) {
         this.group.position.addScaledVector(
