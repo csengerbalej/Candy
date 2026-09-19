@@ -44,19 +44,38 @@ export function makeCode(): string {
 }
 
 /**
- * Csatlakozás a `code` szobájához.
+ * SZOBÁT NYIT ezzel a kóddal. `null`, ha a kód foglalt, vagy nem jött össze.
  *
- * `null`, ha se lefoglalni, se elérni nem sikerült — ilyenkor a játék marad
- * egy gépen, ahogy szoba nélkül mindig is.
+ * A régi `openPeerRoom` egyetlen hívásban döntötte el, hogy gazda vagy vendég
+ * lesz-e belőled: „foglald le, és ha nem sikerül, menj be hozzá". Kényelmes
+ * volt, és pont ez volt a baja — SENKI nem választott. Aki elsőnek töltötte be
+ * az oldalt, az lett a gazda, akkor is, ha csak nézelődött; aki másodiknak,
+ * az bement egy idegen szobába, akkor is, ha ő akart újat kezdeni. A kettéosztás
+ * innentől a JÁTÉKOSÉ: az indít, aki indítani akar.
  */
-export async function openPeerRoom(code: string): Promise<PeerRoomHandle | null> {
+export async function hostPeerRoom(code: string): Promise<PeerRoomHandle | null> {
   const upper = code.toUpperCase();
   const owner = await claim(BROKER_PREFIX + upper);
-  if (owner) return new PeerLink(owner, upper, true);
-  // A kód foglalt: akkor a másik már ott ül, mi megyünk hozzá.
+  return owner ? new PeerLink(owner, upper, true) : null;
+}
+
+/**
+ * BELÉP egy meglévő szobába. `null`, ha nincs ott senki ezzel a kóddal.
+ *
+ * És ezt MEG IS VÁRJA. A foglalás sikere ugyanis semmit nem mond a társról:
+ * a saját vendég-azonosítónkat mindig le tudjuk foglalni, a hívás viszont
+ * elhalhat némán, ha a gazda nincs ott. Aki így „belépett", az egy üres
+ * szobában ült, miközben a képernyő azt írta, hogy minden rendben — ezért
+ * a belépés csak akkor sikeres, ha a csatorna tényleg megnyílt.
+ */
+export async function joinPeerRoom(code: string): Promise<PeerRoomHandle | null> {
+  const upper = code.toUpperCase();
   const guest = await claim(BROKER_PREFIX + upper + '-g' + makeCode().toLowerCase());
   if (!guest) return null;
-  return new PeerLink(guest, upper, false, BROKER_PREFIX + upper);
+  const link = new PeerLink(guest, upper, false, BROKER_PREFIX + upper);
+  if (await link.megnyilt(CLAIM_TIMEOUT)) return link;
+  link.dispose();
+  return null;
 }
 
 /** Lefoglal egy azonosítót a jelzőszerveren. `null`, ha már foglalt vagy nem jött össze. */
@@ -103,10 +122,36 @@ export class PeerLink implements PeerRoomHandle {
     if (dial) this.adopt(this.peer.connect(dial, { reliable: true }));
   }
 
+  /** Akik a csatorna megnyílására várnak. A belépés ebből tudja, sikerült-e. */
+  private readonly varok: Array<(ok: boolean) => void> = [];
+  private nyitva = false;
+
+  /**
+   * Megvárja, hogy a csatorna tényleg megnyíljon. `false`, ha `ms` alatt sem.
+   */
+  megnyilt(ms: number): Promise<boolean> {
+    if (this.nyitva) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      let kesz = false;
+      const zar = (ok: boolean) => {
+        if (kesz) return;
+        kesz = true;
+        clearTimeout(ido);
+        resolve(ok);
+      };
+      const ido = setTimeout(() => zar(false), ms);
+      this.varok.push(zar);
+      // A jelző azonnal szól, ha nincs ott senki — nem kell kivárni az időt.
+      this.peer.on('error', () => zar(false));
+    });
+  }
+
   private adopt(conn: DataConnection): void {
     this.link = conn;
     this.theirId = conn.peer;
     conn.on('open', () => {
+      this.nyitva = true;
+      for (const varo of this.varok.splice(0)) varo(true);
       // Az ÚJONNAN érkező a teljes jelenlétet kapja, nem a következő
       // változást: különben addig láthatatlan lenne a társ, amíg meg nem
       // mozdul.
@@ -116,6 +161,7 @@ export class PeerLink implements PeerRoomHandle {
     conn.on('data', (raw) => this.receive(raw as Wire));
     const drop = () => {
       if (this.link !== conn) return;
+      this.nyitva = false;
       this.link = null;
       this.theirId = null;
       this.theirs = {};
@@ -159,9 +205,37 @@ export class PeerLink implements PeerRoomHandle {
     return [me, them];
   }
 
+  /** Fut-e épp az értesítés. Lásd a metódus fölötti magyarázatot. */
+  private bejelent = false;
+  private ujraKell = false;
+
+  /**
+   * ÉRTESÍTÉS, AMI NEM TUD ÖNMAGÁBA ESNI.
+   *
+   * A figyelők közül bármelyik kitehet jelenlétet — a késésmérő pontosan
+   * ezt teszi —, a jelenlét kitétele pedig újabb értesítést szül. Ebből
+   * végtelen mélységű hívás lett, és a hívási verem betelt: a játék
+   * lefagyott abban a pillanatban, amikor a társ csatlakozott.
+   *
+   * A mérés helye a `Latency`, és ott is javítottam. Ez itt a KERÍTÉS: ha
+   * egy későbbi figyelő megint ilyet csinál, ne a verem álljon meg, hanem
+   * fusson le még egyszer az értesítés, és legyen vége.
+   */
   private announce(): void {
-    const list = this.snapshot();
-    for (const handler of this.peerHandlers) handler(list);
+    if (this.bejelent) {
+      this.ujraKell = true;
+      return;
+    }
+    this.bejelent = true;
+    try {
+      do {
+        this.ujraKell = false;
+        const list = this.snapshot();
+        for (const handler of this.peerHandlers) handler(list);
+      } while (this.ujraKell);
+    } finally {
+      this.bejelent = false;
+    }
   }
 
   peers(): readonly RoomPeer[] {

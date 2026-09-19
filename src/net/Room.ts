@@ -97,8 +97,24 @@ export class Loopback {
     for (const member of this.members) member.receive(topic, from, data);
   }
 
+  /** Ugyanaz a kerítés, mint a valódi szobában: az értesítés nem hívja önmagát. */
+  private bejelent = false;
+  private ujraKell = false;
+
   announce(): void {
-    for (const member of this.members) member.refresh(this.members);
+    if (this.bejelent) {
+      this.ujraKell = true;
+      return;
+    }
+    this.bejelent = true;
+    try {
+      do {
+        this.ujraKell = false;
+        for (const member of this.members) member.refresh(this.members);
+      } while (this.ujraKell);
+    } finally {
+      this.bejelent = false;
+    }
   }
 }
 

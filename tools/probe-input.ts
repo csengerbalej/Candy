@@ -218,15 +218,25 @@ let ok = true;
   const phaseLine = source.split('\n').find((row) => row.startsWith('type Phase =')) ?? '';
   const phases = [...phaseLine.matchAll(/'([a-z]+)'/g)].map((m) => m[1]);
 
-  // A 'done' nem képernyő, hanem a kilépés.
+  // A 'done' nem képernyő, hanem a kilépés. A 'lobby' pedig CSAK a kétfős
+  // úton van ott: ki kivel játszik, azt meg kell kérdezni, mert enélkül a
+  // társ egy már futó körbe esett bele — és a kód nélkül nem is lehetett
+  // eldönteni, kivel játszol. Egyedül viszont maradjon három képernyő.
   const screens = phases.filter((p) => p !== 'done');
+  const egyedul = screens.filter((p) => p !== 'lobby');
   const gone = ['roles', 'brief'].filter((p) => phases.includes(p));
 
   ok = line(
-    'a játékig legfeljebb három képernyő vezet',
-    screens.length <= 3 && gone.length === 0,
-    `${screens.length} képernyő: ${screens.join(' → ')}${gone.length ? ` — még bent: ${gone.join(', ')}` : ''}`
+    'egyedül legfeljebb három képernyő vezet a játékig',
+    egyedul.length <= 3 && gone.length === 0,
+    `${egyedul.length} képernyő: ${egyedul.join(' → ')}${gone.length ? ` — még bent: ${gone.join(', ')}` : ''}`
   ) && ok;
+
+  // ...és a lobbi TÉNYLEG csak akkor jön, ha társ kell hozzá.
+  const csakKetfos = source.includes('if (!this.solo) {') &&
+    source.includes("return this.advancePhase('lobby');");
+  ok = line('a lobbi csak a kétfős úton van ott', csakKetfos,
+    csakKetfos ? 'egyedül a nevek jönnek azonnal' : 'a lobbi az egyfős úton is felbukkan') && ok;
 
   // Az INTRÓ a választás után jön, és át kell tudni ugorni.
   //

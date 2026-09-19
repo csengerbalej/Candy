@@ -66,6 +66,7 @@ import {
   VAK_CLIPS,
   type Rig,
 } from '../render/CharacterRig';
+import { talpraAllit } from '../render/Talpra';
 import { ProceduralRig } from '../render/ProceduralRig';
 import { CHARACTERS } from '../game/Characters';
 import type { InputManager } from '../input/InputManager';
@@ -1045,9 +1046,15 @@ export class HouseScene implements GameScene {
    * paramétere nem feltétlenül jut el — egy mérőeszköz, amit nem lehet
    * bekapcsolni, nem mérőeszköz.
    */
-  private szemle =
-    typeof location !== 'undefined' &&
-    (location.search.includes('szemle') || location.hash.includes('szemle'));
+  // ALAPBÓL KI — a mérés lefutott, a szörnyek a padlón állnak.
+  //
+  // Egy ideig alapból be volt kapcsolva, mert két kérdést kellett
+  // szétválasztani: „bekapcsolt-e a szemle" és „látszik-e a szörny".
+  // Mérve mindhárom talpa 0,01 és 0,14 méter között van (a javítás előtt
+  // mínusz 0,8 körül, vagyis a padló alatt), tehát a kérdés eldőlt. A
+  // mérőeszköz marad — a 0 gomb bármikor előhívja.
+  private szemle = new URLSearchParams(location.search).has('szemle') ||
+    location.hash.includes('szemle');
   private szemleHelyek: THREE.Vector3[] = [];
 
   /**
@@ -1380,7 +1387,10 @@ export class HouseScene implements GameScene {
       // (rajta voltak a rajzolási listán, a képernyő közepére estek, és
       // mégsem látszottak). Amíg ennek nem járok a végére, az számít, hogy
       // a szörnyek LÁTSZANAK.
-      const kozosFajl = 'models/harold.clips.json';
+      // Csak a VAKNAK kell a lakó közös csomagja: az ő fájljában egyetlen
+      // járás van. A másik kettő a sajátjából mozog (kilenc, illetve négy
+      // klippel érkeztek).
+      const kozosFajl = fajta === 'vak' ? 'models/harold.clips.json' : null;
       const [sajat, kozos] = await Promise.all([
         models.ownClips(model),
         kozosFajl ? models.clips(kozosFajl) : Promise.resolve([]),
@@ -1474,6 +1484,31 @@ export class HouseScene implements GameScene {
       // Ez az egész mód legfontosabb fél másodperce, és szándékosan egy
       // pillanatnyi döntés: ugyanaz a mozdulat menti meg vagy öli meg a
       // kört, attól függően, mit látsz.
+      // A `setArt` maga teszi be a csoportba, és el is takarítja a tokot —
+      // ugyanaz az út, amin a lakó modellje is érkezik.
+      const keszlet = fajta === 'vak' ? VAK_CLIPS : fajta === 'leso' ? LESO_CLIPS : KOVETO_CLIPS;
+      const rig = new CharacterRig(art, clips, keszlet);
+      // MÉRJÜK, HOGY TÉNYLEG RÁÜLT-E. A retargetelés némán is elmehet
+      // mellé: ha a klip csontnevei nem találnak, a szörny mozdulatlan
+      // marad, és ez ránézésre „nem mozog"-nak látszik, nem hibának.
+      if (rig.bound.miss > rig.bound.hit) {
+        console.warn(`a(z) ${fajta} mozgása nem ült rá a csontvázra`, rig.bound);
+      }
+      // ELŐBB A PÓZ, AZTÁN A MÉRÉS. A keverőnek futnia kell egyszer,
+      // különben a kötési pózt mérnénk — és pont az a hibás.
+      rig.update(0);
+      const meret = talpraAllit(art);
+      if (Math.abs(meret.talp) > 0.05) {
+        console.info(
+          `a(z) ${fajta} talpa ${meret.talp.toFixed(2)} m-rel volt a padló alatt — felemelve`
+        );
+      }
+
+      // A SZEM A JEL, amiből eldöntöd, mit csinálj — ÉS A MÉRT FEJTETŐN ÜL.
+      //
+      // Fix 1,82 méteren állt, ami egy 1,16 méteres fejű Követőnél
+      // negyven centivel a feje FÖLÖTT lebegett. A magasságot ezért nem
+      // beírjuk, hanem megkérdezzük a testtől.
       for (const oldal of fajta === 'vak' ? [] : [-1, 1]) {
         const szem = new THREE.Mesh(
           // KISEBB SZEM. A 0,075-ös gömb egy két méteres testen pingponglabda
@@ -1488,18 +1523,10 @@ export class HouseScene implements GameScene {
           new THREE.MeshBasicMaterial({ color: fajta === 'leso' ? 0xffe89a : 0x5e120d })
         );
         szem.userData.cpNoOutline = true;
-        szem.position.set(oldal * 0.085, 1.82, 0.2);
+        // A fejtetőt a tok SAJÁT koordinátáiban kapjuk — a szem is ott él —,
+        // és onnan ereszkedünk egy arasznyit a szemvonalra.
+        szem.position.set(oldal * 0.085, meret.fej - 0.14, 0.2);
         art.add(szem);
-      }
-      // A `setArt` maga teszi be a csoportba, és el is takarítja a tokot —
-      // ugyanaz az út, amin a lakó modellje is érkezik.
-      const keszlet = fajta === 'vak' ? VAK_CLIPS : fajta === 'leso' ? LESO_CLIPS : KOVETO_CLIPS;
-      const rig = new CharacterRig(art, clips, keszlet);
-      // MÉRJÜK, HOGY TÉNYLEG RÁÜLT-E. A retargetelés némán is elmehet
-      // mellé: ha a klip csontnevei nem találnak, a szörny mozdulatlan
-      // marad, és ez ránézésre „nem mozog"-nak látszik, nem hibának.
-      if (rig.bound.miss > rig.bound.hit) {
-        console.warn(`a(z) ${fajta} mozgása nem ült rá a csontvázra`, rig.bound);
       }
       who.setArt(art, rig);
     } catch (e) {
@@ -1521,7 +1548,11 @@ export class HouseScene implements GameScene {
 
       addOutlines(art, 1.1, 0x1a0a12, 0.3);
       applyEnvironment(art, studioEnvironment(this.renderer), 0.5);
-      this.homeowner.setArt(art, new CharacterRig(art, [...own, ...pack], HOMEOWNER_CLIPS));
+      const rig = new CharacterRig(art, [...own, ...pack], HOMEOWNER_CLIPS);
+      // Ugyanaz a mérés, mint a szörnyeknél: a klip pózában a talp a padlón.
+      rig.update(0);
+      talpraAllit(art);
+      this.homeowner.setArt(art, rig);
     } catch (e) {
       // A tok marad, és a játék megy tovább. A lakó a szabályokban él, nem a
       // modelljében — egy hiányzó fájl nem teheti végigjátszhatatlanná a házat.
@@ -1548,10 +1579,14 @@ export class HouseScene implements GameScene {
       addOutlines(art, 1.0, 0x1a0a12, 0.3);
       applyEnvironment(art, studioEnvironment(this.renderer), 0.5);
       const only = own[0]?.name;
-      this.dog.setArt(
+      const rig = new CharacterRig(
         art,
-        new CharacterRig(art, own, only ? { idle: only, walk: only, run: only, grab: only } : {})
+        own,
+        only ? { idle: only, walk: only, run: only, grab: only } : {}
       );
+      rig.update(0);
+      talpraAllit(art);
+      this.dog.setArt(art, rig);
     } catch (e) {
       console.warn('a kutya modellje nem töltött be', e);
     }
@@ -1588,6 +1623,10 @@ export class HouseScene implements GameScene {
         ]);
         if (this.disposed) return;
         rig = new CharacterRig(art, [...own, ...shared]);
+        // A csípő helyzetsávja ki van szűrve a klipekből, tehát a modellt a
+        // PÓZÁBÓL kell talpra állítani, nem a kötési pózból.
+        rig.update(0);
+        talpraAllit(art);
       } else {
         rig = new ProceduralRig(art, def.motion);
       }
@@ -2849,6 +2888,14 @@ export class HouseScene implements GameScene {
    */
   private szemleJelek(step: number): void {
     void step;
+    // MÉRŐFOGANTYÚ. A szemle alatt a szörnyek és a jelenet kívülről is
+    // elérhetők, hogy a „látom / nem látom" vitát ne szemre, hanem
+    // számokkal lehessen eldönteni (hol a talpa, mi a világkoordinátája).
+    (window as unknown as Record<string, unknown>).__szemle = {
+      lurkers: this.lurkers,
+      scene: this.scene,
+      helyek: this.szemleHelyek,
+    };
     if (!this.szemleJel.length) {
       const geo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
       for (let i = 0; i < this.lurkers.length; i++) {

@@ -21,6 +21,9 @@ export class Identity {
     private readonly session: NetSession
   ) {}
 
+  /** A legutóbb kitett saját azonosság. Csak változáskor küldünk újat. */
+  private utoljara = '';
+
   /**
    * Kiteszi a sajátunkat, és beolvassa a társét a kiválasztásba.
    *
@@ -34,11 +37,21 @@ export class Identity {
     const mine = state.playerIndex;
     const theirs = mine === 0 ? 1 : 0;
 
-    this.room.presence({
-      idn: selection.names[mine],
-      idc: selection.characters[mine],
-      idi: mine,
-    });
+    // CSAK VÁLTOZÁSKOR KÜLDÜNK.
+    //
+    // Ez képkockánként fut, tehát másodpercenként hatvanszor tette ki
+    // ugyanazt a nevet. Nem csak pazarlás: minden kitétel értesíti a
+    // jelenlét figyelőit, és egy hatvan hertzes értesítés-áradat a
+    // leglassabb eszközt éri el először — pont a telefont.
+    const jel = `${mine}|${selection.names[mine]}|${selection.characters[mine]}`;
+    if (jel !== this.utoljara) {
+      this.utoljara = jel;
+      this.room.presence({
+        idn: selection.names[mine],
+        idc: selection.characters[mine],
+        idi: mine,
+      });
+    }
 
     for (const peer of this.room.peers()) {
       if (peer.isMe) continue;

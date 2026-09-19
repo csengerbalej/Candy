@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { models } from '../assets/ModelLoader';
 import { CharacterRig } from '../render/CharacterRig';
+import { talpraAllit } from '../render/Talpra';
 import { MOVE, HAUNT } from '../core/config';
 
 /**
@@ -96,6 +97,9 @@ export class Mumus {
       });
       this.art = art;
       this.rig = new CharacterRig(art, clips);
+      // A csípő helyzetsávja ki van szűrve: a talpat mérni kell, nem hinni.
+      this.rig.update(0);
+      talpraAllit(art);
       this.group.add(art);
       this.group.visible = false;
     } catch (e) {

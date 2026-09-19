@@ -3,6 +3,7 @@ import { NetSession } from '../src/net/NetSession';
 import * as THREE from 'three';
 import { HouseLink } from '../src/net/HouseLink';
 import { DriveLink } from '../src/net/DriveLink';
+import { Latency } from '../src/net/Latency';
 import { Car } from '../src/vehicle/Car';
 import type { PlayerInput } from '../src/input/InputManager';
 
@@ -320,6 +321,66 @@ console.log('');
   const csik = linkB.takeShot();
   ok = line('a lövés CSÍKJA is átmegy', csik !== null && csik.kind === 'sniper' && csik.hit,
     csik ? `${csik.kind}, találat` : 'nem jött meg') && ok;
+}
+
+// --- A SZOBAKÓD: kivel játszol, és kivel nem -------------------------------
+//
+// A kiadott oldalon a futtatókörnyezet EGY szobába teszi mindenkit, aki
+// megnyitja az artifactot. Amíg ketten voltunk, ez fel sem tűnt; egy
+// harmadik megnyitott lap viszont csendben elvette a társ helyét — és a
+// játékos annyit látott belőle, hogy „lefagy, ha csatlakozik". A kód ezt
+// vágja el: aki mást mond, az nincs itt.
+{
+  const room = new Loopback();
+  const a = new NetSession(room.join('m2'), 'dev-a', 'ABCD');
+  const b = new NetSession(room.join('m9'), 'dev-b', 'ABCD');
+  ok = line('azonos kóddal egy játékban vannak', a.current.paired && b.current.paired,
+    `${a.current.count} fő`) && ok;
+
+  const c = new NetSession(room.join('m1'), 'dev-c', 'ZZZZ');
+  ok = line('más kóddal nem veszi el a helyet',
+    a.current.paired && a.current.count === 2 && !c.current.paired,
+    `a szobában ${a.current.count} fő, az idegen párban: ${c.current.paired}`) && ok;
+  ok = line('...és az idegen sem lát minket', c.current.count === 1,
+    `${c.current.count} fő nála`) && ok;
+}
+
+// Kód nélkül a régi viselkedés marad: mindenki egy szobában. Erre a próbák
+// és a helyi játék épül, tehát nem szabad elromlania.
+{
+  const room = new Loopback();
+  const a = new NetSession(room.join('m2'), 'dev-a');
+  const b = new NetSession(room.join('m9'), 'dev-b');
+  ok = line('kód nélkül a régi mód marad', a.current.paired && b.current.paired,
+    `${a.current.count} fő`) && ok;
+}
+
+// --- A LEFAGYÁS: a késésmérő nem eshet önmagába ----------------------------
+//
+// MÉRVE, javítás előtt: `RangeError: Maximum call stack size exceeded`.
+// A jelenlét kitétele értesíti a jelenlét figyelőit; a késésmérő a társ
+// kérdésére jelenléttel válaszolt, amitől megint értesítés lett — és így
+// tovább, amíg a hívási verem be nem telt. A menü képkocka-hurka ezen a
+// ponton megállt, és a játékos annyit látott, hogy „lefagy, ha a társam
+// csatlakozik". Ez a sor azért van itt, hogy ne jöhessen vissza.
+{
+  const room = new Loopback();
+  const a = room.join('m2');
+  const b = room.join('m9');
+  const la = new Latency(a);
+  const lb = new Latency(b);
+  let elszallt = '';
+  try {
+    la.update(2);
+    lb.update(2);
+    la.update(2);
+  } catch (e) {
+    elszallt = (e as Error).message;
+  }
+  ok = line('a késésmérő nem fagyasztja le a játékot', elszallt === '',
+    elszallt || 'két kör kérdés-válasz, verem sértetlen') && ok;
+  ok = line('...és közben tényleg mér', la.last !== null,
+    la.last === null ? 'nincs mérés' : `${la.last.toFixed(2)} ms oda-vissza`) && ok;
 }
 
 console.log(ok ? 'MIND OK — a hálózati protokoll stabil' : 'VAN BUKÓ TESZT');

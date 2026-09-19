@@ -6,11 +6,26 @@ import {
 import { describeSave } from '../game/SaveGame';
 import type { InputManager } from '../input/InputManager';
 
+/** Amit a szobanyitás/belépés válaszol. Ugyanaz az alak, mint a `main`-ben. */
+export type LobbyValasz = { ok: true; kod: string } | { ok: false; miert: string };
+
 export type FrontendResult =
   | { kind: 'new'; selection: Selection }
   | { kind: 'continue' };
 
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
+
+/**
+ * ÉRINTŐN VAGYUNK-E.
+ *
+ * Nem kozmetika: iPaden nincs `E`, nincs `Enter` és nincs `Space`, tehát egy
+ * olyan súgó, ami ezeket kéri, nem hiányos — HAZUDIK. Aki elhiszi, azt
+ * keresi a képernyőn, ami nincs ott, és közben nem veszi észre, hogy az
+ * egészet meg lehet koppintani.
+ */
+function erinto(): boolean {
+  return document.body.dataset.touch === '1';
+}
 
 /**
  * A képernyők, amiken át a játékig el lehet jutni.
@@ -26,7 +41,7 @@ const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
  *     MINDKETTEN", „VÁRD MEG A TÁRSAD". Olvasással tanítani azt, amit a játék
  *     játszva tanít, kétszer mondja el ugyanazt — először rosszabbul.
  */
-type Phase = 'menu' | 'names' | 'characters' | 'done';
+type Phase = 'menu' | 'lobby' | 'names' | 'characters' | 'done';
 
 /** Fallback letter wheel, for a player holding a gamepad instead of a keyboard. */
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÖŐÚÜŰ '.split('');
@@ -89,6 +104,35 @@ export class Frontend {
   /** Opens the settings panel; supplied by main, which owns the renderer. */
   onSettings: (() => void) | null = null;
 
+  /**
+   * A SZOBA HÁROM KÉRDÉSE, kívülről válaszolva.
+   *
+   * A menü nem tud a hálózatról, és nem is kell tudnia: csak annyit kérdez,
+   * hogy „nyiss szobát", „lépj be ezzel a kóddal", „megjött-e a társ".
+   * A `main` válaszol, mert a csatorna az övé.
+   */
+  onHost: (() => Promise<LobbyValasz>) | null = null;
+  onJoin: ((kod: string) => Promise<LobbyValasz>) | null = null;
+  partnerHere: (() => boolean) | null = null;
+  /** A linkből hozott kód, ha a társ már elküldte a meghívót. */
+  linkKod = '';
+
+  /** A lobbi állapota: melyik felén állunk. */
+  private lobby: 'valaszt' | 'gazda' | 'belep' = 'valaszt';
+  private lobbyKod = '';
+  /**
+   * AMIT A JÁTÉKOS BEGÉPELT — az ÁLLAPOTBAN, nem a mezőben.
+   *
+   * A képernyő magától is újrarajzolódhat (megjött a társ, változott a
+   * késés), és minden újrarajzolás új `input` elemet csinál. Ha a beírt kód
+   * csak a régi elemben élne, a második betű után elveszne — mérve pont ez
+   * történt: a mező eltűnt a kezem alól.
+   */
+  private lobbyBeirt = '';
+  private lobbyUzenet = '';
+  private lobbyDolgozik = false;
+  private lobbyTars = false;
+
   private readonly axisX: [boolean, boolean] = [false, false];
   private readonly axisY: [boolean, boolean] = [false, false];
 
@@ -124,6 +168,10 @@ export class Frontend {
     if (kind === 'menu') {
       this.menuCursor = Number(value);
       this.activateMenu();
+      return;
+    }
+    if (kind === 'lobby') {
+      void this.lobbyPick(value);
       return;
     }
     if (kind === 'card') {
@@ -210,6 +258,16 @@ export class Frontend {
       this.solo = item.id === 'solo' || item.id === 'fogo';
       this.fogo = item.id === 'fogo' || item.id === 'fogo2';
       this.haunt = item.id === 'kisertet';
+      // AKI TÁRSAT AKAR, ANNAK ELŐBB TÁRSA LESZ. A kétfős módok a lobbin át
+      // mennek: ott dől el, hogy ez a gép nyit szobát, vagy belép egybe.
+      // Enélkül a játék elindult, és a társ egy már futó körbe esett bele.
+      if (!this.solo) {
+        this.lobby = 'valaszt';
+        this.lobbyKod = '';
+        this.lobbyUzenet = '';
+        this.lobbyTars = false;
+        return this.advancePhase('lobby');
+      }
       this.advancePhase('names');
     }
     else if (item.id === 'continue') this.finishContinue();
@@ -233,6 +291,17 @@ export class Frontend {
     if (this.phase === 'done') return;
     let changed = false;
 
+    // A TÁRS MEGÉRKEZÉSE nem gombnyomás, hanem esemény: minden képkockán
+    // megkérdezzük, mert máskor nem tudnánk meg.
+    if (this.phase === 'lobby') {
+      const itt = this.partnerHere?.() ?? false;
+      if (itt !== this.lobbyTars) {
+        this.lobbyTars = itt;
+        if (itt && this.lobby === 'belep') this.lobby = 'gazda';
+        this.render();
+      }
+    }
+
     // Egy eszköz, egy ember: csak az első kiosztás olvasódik.
     for (const player of [0] as const) {
       const inp = this.input.get(player);
@@ -241,6 +310,26 @@ export class Frontend {
       const confirm = inp.interact || inp.jump;
 
       switch (this.phase) {
+        // A LOBBIBAN A GOMB DÖNT, NEM A FÁZIS.
+        //
+        // Az első változat a megerősítésből TALÁLGATTA, mit akarsz: a
+        // választóképernyőn indítást, a kódmezőn belépést. Mérve ez
+        // kiszámíthatatlan volt — egy kattintás a gombra ÉS egy
+        // megerősítés ugyanabból a kattintásból két külön lépést csinált,
+        // és a képernyő oda-vissza ugrált a kezem alatt.
+        //
+        // Most a megerősítés azt nyomja meg, ami épp ki van emelve. Ez
+        // ugyanaz, amit a böngésző csinál az Enterrel — és ami látszik is:
+        // a kiemelt gomb a válasz.
+        case 'lobby': {
+          if (!confirm) break;
+          const fokusz = document.activeElement as HTMLElement | null;
+          if (fokusz && this.root.contains(fokusz) && fokusz.tagName === 'BUTTON') {
+            fokusz.click();
+          }
+          return;
+        }
+
         case 'menu':
           if (stepY) {
             this.menuCursor =
@@ -346,15 +435,213 @@ export class Frontend {
     if (this.phase === 'menu') this.buildMenu();
     this.root.innerHTML = {
       menu: () => this.renderMenu(),
+      lobby: () => this.renderLobby(),
       names: () => this.renderNames(),
       characters: () => this.renderCharacters(),
       done: () => '',
     }[this.phase]();
 
+    if (this.phase === 'lobby') {
+      this.bindKodField();
+      // Ha nincs kódmező, az első gomb kapja a fókuszt: így a billentyű és a
+      // kontroller is tud választani, és látszik is, mit választana.
+      if (!this.root.querySelector('.kod-field')) {
+        this.root.querySelector<HTMLElement>('.lobby button')?.focus();
+      }
+    }
+
     if (this.phase === 'names') this.bindNameFields();
   }
 
+  /**
+   * A lobbi gombjai.
+   *
+   * Minden ág a KÉPERNYŐN válaszol, nem a konzolon: ha a szoba nem nyílt meg,
+   * az látszik, és a játékos tud vele kezdeni valamit. A néma bukás volt a
+   * korábbi változat legnagyobb baja — „csatlakozott", és utána semmi.
+   */
+  private async lobbyPick(what: string): Promise<void> {
+    if (this.lobbyDolgozik) return;
+
+    if (what === 'host') {
+      this.lobbyDolgozik = true;
+      this.lobbyUzenet = 'szoba nyitása…';
+      this.lobby = 'gazda';
+      this.render();
+      const valasz = await (this.onHost?.() ?? Promise.resolve({ ok: false as const, miert: 'nincs csatorna' }));
+      this.lobbyDolgozik = false;
+      if (valasz.ok) {
+        this.lobbyKod = valasz.kod;
+        this.lobbyUzenet = '';
+      } else {
+        this.lobby = 'valaszt';
+        this.lobbyUzenet = valasz.miert;
+      }
+      this.render();
+      return;
+    }
+
+    if (what === 'join') {
+      this.lobby = 'belep';
+      this.lobbyUzenet = '';
+      this.render();
+      return;
+    }
+
+    if (what === 'enter') {
+      const mezo = this.root.querySelector<HTMLInputElement>('.kod-field');
+      const kod = (mezo?.value || this.lobbyBeirt).trim().toUpperCase();
+      this.lobbyDolgozik = true;
+      this.lobbyUzenet = 'belépés…';
+      this.render();
+      const valasz = await (this.onJoin?.(kod) ?? Promise.resolve({ ok: false as const, miert: 'nincs csatorna' }));
+      this.lobbyDolgozik = false;
+      if (valasz.ok) {
+        this.lobbyKod = valasz.kod;
+        this.lobbyUzenet = '';
+        this.lobby = 'gazda';
+      } else {
+        this.lobbyUzenet = valasz.miert;
+      }
+      this.render();
+      return;
+    }
+
+    if (what === 'copy') {
+      try {
+        await navigator.clipboard.writeText(location.href);
+        this.lobbyUzenet = 'a link a vágólapon';
+      } catch {
+        this.lobbyUzenet = 'a másolás nem ment — mondd be a kódot';
+      }
+      this.render();
+      return;
+    }
+
+    if (what === 'back') {
+      this.lobby = 'valaszt';
+      this.lobbyUzenet = '';
+      this.render();
+      return;
+    }
+
+    if (what === 'solo') {
+      // EGYEDÜL IS JÁTSZHATÓ. A kísértetház egyedül a legijesztőbb, és a
+      // kétfős módokban sincs értelme fogva tartani azt, aki most nem talál
+      // társat: menjen be, a társ később úgyis beléphet.
+      this.solo = true;
+      this.advancePhase('names');
+      return;
+    }
+
+    if (what === 'tovabb') {
+      this.advancePhase('names');
+    }
+  }
+
   // --- screens -------------------------------------------------------------
+
+  /**
+   * A LOBBI: itt dől el, kivel játszol.
+   *
+   * Négy betű, és semmi más. Nem szobalista, nem barátlista, nem bejelentkezés
+   * — két ember ül egymás mellett vagy telefonál, és az egyik bemondja a
+   * másiknak. Ennél kevesebb lépésből nem lehet két külön eszközt egy játékba
+   * tenni, és minden további lépés csak elvenne abból az időből, ami a
+   * játékra marad.
+   *
+   * ÉRINTŐN IS TELJES ÉRTÉKŰ: minden választás GOMB, amire rá lehet
+   * koppintani, a kód pedig szövegmező — iPaden nincs „E" és nincs „Space",
+   * amit meg lehetne nyomni, tehát nem is hivatkozunk rájuk.
+   */
+  private renderLobby(): string {
+    const erintes = erinto();
+    const modNev = this.haunt ? 'KÍSÉRTETHÁZ' : this.fogo ? 'FOGÓ KETTEN' : 'KÉTFŐS';
+    const uzenet = this.lobbyUzenet
+      ? `<p class="lobby-uzenet">${escapeAttribute(this.lobbyUzenet)}</p>`
+      : '';
+
+    if (this.lobby === 'valaszt') {
+      return `
+        <h1>KETTEN JÁTSSZÁTOK</h1>
+        <p class="hint">${modNev} · az egyikőtök indít, a másik belép a kóddal</p>
+        <div class="lobby">
+          <button type="button" class="lobby-nagy" data-pick="lobby:host">
+            <b>JÁTÉK INDÍTÁSA</b>
+            <small>kapsz egy négybetűs kódot, amit bemondasz a társadnak</small>
+          </button>
+          <button type="button" class="lobby-nagy" data-pick="lobby:join">
+            <b>CSATLAKOZÁS</b>
+            <small>a társad kódjával lépsz be az ő játékába</small>
+          </button>
+          <button type="button" class="lobby-kicsi" data-pick="lobby:solo">
+            EGYEDÜL INDULOK
+          </button>
+        </div>
+        ${uzenet}
+        <p class="foot">${
+          erintes ? 'Koppints a választáshoz.' : 'Kattints, vagy fel/le és Enter.'
+        }</p>`;
+    }
+
+    if (this.lobby === 'belep') {
+      return `
+        <h1>A TÁRSAD KÓDJA</h1>
+        <p class="hint">Négy betű, amit ő lát a képernyőjén</p>
+        <div class="lobby">
+          <input class="kod-field" type="text" maxlength="4" inputmode="text"
+                 autocomplete="off" autocapitalize="characters" spellcheck="false"
+                 placeholder="ABCD" value="${escapeAttribute(this.lobbyBeirt || this.linkKod)}" />
+          <button type="button" class="lobby-nagy" data-pick="lobby:enter">
+            <b>${this.lobbyDolgozik ? 'BELÉPÉS…' : 'BELÉPÉS'}</b>
+          </button>
+          <button type="button" class="lobby-kicsi" data-pick="lobby:back">VISSZA</button>
+        </div>
+        ${uzenet}`;
+    }
+
+    // GAZDA (vagy sikeres belépés): a kód és a várakozás.
+    const tars = this.lobbyTars;
+    return `
+      <h1>${tars ? 'MEGVAGYTOK' : 'A KÓDOD'}</h1>
+      <p class="hint">${
+        tars ? 'a társad belépett' : 'mondd be a társadnak, vagy küldd el a linket'
+      }</p>
+      <div class="lobby">
+        <div class="kod-nagy">${this.lobbyKod || '····'}</div>
+        ${
+          tars
+            ? `<button type="button" class="lobby-nagy" data-pick="lobby:tovabb"><b>TOVÁBB</b></button>`
+            : `<button type="button" class="lobby-kicsi" data-pick="lobby:copy">LINK MÁSOLÁSA</button>
+               <p class="lobby-varas">várunk a társadra…</p>
+               <button type="button" class="lobby-kicsi" data-pick="lobby:back">VISSZA</button>`
+        }
+      </div>
+      ${uzenet}`;
+  }
+
+  /** A kódmező: nagybetű, négy karakter, és az Enter is belép. */
+  private bindKodField(): void {
+    const mezo = this.root.querySelector<HTMLInputElement>('.kod-field');
+    if (!mezo) return;
+    mezo.addEventListener('input', () => {
+      mezo.value = mezo.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+      this.lobbyBeirt = mezo.value;
+    });
+    mezo.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') void this.lobbyPick('enter');
+      e.stopPropagation();
+    });
+    // A fókusz visszakerül oda, ahol volt: gépelés közben újrarajzolt
+    // mezőbe kattintani újra nem a játékos dolga.
+    mezo.focus();
+    const vege = mezo.value.length;
+    try {
+      mezo.setSelectionRange(vege, vege);
+    } catch {
+      // Néhány böngésző csak bizonyos mezőkön engedi. Nem kritikus.
+    }
+  }
 
   private renderMenu(): string {
     const items = this.menuItems
@@ -379,8 +666,12 @@ export class Frontend {
         <h1 class="logo">CANDYPOCALYPSE</h1>
         <p class="tagline">Valaki üveg alá zárta a várost, mint egy cukorkát. Egy éjszakátok van.</p>
         <nav class="menu">${items}</nav>
-        ${Frontend.keyboard()}
-        <p class="foot">Fel/le vagy egér · <b>E</b> / <b>Enter</b> választ · kontroller is jó</p>
+        ${erinto() ? '' : Frontend.keyboard()}
+        <p class="foot">${
+          erinto()
+            ? 'Koppints a módra, amit játszani akartok.'
+            : 'Fel/le vagy egér · <b>E</b> / <b>Enter</b> választ · kontroller is jó'
+        }</p>
       </div>`;
   }
 
@@ -439,7 +730,9 @@ export class Frontend {
     const fields = [0] as const;
     return `
       <h1>HOGY HÍVNAK?</h1>
-      <p class="hint">Írd be a neved · <b>Enter</b> tovább</p>
+      <p class="hint">${
+        erinto() ? 'Írd be a neved, aztán koppints a TOVÁBB-ra' : 'Írd be a neved · <b>Enter</b> tovább'
+      }</p>
       <div class="names">
         ${(fields as readonly (0 | 1)[])
           .map((p) => {
@@ -537,14 +830,20 @@ export class Frontend {
 
     return `
       <h1>VÁLASSZ SZÖRNYET</h1>
-      <p class="hint">Balra/jobbra lépked · <b>E</b> / <b>Enter</b> rögzít</p>
+      <p class="hint">${
+        erinto() ? 'Koppints a karakterre, amelyikkel játszani akarsz' : 'Balra/jobbra lépked · <b>E</b> / <b>Enter</b> rögzít'
+      }</p>
       <div class="grid">${cards}</div>
       <button type="button" class="go" data-pick="go">INDULÁS</button>
       <p class="foot">${
-        this.solo
-          ? 'Te vezetsz elsőnek — a <b>nyilakkal</b> forgatod a kamerát.'
-          : '<b>' + this.nameOf(0) + '</b> vezet elsőnek, a társad navigál — az <b>R</b> bármikor cserél. ' +
-            'A társad a saját eszközén választ, nem kell megvárnod.'
+        erinto()
+          ? this.solo
+            ? 'Bal oldalt mozogsz, jobb oldalt forgatod a kamerát.'
+            : 'A társad a saját eszközén választ — nem kell megvárnod.'
+          : this.solo
+            ? 'Te vezetsz elsőnek — a <b>nyilakkal</b> forgatod a kamerát.'
+            : '<b>' + this.nameOf(0) + '</b> vezet elsőnek, a társad navigál — az <b>R</b> bármikor cserél. ' +
+              'A társad a saját eszközén választ, nem kell megvárnod.'
       }</p>`;
   }
 }

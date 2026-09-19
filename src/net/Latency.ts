@@ -31,6 +31,8 @@ export class Latency {
   private readonly samples: number[] = [];
   private since = 0;
   private sent = 0;
+  /** Az utolsó kérdés, amit már visszatükröztünk. Ez zárja be a hurkot. */
+  private echoed = 0;
   private stop: (() => void) | null = null;
 
   constructor(private readonly room: RoomTransport) {
@@ -45,9 +47,24 @@ export class Latency {
           this.take(performance.now() - this.sent);
           this.sent = 0;
         }
-        // ...és amit tőle kaptunk kérdésként, azt visszatükrözzük.
+        // ...és amit tőle kaptunk kérdésként, azt visszatükrözzük — DE
+        // MINDEN KÉRDÉST CSAK EGYSZER.
+        //
+        // EZ VOLT A LEFAGYÁS. A jelenlét kitétele értesíti a jelenlét
+        // figyelőit — köztük ezt itt —, és a társ kérdése ilyenkor még
+        // mindig ott áll a jelenlétében. Tehát: tükrözünk, amitől értesítés
+        // lesz, amitől megint tükrözünk, amitől megint értesítés… mérve
+        // `RangeError: Maximum call stack size exceeded`, és a menü
+        // képkocka-hurka ezen a ponton MEGÁLL. Kívülről pontosan annyi
+        // látszott belőle, hogy „lefagy, ha a társam csatlakozik".
+        //
+        // A kilépési feltétel egyetlen szám: amit már megválaszoltunk, arra
+        // nem válaszolunk újra.
         const ping = (peer.presence as { ping?: unknown }).ping;
-        if (typeof ping === 'number') this.room.presence({ echo: ping });
+        if (typeof ping === 'number' && ping !== this.echoed) {
+          this.echoed = ping;
+          this.room.presence({ echo: ping });
+        }
       }
     });
   }

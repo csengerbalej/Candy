@@ -56,14 +56,27 @@ export class NetSession {
    * @param device Melyik KÉSZÜLÉKRŐL jövünk. Alapból a böngésző sajátja; a
    * mérések adják meg kézzel, mert ott több „gép" fut egy folyamatban, és
    * ott a böngésző-azonosító mindegyiknél ugyanaz lenne.
+   *
+   * @param kod A SZOBA KÓDJA, amit a két játékos megbeszélt. Aki más kódot
+   * mond, az nincs itt — akkor sem, ha ugyanazt az oldalt nézi.
+   *
+   * Erre a kiadott oldalon van szükség: ott a futtatókörnyezet EGY szobába
+   * teszi mindenkit, aki megnyitja az artifactot. Amíg ketten játszottunk,
+   * ez fel sem tűnt; egy harmadik megnyitott lap viszont csendben elvette a
+   * társ helyét. A kód nem a csatornát szűri, hanem a TÁRSASÁGOT: ugyanaz a
+   * négy betű mindkét oldalon, vagy nem vagytok egy játékban.
    */
-  constructor(room: RoomTransport | null, private readonly device: string = deviceId()) {
+  constructor(
+    room: RoomTransport | null,
+    private readonly device: string = deviceId(),
+    private readonly kod: string = ''
+  ) {
     if (!room) return;
     // Megmondjuk, MELYIK KÉSZÜLÉKRŐL jöttünk. Enélkül ugyanannak a gépnek a
     // két megnyitott lapja két játékosnak látszik, és a második lap elveszi a
     // társ helyét — pont azt a „ketten egy eszközről" állapotot hozza vissza,
     // amit kivezettünk.
-    room.presence({ dev: this.device });
+    room.presence({ dev: this.device, kod: this.kod });
     this.stop = room.onPeers((peers) => this.recompute(peers));
     this.recompute(room.peers());
   }
@@ -106,8 +119,15 @@ export class NetSession {
     this.listeners.length = 0;
   }
 
+  /** Ide tartozik-e: ugyanazt a kódot mondja-e. Kód nélkül mindenki idetartozik. */
+  private idetartozik(p: RoomPeer): boolean {
+    if (!this.kod) return true;
+    if (p.isMe) return true;
+    return typeof p.presence?.kod === 'string' && p.presence.kod === this.kod;
+  }
+
   private recompute(peers: readonly RoomPeer[]): void {
-    const people = viewers(peers);
+    const people = viewers(peers).filter((p) => this.idetartozik(p));
     const me = people.find((p) => p.isMe);
     // A sorrend a peer-azonosítóé: minden gépen ugyanaz, tehát nem kell
     // megállapodni benne.

@@ -520,6 +520,67 @@
       .name .tag { cursor: pointer; }
       .name .state { font-size: 9.5px; letter-spacing: .14em; opacity: .4; }
 
+      /* --- A LOBBI: kivel játszol -----------------------------------------
+         Négy betű köti össze a két eszközt, és minden választás GOMB —
+         iPaden nincs „E" és nincs „Space", amivel a menüt lehetne vinni,
+         tehát mindennek koppintásra kell működnie, elég nagy felülettel. */
+      .lobby {
+        display: grid; gap: 12px; justify-items: center;
+        width: min(420px, 100%); margin: 0 auto;
+      }
+      .lobby-nagy {
+        cursor: pointer; width: 100%; display: grid; gap: 5px; justify-items: center;
+        padding: 16px 18px; border-radius: 6px; border: 0; color: #0b0716;
+        background: linear-gradient(92deg, #ff7a29, #9d5cff);
+        font: 700 13px/1.2 ui-monospace, Menlo, monospace; letter-spacing: .14em;
+        /* Érintőn a hüvelykujj a mérce: 44 képpont alatt nem lehet biztosan
+           eltalálni semmit. */
+        min-height: 54px;
+      }
+      .lobby-nagy small {
+        font: 400 10.5px/1.5 system-ui, sans-serif; letter-spacing: .02em;
+        color: rgba(11,7,22,.72); text-transform: none;
+      }
+      .lobby-kicsi {
+        cursor: pointer; width: 100%; min-height: 44px;
+        padding: 12px 16px; border-radius: 5px;
+        background: rgba(255,255,255,.06); color: #f4ecff;
+        border: 1px solid rgba(255,255,255,.12);
+        font: 600 11px/1 ui-monospace, Menlo, monospace; letter-spacing: .16em;
+      }
+      .lobby-kicsi:active { background: rgba(255,255,255,.14); }
+      /* A KIEMELT GOMB LÁTSZIK IS. Billentyűn és kontrolleren a megerősítés
+         azt nyomja meg, ami ki van emelve — ha ez nem látszik, a játékos
+         vakon nyom. */
+      .lobby button:focus-visible, .lobby button:focus {
+        outline: 2px solid #ffd9a8; outline-offset: 3px;
+      }
+      .kod-nagy {
+        font: 700 44px/1 ui-monospace, "SF Mono", Menlo, monospace;
+        letter-spacing: .34em; text-indent: .34em; color: #ffd9a8;
+        padding: 14px 10px; border-radius: 6px; width: 100%; text-align: center;
+        background: rgba(255,217,168,.07);
+        border: 1px solid rgba(255,217,168,.2);
+      }
+      .kod-field {
+        width: 100%; min-height: 60px; text-align: center; color: #fff;
+        font: 700 34px/1 ui-monospace, "SF Mono", Menlo, monospace;
+        letter-spacing: .3em; text-indent: .3em;
+        padding: 10px; border-radius: 6px; outline: none;
+        background: rgba(255,255,255,.07);
+        border: 1px solid rgba(255,255,255,.16);
+        text-transform: uppercase;
+      }
+      .kod-field::placeholder { color: rgba(255,255,255,.18); letter-spacing: .3em; }
+      .lobby-varas { font-size: 11px; opacity: .5; letter-spacing: .06em; }
+      .lobby-uzenet {
+        margin-top: 12px; font-size: 11.5px; letter-spacing: .04em; color: #ffb347;
+      }
+      @media (max-width: 480px) {
+        .kod-nagy { font-size: 34px; }
+        .kod-field { font-size: 26px; min-height: 52px; }
+      }
+
       /* --- Brief -------------------------------------------------------- */
       .brief {
         list-style: none; counter-reset: step; display: grid; gap: 10px;

@@ -88,11 +88,17 @@ export const VAK_CLIPS: ClipMap = {
  * Ezért nála az üldözés klipje is a séta.
  */
 export const KOVETO_CLIPS: ClipMap = {
-  idle: 'Idle_5',
-  walk: 'Walking',
-  sneak: 'Walking',
-  run: 'Walking',
-  grab: 'Kick_a_Soccer_Ball',
+  // KILENC SAJÁT KLIPPEL ÉRKEZETT, és kettő közülük mintha neki készült
+  // volna. A `Slow_Orc_Walk` egy súlyos, lassú, megállíthatatlan lépés —
+  // pontosan az, amiért a Követő ijesztő: nem rohan utánad, csak JÖN.
+  // Ezért ez a járása ÉS az „üldözése" is: ő soha nem fut.
+  //
+  // Az `Unsteady_Walk` a támolygó változat, ez megy, amíg csak keres.
+  idle: 'Alert',
+  walk: 'Slow_Orc_Walk',
+  sneak: 'Unsteady_Walk',
+  run: 'Slow_Orc_Walk',
+  grab: 'Skill_01',
 };
 
 /**
@@ -103,11 +109,17 @@ export const KOVETO_CLIPS: ClipMap = {
  * „gyanakvó séta" közte, mert nem gyanakszik, hanem tud.
  */
 export const LESO_CLIPS: ClipMap = {
-  idle: 'Idle_5',
-  walk: 'Running',
-  sneak: 'Idle_5',
-  run: 'Running',
-  grab: 'Kick_a_Soccer_Ball',
+  // A FIGYELŐ SAJÁT KÉSZLETE. A klipnevek az exportálótól jönnek
+  // („Armature|…|baselayer"), ezért néznek ki így.
+  //
+  // Az ÁLLÁSA a `Skill_01`: ez az egyetlen klipje, ami nem
+  // helyváltoztatás — ő az, aki a sötétben ÁLL és figyel, amíg rá nem
+  // világítasz. Ébredés után a leggyorsabb a házban: `RunFast`.
+  idle: 'Armature|Skill_01|baselayer',
+  walk: 'Armature|walking_man|baselayer',
+  sneak: 'Armature|Skill_01|baselayer',
+  run: 'Armature|RunFast|baselayer',
+  grab: 'Armature|running|baselayer',
 };
 
 /** Visszafelé kompatibilis alapértelmezés. */
@@ -242,9 +254,21 @@ function stripRootTranslation(clip: THREE.AnimationClip): THREE.AnimationClip {
   for (const track of stripped.tracks) {
     if (!/\.position$/.test(track.name)) continue;
     if (!/(^|\.)(Hips|hips|mixamorig:?Hips)\./.test(`.${track.name}`)) continue;
+    // A FÜGGŐLEGES IS KIESIK, NEM CSAK A VÍZSZINTES.
+    //
+    // A ringás szép volna, de mérve ez süllyesztette a padló alá az új
+    // szörnyeket: a csípő Y-sávja ezekben a klipekben nem RINGÁS, hanem
+    // abszolút magasság — a kötési pózban a csípő egy méter magasan van, a
+    // klip első képkockáján viszont majdnem nullán. A test ettől azonnal
+    // két méterrel lejjebb kerül, és a ház padlója eltakarja. Pontosan ez
+    // volt a „két szem lebeg a sötétben, test nélkül".
+    //
+    // A testet a világban a játék mozgatja — vízszintesen ÉS függőlegesen
+    // is. A klipnek ehhez nincs hozzátennivalója.
     const values = track.values as Float32Array;
     for (let i = 0; i < values.length; i += 3) {
       values[i] = 0;
+      values[i + 1] = 0;
       values[i + 2] = 0;
     }
   }

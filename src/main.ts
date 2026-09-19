@@ -12,7 +12,7 @@ import { Session } from './game/Session';
 import { loadSelection, saveSelection, type Selection } from './game/Characters';
 import { cyclePitch, resetStage, rotateStage, tiltStage, turnStage } from './camera/Stage';
 import { openRoom, type RoomTransport } from './net/Room';
-import { openPeerRoom, makeCode } from './net/PeerRoom';
+import { hostPeerRoom, joinPeerRoom, makeCode } from './net/PeerRoom';
 import { Latency } from './net/Latency';
 import { NetSession } from './net/NetSession';
 import { NetBadge } from './ui/NetBadge';
@@ -235,10 +235,25 @@ async function showFrontend(): Promise<FrontendResult> {
   if (document.pointerLockElement) document.exitPointerLock();
   const frontend = new Frontend(app, input, takeFrontendPhase());
   frontend.onSettings = () => settingsPanel().toggle();
+  // A SZOBA a menüből nyílik, és csak akkor. A `main` a csatorna gazdája,
+  // a menü csak kérdez — így a front-end semmit nem tud a hálózatról.
+  frontend.onHost = () => szobatNyit();
+  frontend.onJoin = (kod) => szobabaLep(kod);
+  frontend.partnerHere = () => vanTars();
+  frontend.linkKod = kodALinkbol();
 
   let polling = true;
   const poll = (): void => {
     if (!polling) return;
+    // A KÖVETKEZŐ KÉPKOCKA ELŐBB, MINT A MUNKA.
+    //
+    // Eddig a sor végén állt, és ez pont annyit jelentett, hogy egyetlen
+    // hiba bárhol a menüben VÉGLEG megállította a hurkot: nincs több
+    // képkocka, a menü mozdulatlan, a gombok halottak. Így nézett ki a
+    // „lefagy, ha csatlakozik" — az ok a késésmérőben volt (javítva), de a
+    // következményt ez a sorrend adta hozzá. A játék hurka régóta így
+    // csinálja; ez csak utolérte.
+    requestAnimationFrame(poll);
     input.update();
     // A menüben is mérünk: a párosítás itt dől el, tehát itt a leghasznosabb
     // látni a késést — még az indulás előtt.
@@ -248,7 +263,6 @@ async function showFrontend(): Promise<FrontendResult> {
     if (settings_panel?.isOpen) settings_panel.update();
     else frontend.update();
     input.consumeEdges();
-    requestAnimationFrame(poll);
   };
   poll();
   const result = await frontend.run();
@@ -578,28 +592,21 @@ const netBadge = new NetBadge(app);
 netBadge.watch(net);
 
 /**
- * A szoba KÓDJA, ha nem a futtatókörnyezetén megyünk.
+ * A LINKBEN kapott szobakód, ha van.
  *
  * A címsor végén él (`#j=ABCD`), mert így a meghívás maga a link: a társnak
- * nincs mit begépelnie, és nekünk nincs mit tárolnunk. Ha nincs benne kód,
- * gyártunk egyet és VISSZAÍRJUK — enélkül minden újratöltés új szobát
- * nyitna, és a már elküldött link holnap üresbe vezetne.
+ * nincs mit begépelnie. Ami RÉGEN itt volt: ha nem talált kódot, gyártott
+ * egyet, és azonnal szobát is nyitott vele. Ettől mindenki, aki betöltötte
+ * az oldalt, már játékban is volt — azelőtt, hogy bármit választott volna.
+ * A kódot most a menü kéri, amikor a játékos tényleg indítani akar.
  */
-function roomCode(): string {
+function roomCode(): string | null {
   const found = /[#&]j=([A-Za-z]{4})/.exec(location.hash);
-  if (found) return found[1].toUpperCase();
-  const fresh = makeCode();
-  try {
-    history.replaceState(null, '', location.pathname + location.search + '#j=' + fresh);
-  } catch {
-    // Ha a címsort nem írhatjuk (fájlból nyitva), a kód akkor is él, csak
-    // kézzel kell továbbadni. A jelző kiírja.
-  }
-  return fresh;
+  return found ? found[1].toUpperCase() : null;
 }
 
-function adopt(room: RoomTransport): void {
-  net = new NetSession(room);
+function adopt(room: RoomTransport, kod: string): void {
+  net = new NetSession(room, undefined, kod);
   netRoom = room;
   latency = new Latency(room);
   netBadge.watchLatency(latency);
@@ -610,21 +617,89 @@ function adopt(room: RoomTransport): void {
   chat = new Chat(app, room, 'ÉN');
 }
 
-void openRoom()
-  .then(async (room) => {
-    if (room) {
-      adopt(room);
-      return;
-    }
-    // Nincs futtatókörnyezeti szoba (saját tárhelyről nyitva), vagy a másik
-    // fél nem ugyanabból a Claude-szervezetből jön. Ilyenkor a két böngésző
-    // közvetlenül beszél egymással.
-    const peer = await openPeerRoom(roomCode());
-    if (!peer) return;
-    netBadge.invite(peer.code);
-    adopt(peer);
-  })
-  .catch(() => {});
+/**
+ * A SZOBA MOSTANTÓL VÁLASZTÁS, NEM MELLÉKHATÁS.
+ *
+ * Eddig az oldal betöltésekor magától nyílt: aki elsőnek töltötte be, gazda
+ * lett, aki másodiknak, az BEMENT hozzá — akkor is, ha egyikük sem akart
+ * még játszani. Ebből két baj lett, és mindkettőt a játékos vette észre
+ * előbb, mint én:
+ *
+ *   · a társ MENET KÖZBEN esett be egy már futó körbe, ahol a pálya, a
+ *     kocsik és a szerepek már el voltak döntve nélküle;
+ *   · és nem lehetett eldönteni, KIVEL játszol — a kiadott oldal egyetlen
+ *     szobájában bárki harmadik elvehette a helyet.
+ *
+ * Innentől a menü kérdezi meg: INDÍTASZ vagy BELÉPSZ. A kód a kettő
+ * találkozási pontja, és amíg nincs meg, nincs szoba sem.
+ */
+export type SzobaEredmeny = { ok: true; kod: string } | { ok: false; miert: string };
+
+/** A futtatókörnyezet szobája, ha van. Egyszer nyitjuk meg, aztán megmarad. */
+let futoSzoba: RoomTransport | null | undefined;
+async function kornyezetSzobaja(): Promise<RoomTransport | null> {
+  if (futoSzoba === undefined) futoSzoba = await openRoom().catch(() => null);
+  return futoSzoba;
+}
+
+/** ÚJ JÁTÉK: kódot gyártunk, és megnyitjuk rá a szobát. */
+export async function szobatNyit(): Promise<SzobaEredmeny> {
+  const kod = makeCode();
+  // A kiadott oldalon a futtatókörnyezet csatornája az egyetlen, ami átmegy
+  // a tartalomházirenden: ott a kód nem csatornát nyit, hanem TÁRSASÁGOT
+  // választ — a szoba közös, a kód szűri, ki tartozik hozzád.
+  const futo = await kornyezetSzobaja();
+  if (futo) {
+    adopt(futo, kod);
+    netBadge.invite(kod);
+    jegyezKod(kod);
+    return { ok: true, kod };
+  }
+  const peer = await hostPeerRoom(kod);
+  if (!peer) return { ok: false, miert: 'nem sikerült szobát nyitni' };
+  netBadge.invite(peer.code);
+  adopt(peer, peer.code);
+  jegyezKod(peer.code);
+  return { ok: true, kod: peer.code };
+}
+
+/** BELÉPÉS a társ kódjával. */
+export async function szobabaLep(kod: string): Promise<SzobaEredmeny> {
+  const tiszta = kod.trim().toUpperCase();
+  if (!/^[A-Z]{4}$/.test(tiszta)) return { ok: false, miert: 'a kód négy betű' };
+  const futo = await kornyezetSzobaja();
+  if (futo) {
+    adopt(futo, tiszta);
+    netBadge.invite(tiszta);
+    jegyezKod(tiszta);
+    return { ok: true, kod: tiszta };
+  }
+  const peer = await joinPeerRoom(tiszta);
+  if (!peer) return { ok: false, miert: 'nincs ilyen játék — jó a kód?' };
+  netBadge.invite(peer.code);
+  adopt(peer, peer.code);
+  jegyezKod(peer.code);
+  return { ok: true, kod: peer.code };
+}
+
+/** Van-e már társ. A menü ezt kérdezi, amíg a kódot mutatja. */
+export function vanTars(): boolean {
+  return net.current.paired;
+}
+
+/** A kód a címsorba is bekerül, hogy a LINK maga legyen a meghívó. */
+function jegyezKod(kod: string): void {
+  try {
+    history.replaceState(null, '', location.pathname + location.search + '#j=' + kod);
+  } catch {
+    // Fájlból nyitva a címsor nem írható. A kódot a menü akkor is kiírja.
+  }
+}
+
+/** A linkben kapott kód, ha van — a csatlakozás mezője ezzel indul. */
+export function kodALinkbol(): string {
+  return roomCode() ?? '';
+}
 
 export let netRoom: RoomTransport | null = null;
 /** A késésmérő. A jelző írja ki, a képkocka-hurok hajtja. */
