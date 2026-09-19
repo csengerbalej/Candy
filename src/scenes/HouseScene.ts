@@ -1330,6 +1330,18 @@ export class HouseScene implements GameScene {
         o.userData.cpNoOutline = true;
         const mesh = o as THREE.Mesh;
         if (!mesh.isMesh) return;
+        // A KÉPKIVÁGÁST KIKAPCSOLJUK EZEKEN A TESTEKEN.
+        //
+        // A motor egy befoglaló gömbből dönti el, kell-e rajzolni valamit —
+        // csontozott hálónál viszont ezt a gömböt a KÖTÉSI PÓZBÓL számolja,
+        // és nem tud arról, hogy az animáció merre viszi a testet. Ha a
+        // gömb elcsúszik vagy túl kicsi, a szörny ott áll előtted, és mégis
+        // kimarad a rajzolásból — pontosan az, amit játszva láttál:
+        // „áll konkrétan előttem valami, de láthatatlan".
+        //
+        // Három testről van szó: a kivágás megtakarítása náluk semmi, a
+        // kockázata viszont ez.
+        mesh.frustumCulled = false;
         // A HORRORFESTÉS A CSÚCSOKBAN VAN, és eddig kidobtuk.
         //
         // A modellekre nem lehetett textúrát tenni (a nyers hálón se kép,
