@@ -348,16 +348,26 @@ console.log('');
     `${HAUNT.glimpseMin}-${HAUNT.glimpseMax} másodpercenként`);
   line('messze fut át', HAUNT.glimpseNear >= 12,
     `${HAUNT.glimpseNear}-${HAUNT.glimpseFar} méterre`);
-  // ...és a lámpa fénykúpja NE érjen el odáig: amit megvilágítasz, azt
-  // meg is nézed, és akkor kiderül, hogy semmi nincs ott.
-  // A LÁMPÁD NE ÉRJEN ODÁIG. Amit megvilágítasz, azt meg is nézed — és
-  // akkor kiderül, hogy nincs ott semmi. A kettő együtt mozog: ha a lámpa
-  // erősebb lesz, az alaknak is messzebb kell átszaladnia.
-  line('a lámpád nem éri el', HAUNT.glimpseNear >= HAUNT.beamRange * 0.7,
-    `az alak ${HAUNT.glimpseNear} m-től, a fény ${HAUNT.beamRange} m-ig`);
+  // ...ÉS A TÁVOLSÁG FELSŐ HATÁRA IS SZÁMÍT. Ha csak húsz méteren túl
+  // indulhatna el, egy folyosón sosem indulna el: ott a szemközti fal
+  // tizenöt méterre van. Mérve a kúrián, négyszáz véletlen nézésirányból:
+  // a régi szabály az esetek 19, az új 43 százalékában talált helyet.
+  line('...de a folyosó is elég hosszú hozzá', HAUNT.glimpseNear <= 14,
+    `${HAUNT.glimpseNear} métertől már indulhat`);
+  // A LÁMPÁD NE LEPLEZZE LE. Eddig úgy védtük ezt, hogy az alak a lámpa
+  // hatótávján TÚL futott át — csakhogy akkor egy folyosón sosem futott át
+  // sehol. A védelem valójában nem a távolságon áll: az alak anyaga
+  // FÉNYTŐL FÜGGETLEN (MeshBasicMaterial), tehát a fénykúp nem világítja
+  // meg és nem is árulja el. Sötét sziluett marad akkor is, ha ráfogod.
+  const alak = readFileSync('src/world/Glimpse.ts', 'utf8');
+  ok =
+    line('a lámpa nem leplezi le', alak.includes('MeshBasicMaterial'),
+      'fénytől független anyag: ráfogva is sziluett marad') && ok;
   const haz = readFileSync('src/scenes/HouseScene.ts', 'utf8');
-  ok = line('csak járható helyen fut át', haz.includes('this.world.walkable(hol.x, hol.z, 1.2)'),
+  ok = line('csak járható helyen fut át', haz.includes('if (!this.world.walkable(p.x, p.z, 1.2)) continue;'),
     'egy alak, ami a falban szalad el, nem rejtély, hanem hiba') && ok;
+  ok = line('...és oldalra is van helye', haz.includes('for (const w of [3.2, 2.2, 1.5])'),
+    'egy szűk folyosón keskenyebbet fut, nem a falból indul') && ok;
   ok = line('bújás közben nincs', haz.includes('!haunt.hidden && this.hangClock > this.kovetkezoAlak'),
     'a szekrényből nem látsz ki') && ok;
 }

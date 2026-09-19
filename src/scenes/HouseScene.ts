@@ -2278,17 +2278,53 @@ export class HouseScene implements GameScene {
     if (!haunt.hidden && this.hangClock > this.kovetkezoAlak && !this.glimpse?.running) {
       this.kovetkezoAlak =
         this.hangClock + HAUNT.glimpseMin + this.sors() * (HAUNT.glimpseMax - HAUNT.glimpseMin);
-      const tav = HAUNT.glimpseNear + this.sors() * (HAUNT.glimpseFar - HAUNT.glimpseNear);
-      const hol = new THREE.Vector3(
-        testem.position.x + Math.sin(nezesIrany) * tav,
-        0,
-        testem.position.z + Math.cos(nezesIrany) * tav
-      );
-      if (this.world.walkable(hol.x, hol.z, 1.2)) {
-        this.glimpse?.start(hol, nezesIrany);
+      // TÖBB TÁVOLSÁGOT PRÓBÁL, NEM CSAK EGYET.
+      //
+      // Eddig egyetlen véletlen pontot nézett meg húsz és harmincnégy méter
+      // között, és ha az falba esett, huszonöt-hatvan másodpercet várt a
+      // következő próbáig. Egy folyosón — ahol a szemközti fal tizenöt
+      // méterre van — ez azt jelentette, hogy szinte soha nem indult el.
+      //
+      // Most végigmegy a nézésed mentén kintről befelé: a legtávolabbi
+      // járható pontot választja, mert az a jó. Közel a sziluettből doboz
+      // lesz.
+      const oldalX = Math.cos(nezesIrany);
+      const oldalZ = -Math.sin(nezesIrany);
+      let hol: THREE.Vector3 | null = null;
+      let felszeles = 0;
+      for (let tav = HAUNT.glimpseFar; tav >= HAUNT.glimpseNear; tav -= 2) {
+        const p = new THREE.Vector3(
+          testem.position.x + Math.sin(nezesIrany) * tav,
+          0,
+          testem.position.z + Math.cos(nezesIrany) * tav
+        );
+        if (!this.world.walkable(p.x, p.z, 1.2)) continue;
+        // MEKKORA HELY VAN OLDALRA? A legszélesebb átfutás, aminek MINDKÉT
+        // vége járható padlón van. Egy szűk folyosón ez másfél méter, egy
+        // teremben három — és így sehol nem indul a falból.
+        for (const w of [3.2, 2.2, 1.5]) {
+          const bal = this.world.walkable(p.x - oldalX * w, p.z - oldalZ * w, 0.6);
+          const jobb = this.world.walkable(p.x + oldalX * w, p.z + oldalZ * w, 0.6);
+          if (bal && jobb) {
+            felszeles = w;
+            break;
+          }
+        }
+        if (felszeles > 0) {
+          hol = p;
+          break;
+        }
+      }
+      if (hol) {
+        this.glimpse?.start(hol, nezesIrany, felszeles);
         // Halk lépészaj hozzá — de messziről, tehát alig hallhatóan. Egy
         // néma alak kísértet; egy hangos alak szörny; ez a kettő között van.
         sound.clip('h-creak', 0.12);
+      } else {
+        // NEM TALÁLT HELYET (falnak állsz): ne várjon egy teljes kört a
+        // következő próbáig, csak pár másodpercet. A ritkaságot az adja,
+        // hogy ritkán INDUL EL, nem az, hogy ritkán próbálkozik.
+        this.kovetkezoAlak = this.hangClock + 4;
       }
     }
 

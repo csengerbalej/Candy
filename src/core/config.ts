@@ -1172,8 +1172,28 @@ export const HAUNT = {
   burnDrain: 6,
   /** Elijesztve ennyi ideig nem jön vissza. */
   flee: 22,
-  /** A lámpa kúpjának fél szöge: ekkorában „ráfogtad". */
+  /**
+   * A lámpa kúpjának fél szöge: ekkorában „RÁFOGTAD".
+   *
+   * Ez a SZABÁLY szöge, nem a látványé, és szándékosan szűk maradt: ha
+   * ekkora a kúp, mint a képernyő, akkor a Leső égetéséhez nem kell
+   * célozni, és egy ellenszer, amit nem lehet elhibázni, nem ellenszer.
+   */
   beam: 0.42,
+  /**
+   * AMEKKORÁT A LÁMPA VALÓJÁBAN BEVILÁGÍT — tágabb, mint a szabály köre.
+   *
+   * Mérve, közvetlenül egy fal előtt állva: a szűk kúppal a képernyőnek
+   * csak a 37 százaléka kapott fényt, a közepe pedig kiégett (206/255), a
+   * maradék koromfekete volt. Pont ezt jelentette a panasz, hogy „ha
+   * közelmegyek a falhoz, elsötétül": nem a fény tűnt el, hanem a kúp lett
+   * egy vakító folt egy fekete képen. Ezzel 68 százalék kap fényt, és a
+   * ház attól még sötét: pár méterrel odébb is csak a kép ötöde világos.
+   *
+   * A kettő különbsége nem trükk, hanem a lámpa igazsága: a fénykúpnak van
+   * egy erős közepe és egy halvány pereme. Égetni a közepével tudsz.
+   */
+  beamLight: 0.62,
   /** És eddig a távolságig ér el. */
   /**
    * Eddig a távolságig ér el — és a LÁTHATÓ fénykúppal együtt nőtt.
@@ -1250,9 +1270,17 @@ export const HAUNT = {
    */
   glimpseMin: 25,
   glimpseMax: 60,
-  /** Ilyen messze fut át. Közelről kiderülne, hogy egy sötét folt. */
-  glimpseNear: 20,
-  glimpseFar: 34,
+  /**
+   * Ilyen messze fut át — a jelenet a LEGTÁVOLABBI járható pontot keresi
+   * ezen a sávon belül, kintről befelé haladva.
+   *
+   * Eddig húsz és harmincnégy méter volt, egyetlen véletlen ponttal: egy
+   * folyosón, ahol a szemközti fal tizenöt méterre van, ez azt jelentette,
+   * hogy sosem indult el. A kilenc méter az alsó határ, mert közelebbről a
+   * sziluettből doboz lesz.
+   */
+  glimpseNear: 12,
+  glimpseFar: 26,
   /**
    * A KÜSZÖB: ennyi cukorkával számít sikeresnek a kör.
    *

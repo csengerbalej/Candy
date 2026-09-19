@@ -19,7 +19,9 @@ import * as THREE from 'three';
  *
  * Három szabály tartja meg ijesztőnek:
  *
- *   MESSZE van. Közelről kiderülne, hogy egy sötét doboz.
+ *   MESSZE van — de csak amennyire a ház engedi. Közelről kiderülne,
+ *   hogy egy sötét doboz; húsz méteren túl viszont egy folyosón már a
+ *   szemközti fal van, és akkor soha nem indul el.
  *   KERESZTBE fut, a nézésedre merőlegesen — aki feléd jön, az fenyegetés;
  *   aki átfut előtted, az rejtély.
  *   RITKA. A negyedik alkalomra rutin lenne, és a rutin a horror ellentéte.
@@ -54,12 +56,15 @@ export class Glimpse {
   /**
    * Indítsd el: fusson át a `kozep` ponton, a `yaw` nézésre merőlegesen.
    */
-  start(kozep: THREE.Vector3, yaw: number): void {
+  start(kozep: THREE.Vector3, yaw: number, felszeles = 3.2): void {
     // Merőleges a nézésre: a nézés (sin, cos), erre merőleges a (cos, −sin).
     const oldal = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
     const irany = Math.random() < 0.5 ? 1 : -1;
-    this.from.copy(kozep).addScaledVector(oldal, -3.2 * irany);
-    this.to.copy(kozep).addScaledVector(oldal, 3.2 * irany);
+    // A SZÉLESSÉG A HELYHEZ IGAZODIK. Egy három méteres folyosón egy hat
+    // méter széles átfutás a falból indulna és a falban érne véget — a
+    // jelenet ezért megméri, mennyi hely van, és annyit ad át.
+    this.from.copy(kozep).addScaledVector(oldal, -felszeles * irany);
+    this.to.copy(kozep).addScaledVector(oldal, felszeles * irany);
     this.from.y = 0;
     this.to.y = 0;
     this.left = this.length;

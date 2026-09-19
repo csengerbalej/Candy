@@ -46,7 +46,15 @@ export class Torch {
     //   húsz méterre    11 helyett 3,0       — közel négyszer annyi
     //
     // Vagyis pont ott lett erősebb, ahol hiányzott: a folyosó túlsó végén.
-    this.light = new THREE.SpotLight(0xffd9a8, 0, 32, HAUNT.beam, 0.4, 0.8);
+    // A PEREM LÁGYABB ÉS A LECSENGÉS ERŐSEBB.
+    //
+    // A régi, kemény peremű kúp (0,4) egy vakító korongot rajzolt a falra,
+    // a 0,8-as lecsengés pedig közelről kiégette: mérve 206/255 a közepén,
+    // és a szörny is fehér szilánkokká égett, ha melléd ért. A 0,7-es perem
+    // elmossa a korong szélét, az 1,35-ös lecsengés pedig a közeli
+    // túlvilágítást veszi vissza — a távoli fényt nem, mert azt a tágabb
+    // kúp bőven pótolja (mérve: a kép átlaga 13-ról 24-re nőtt).
+    this.light = new THREE.SpotLight(0xffd9a8, 0, 32, HAUNT.beamLight, 0.7, 1.35);
     // A LÁMPA ÁRNYÉKOT VET — és ez a mód legnagyobb látványbeli nyeresége.
     //
     // Enélkül a szörny egy világos folt a sötétben; árnyékkal viszont
