@@ -146,6 +146,8 @@ export class HouseScene implements GameScene {
   /** A ház hangjának órája: a szívverés és a neszek ütemezéséhez. */
   private hangClock = 0;
   private szivUtolso = 0;
+  /** Mikor hallatta magát utoljára az a szörny (fajtánként). */
+  private readonly lurkerHang: number[] = [];
   private kovetkezoNesz = 6;
   /** Az AI teste. A második játékos helyén ül, ha nincs valódi társ. */
   private rivalBody: PlayerController | null = null;
@@ -1344,9 +1346,30 @@ export class HouseScene implements GameScene {
           // Négy százalék derengés nem világít — annyit tesz, hogy a
           // sziluett elválik a fekete faltól. A szem így jelzés marad, nem
           // az EGYETLEN dolog, ami látszik.
-          emissive: new THREE.Color(0x0a0b0e),
+          emissive: new THREE.Color(0x05060a),
           emissiveIntensity: 1,
         });
+        // PEREMFÉNY — MERT NEM A SÖTÉTSÉG VOLT A BAJ, HANEM A KONTRASZT.
+        //
+        // Mérve, a szörny fejének képpontjai és a mögötte lévő fal, négy
+        // távolságon: 73 és 78, 72 és 77, 73 és 80, 71 és 78. Vagyis a
+        // lény pontosan olyan világos volt, mint a fal mögötte — ezért
+        // „állt előttem, és nem láttam". Se nem sötét sziluett, se nem
+        // világos alak: beleolvadt.
+        //
+        // A perem a test SZÉLÉT emeli ki: ahol a felület elfordul a
+        // nézéstől, ott világosabb. Ettől a forma akkor is kirajzolódik, ha
+        // a háttér ugyanolyan fényes — és sötétben is látszik egy kontúr,
+        // ami nem árulja el a részleteket. Ez a legrégebbi trükk a
+        // sziluettre, és pont ezért működik.
+        anyag.onBeforeCompile = (sh) => {
+          sh.fragmentShader = sh.fragmentShader.replace(
+            '#include <emissivemap_fragment>',
+            '#include <emissivemap_fragment>\n' +
+              '  float perem = pow(1.0 - saturate(dot(normalize(normal), normalize(vViewPosition))), 2.2);\n' +
+              '  totalEmissiveRadiance += vec3(0.20, 0.19, 0.24) * perem;'
+          );
+        };
         // A FESTÉS SÖTÉT, ÉS AZ IS MARAD.
         //
         // Kipróbáltam visszaszámolni egy gamma-lépést (a Blender sRGB-ként
@@ -2296,6 +2319,16 @@ export class HouseScene implements GameScene {
         // AZ IJESZTÉS a becsapódás PILLANATÁBAN jön, minden bevezetés
         // nélkül: az ijedés maga a felkészületlenség.
         this.jumpscare?.fire(this.lurkerFaces[i] ?? '');
+        // ...ÉS MEGMONDJUK, MI VOLT AZ. Játszva ez hiányzott a
+        // legjobban: „meghaltam, de nem mutatta, mitől". Egy horrorban a
+        // halál lehet váratlan, de utólag mindig érthetőnek kell lennie —
+        // különben nem tanulsz belőle, csak dühös leszel.
+        this.game.banner =
+          this.lurkerKind[i] === 'vak'
+            ? 'A VAK ELKAPOTT — meghallotta a lépteidet'
+            : this.lurkerKind[i] === 'leso'
+              ? 'A LESŐ ELKAPOTT — felébresztette a fény'
+              : 'A KÖVETŐ ELKAPOTT';
         sound.clip('hit', 1);
         testem.applyKnockback(szorny.position);
         break;
@@ -2361,6 +2394,34 @@ export class HouseScene implements GameScene {
     this.hangClock += step;
     sound.loop('h-ambience', 0.22);
     sound.loop('h-steps', testem.moving && !haunt.down[me].down ? 0.5 : 0);
+
+    // A SZÖRNY HALLATJA MAGÁT, AMIKOR JÖN.
+    //
+    // Enélkül a Vak kivédhetetlen volt: nincs szeme (nem világít), sötét a
+    // teste, és a lámpa tizenhat méterig ér egy szűk kúpban — tehát
+    // semmilyen jele nem volt. Játszva ez jött vissza: „meghaltam, de nem
+    // mutatta, mitől, és nem is láttam ellenséget."
+    //
+    // A szabály nem változik: a Vak akkor indul el, ha zajt csapsz, és
+    // akkor áll le, ha megállsz. Csak mostantól HALLOD, hogy elindult —
+    // és így van mire reagálni. Közelebbről sűrűbben és hangosabban:
+    // tizennégy méternél két és fél másodpercenként, karnyújtásnyira
+    // majdnem folyamatosan.
+    for (let i = 0; i < this.lurkers.length; i++) {
+      if (this.lurkerFled[i] > 0) continue;
+      const szorny = this.lurkers[i];
+      const vadaszik = szorny.state === 'CHASE' || szorny.state === 'ALERT';
+      if (!vadaszik) continue;
+      const tav = szorny.position.distanceTo(testem.position);
+      if (tav > 14) continue;
+      const kozelseg = 1 - tav / 14;
+      const utem = 2.6 - kozelseg * 2.0;
+      if (this.hangClock - (this.lurkerHang[i] ?? -99) < utem) continue;
+      this.lurkerHang[i] = this.hangClock;
+      // A KÖVETŐ lépked, a másik kettő morog. A Követő a hangjával hívja
+      // a többieket — az övé ezért a súlyos, ismétlődő lépés.
+      sound.clip(this.lurkerKind[i] === 'koveto' ? 'h-steps' : 'h-growl', 0.25 + kozelseg * 0.6);
+    }
 
     // A LEGKÖZELEBBI SZÖRNY dönti el a szívverést. Húsz méteren belül
     // kezdődik, és ahogy közeledik, hangosabb — de sosem mondja meg, merre.
