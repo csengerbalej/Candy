@@ -1,6 +1,10 @@
 import { HAUNT } from '../core/config';
 import type { Haunt } from '../game/Haunt';
 
+/** A build ideje — a Vite írja be fordításkor (lásd vite.config.ts). */
+declare const __KIADAS__: string;
+const KIADAS = typeof __KIADAS__ === 'string' ? __KIADAS__ : 'fejlesztői';
+
 /**
  * A KÍSÉRTETHÁZ KIJELZŐJE.
  *
@@ -51,6 +55,10 @@ export class HauntHud {
       // használni, nincs is — és a lekapcsolás itt szabály: sötétben nem
       // fogy a telep, és a Leső is csak sötétben nyugszik meg.
       `<div class="sor"><span><b>F</b> — lámpa be/ki · <b>H</b> — súgó</span></div>` +
+      // A KIADÁS BÉLYEGE. Amikor egy javítás után is ugyanaz a hiba, az
+      // első kérdés nem az, hogy „miért nem jó", hanem hogy „ugyanazt
+      // futtatjuk-e". Ez a pár karakter erre válaszol.
+      `<div class="sor" style="opacity:.35;font-size:10px">kiadás ${KIADAS}</div>` +
       `<div class="sor">${tars}</div>` +
       (en ? `<div class="sor">${en}</div>` : '') +
       `<div class="sor"><span>${haunt.candy} / ${HAUNT.quota} cukorka` +
