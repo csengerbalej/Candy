@@ -244,7 +244,6 @@ console.log('');
   const varas: Array<[string, number, number, string]> = [
     ['h-ambience', 2, 30, 'végtelenített alaphang'],
     ['h-steps', 4, 30, 'léptek hurok'],
-    ['h-door', 0.5, 8, 'ajtónyikorgás'],
     ['h-heart', 0.3, 3, 'egy szívdobbanás'],
     ['h-growl', 1, 12, 'morgás'],
     ['h-creak', 0.5, 8, 'reccsenés'],

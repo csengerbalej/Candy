@@ -355,7 +355,22 @@ function box(x0, z0, x1, z1, y0, y1, fajta = 1) {
     for (const idx of [a, b, c, d]) {
       const pt = v[idx];
       positions.push(...pt);
-      normals.push(nx, ny, nz);
+      // A NORMÁLIS FORDÍTVA ÁLLT, ÉS EZ VOLT A VAKSÖTÉT HÁZ OKA.
+      //
+      // A lapok táblája a doboz KIFELÉ néző normálisait sorolja fel, a
+      // rácsot viszont tükrözzük (uy = -uz) — a tükrözés pedig megfordítja
+      // a geometriát, a normálisokat viszont nem. Így a házban minden
+      // felület ELFELÉ nézett attól, aki benne állt.
+      //
+      // Mérve a shaderben: a dot(normális, fényirány) NULLA volt a kép
+      // minden pontján. Ez pontosan azt adja, amit láttunk: a szórt fény és
+      // az önfény átment (azok nem törődnek a normálissal), a lámpa viszont
+      // semmit nem világított meg — egy 3000-es reflektor sem. Ami látszott
+      // belőle, az a letöltött ajtó volt, mert annak jó normálisai vannak.
+      //
+      // A FESTÉS az EREDETI `ny`-ből dolgozik tovább: a padló és a mennyezet
+      // felé néző lapok árnyalata nem cserélődhet fel emiatt.
+      normals.push(-nx, -ny, -nz);
       colors.push(...szinez(fajta, pt, ny));
       // SÍKVETÍTÉSES UV, a VILÁG mérete szerint: a kép mérete így minden
       // falon ugyanaz marad, akármilyen hosszú a szakasz. Enélkül egy
