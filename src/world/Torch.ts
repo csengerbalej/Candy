@@ -54,7 +54,7 @@ export class Torch {
     // elmossa a korong szélét, az 1,35-ös lecsengés pedig a közeli
     // túlvilágítást veszi vissza — a távoli fényt nem, mert azt a tágabb
     // kúp bőven pótolja (mérve: a kép átlaga 13-ról 24-re nőtt).
-    this.light = new THREE.SpotLight(0xffd9a8, 0, 32, HAUNT.beamLight, 0.7, 0.4);
+    this.light = new THREE.SpotLight(0xffd9a8, 0, HAUNT.beamRange, HAUNT.beamLight, 0.7, 0.4);
     // A LÁMPA ÁRNYÉKOT VET — és ez a mód legnagyobb látványbeli nyeresége.
     //
     // Enélkül a szörny egy világos folt a sötétben; árnyékkal viszont
@@ -68,7 +68,7 @@ export class Torch {
     this.light.castShadow = true;
     this.light.shadow.mapSize.set(1024, 1024);
     this.light.shadow.camera.near = 0.5;
-    this.light.shadow.camera.far = 32;
+    this.light.shadow.camera.far = HAUNT.beamRange;
     // A ferdén érő fény ÖNÁRNYÉKA a legcsúnyább hiba, amit egy reflektor
     // tud: a fal saját magára vet csíkokat. A torzítás ezt tolja el.
     this.light.shadow.bias = -0.0015;

@@ -1192,8 +1192,13 @@ export const HAUNT = {
    *
    * A kettő különbsége nem trükk, hanem a lámpa igazsága: a fénykúpnak van
    * egy erős közepe és egy halvány pereme. Égetni a közepével tudsz.
+   *
+   * 0,62-RŐL 0,46-RA. A tágítás azt javította, hogy közelről az egész kép
+   * fekete volt egy vakító folt körül — de átesett a ló túlsó oldalára:
+   * „túl nagy a karika, amiben látok". Ez a szög félúton van a régi szűk
+   * (0,42) és a tág (0,62) között, és még mindig tágabb, mint a szabályé.
    */
-  beamLight: 0.62,
+  beamLight: 0.46,
   /** És eddig a távolságig ér el. */
   /**
    * Eddig a távolságig ér el — és a LÁTHATÓ fénykúppal együtt nőtt.
@@ -1201,8 +1206,13 @@ export const HAUNT = {
    * Ha a szabály hatótávja kisebb volna, mint ameddig a fény ellátszik,
    * akkor ráfognád a lámpát a Lesőre, látnád rajta a fényt, és mégsem
    * történne semmi. A kettőnek együtt kell mozognia.
+   *
+   * HUSZONNYOLCRÓL TIZENHATRA. Játszva ez jött vissza: „túl messze látok
+   * el a lámpával". Huszonnyolc méter a kúria fél átmérője — egy folyosó
+   * végétől a másikig ellátni pedig pont az ellenkezője annak, amiért egy
+   * sötét ház sötét. Tizenhat méter egy szoba és egy fél folyosó.
    */
-  beamRange: 28,
+  beamRange: 16,
   /** A Leső ennyi mozdulatlan, sötét másodperc után nyugszik meg. */
   calm: 4,
 

@@ -1260,9 +1260,17 @@ export class HouseScene implements GameScene {
       // mert az a SAJÁT teste (a Követő cammogása nem a lakóé). Minden
       // mást a közös csomagból veszünk: állás, futás, lopakodás. A két
       // csontváz huszonhét csontban azonos, tehát a klipek ráülnek.
+      // A KLIPEK FORRÁSA A FAJTÁTÓL FÜGG.
+      //
+      // A Vak a lakó közös csomagjából mozog (a saját fájljában csak egy
+      // járás van). A Követő és a Leső viszont az ÚJ szörny csomagját
+      // használja: a Követő hozta magával (öt klip), a Leső pedig ugyanazt
+      // a csontvázat kapta a `rig-transfer.py`-tól, tehát ráülnek.
+      const kozosFajl =
+        fajta === 'vak' ? 'models/harold.clips.json' : 'models/lurker-koveto.json';
       const [sajat, kozos] = await Promise.all([
         models.ownClips(model),
-        models.clips('models/harold.clips.json'),
+        models.clips(kozosFajl),
       ]);
       if (this.disposed) return;
       // A SAJÁT KLIP HÁTUL VAN, ÉS EZ SZÁNDÉKOS.
